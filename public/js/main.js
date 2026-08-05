@@ -778,11 +778,12 @@
       const slow = FX.slowmo > 0 ? 0.35 : 1;
       inputTick(dt);
       interpolate(dt * slow);
-      if (G.mouse) {
-        const w = RENDER.screenToWorld(G.mouse.x, G.mouse.y);
-        G.mouseWorld = w;
-      }
       RENDER.draw(G, dt * slow);
+      /* Erst nach dem Zeichnen umrechnen: draw() ruecht die Kamera nach, und
+         mit der alten Kameraposition lag der Zielpunkt um ein Bild daneben.
+         Seit die Bodenebene gestaucht ist, faellt das in der Hoehe staerker
+         auf als vorher. */
+      if (G.mouse) G.mouseWorld = RENDER.screenToWorld(G.mouse.x, G.mouse.y);
     }
     requestAnimationFrame(frame);
   }

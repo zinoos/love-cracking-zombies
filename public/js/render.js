@@ -90,7 +90,7 @@ const RENDER = (() => {
      ihr heraus. So wirken die Waende wie Bloecke, ohne dass Bild und
      Trefferabfrage auseinanderlaufen. */
   const EX = Math.round(C.TILE * 0.20);
-  const EY = Math.round(C.TILE * 0.26);
+  const EY = Math.round(C.TILE * 0.46);
 
   /** Sichtbare Seitenflaechen einer Wandkachel. */
   function paintWallSides(g, tx, ty, b) {
@@ -223,8 +223,27 @@ const RENDER = (() => {
   }
 
 
-  /* ---------- Kamera ---------- */
+  /* ---------- Kamera ----------
+
+     Gespielt wird weiter in der Ebene, aber die Kamera steht nicht mehr
+     senkrecht ueber dem Feld, sondern etwas davor und schaut hinab. Umgesetzt
+     als Stauchung der Bodenebene in der Hoehe: bei TILT = 0.8 erscheint eine
+     Strecke nach hinten kuerzer als dieselbe Strecke zur Seite - genau das
+     macht der Blickwinkel.
+
+     Alles, was auf dem Boden liegt (Karte, Blutflecken, Sichtbereich), wird
+     mitgestaucht. Alles, was steht (Spieler, Buesche, Kisten), rechnet die
+     Stauchung fuer sich wieder heraus und wird zusaetzlich um seine Hoehe
+     nach oben versetzt - so steht es auf dem Boden statt darauf zu kleben. */
+  const TILT = 0.8;
+  const PLAYER_H = 0.55;      // Augenhoehe der Figur in Spielerradien
   const cam = { x: 0, y: 0, scale: 1, shakeX: 0, shakeY: 0 };
+
+  /** In den aufrechten Raum wechseln: Figur um hoehe angehoben, nicht gestaucht. */
+  function standUp(g, hoehe) {
+    g.scale(1, 1 / TILT);
+    if (hoehe) g.translate(0, -hoehe);
+  }
 
   function updateCamera(g, dt) {
     const target = g.viewTarget();
@@ -239,16 +258,25 @@ const RENDER = (() => {
 
     const worldSize = curMap ? curMap.n * C.TILE : 1280;
     cam.scale = Math.max(0.7, Math.min(1.9, Math.min(W / 1000, H / 620)));
-    const halfW = W / 2 / cam.scale, halfH = H / 2 / cam.scale;
+    // Durch die Stauchung passt in der Hoehe mehr Welt ins Bild
+    const halfW = W / 2 / cam.scale, halfH = H / 2 / (cam.scale * TILT);
     cam.x = worldSize <= halfW * 2 ? worldSize / 2 : Math.max(halfW, Math.min(worldSize - halfW, cam.x));
     cam.y = worldSize <= halfH * 2 ? worldSize / 2 : Math.max(halfH, Math.min(worldSize - halfH, cam.y));
   }
 
+  /* Welt <-> Bildschirm. Beide Richtungen muessen die Stauchung enthalten,
+     sonst zielt die Maus nicht mehr dorthin, wo der Zeiger steht. */
   function worldToScreen(x, y) {
-    return { x: (x - cam.x) * cam.scale + W / 2 + cam.shakeX, y: (y - cam.y) * cam.scale + H / 2 + cam.shakeY };
+    return {
+      x: (x - cam.x) * cam.scale + W / 2 + cam.shakeX,
+      y: (y - cam.y) * cam.scale * TILT + H / 2 + cam.shakeY
+    };
   }
   function screenToWorld(sx, sy) {
-    return { x: (sx - W / 2 - cam.shakeX) / cam.scale + cam.x, y: (sy - H / 2 - cam.shakeY) / cam.scale + cam.y };
+    return {
+      x: (sx - W / 2 - cam.shakeX) / cam.scale + cam.x,
+      y: (sy - H / 2 - cam.shakeY) / (cam.scale * TILT) + cam.y
+    };
   }
 
   /* ---------- Adaptive Qualitaet ----------
@@ -383,8 +411,8 @@ const RENDER = (() => {
     g.fillStyle = '#4c5470';
     g.fillRect(0, 0, fogCv.width, fogCv.height);
 
-    // Weltkoordinaten auf die Nebelebene abbilden
-    g.setTransform(s, 0, 0, s, fogCv.width / 2 + cam.shakeX * FOG_SCALE, fogCv.height / 2 + cam.shakeY * FOG_SCALE);
+    // Weltkoordinaten auf die Nebelebene abbilden - mit derselben Stauchung
+    g.setTransform(s, 0, 0, s * TILT, fogCv.width / 2 + cam.shakeX * FOG_SCALE, fogCv.height / 2 + cam.shakeY * FOG_SCALE);
     g.translate(-cam.x, -cam.y);
 
     g.globalCompositeOperation = 'destination-out';
@@ -510,7 +538,12 @@ const RENDER = (() => {
         const ph = (tx * 0.7 + ty * 1.3);
         const sway = Math.sin(time * 1.6 + ph) * 2.4;
         const s = 1 + Math.sin(time * 2.1 + ph) * 0.035;
-        g.drawImage(bushSprites[h], cx - half * s + sway, cy - half * s, BUSH_SS * s, BUSH_SS * s);
+        // Buesche stehen: aufrichten und um die halbe Wuchshoehe anheben
+        g.save();
+        g.translate(cx, cy);
+        standUp(g, T * 0.30);
+        g.drawImage(bushSprites[h], -half * s + sway, -half * s, BUSH_SS * s, BUSH_SS * s);
+        g.restore();
       }
     }
   }
@@ -1099,6 +1132,13 @@ const RENDER = (() => {
       g.beginPath(); g.ellipse(0, r * .5, r * 1.68, r * .88, 0, 0, 7); g.stroke();
     }
 
+    /* Ab hier steht die Figur: Stauchung herausrechnen und um ihre Hoehe
+       anheben. Der Schatten oben bleibt am Boden - dadurch sieht man, dass
+       die Figur darauf steht und nicht daraufgeklebt ist. Wichtig ist die
+       Reihenfolge: erst aufrichten, dann drehen. Andersherum wuerde die
+       Drehung in der gestauchten Ebene stattfinden und den Soldaten
+       verscheren. */
+    standUp(g, r * PLAYER_H);
     g.rotate(a);
     drawSoldier(g, p, r, {
       walk: moving ? Math.sin(phase) : 0,
@@ -1109,17 +1149,29 @@ const RENDER = (() => {
     });
     g.restore();
 
-    /* Lichtkante oben links. Der letzte Schritt, der die Figur vom Boden
-       abhebt - dieselbe Lichtrichtung wie ueberall sonst. */
-    if (q().blur > 0 && !p.cloaked) {
+    /* Die Kamera steht vorn, also ist die dem Betrachter zugewandte Seite -
+       auf dem Schirm unten - heller, die abgewandte oben dunkler. Der
+       Verlauf haengt am Bildschirm, nicht an der Blickrichtung der Figur:
+       das Licht dreht sich nicht mit, wenn jemand herumschaut. */
+    if (!p.cloaked) {
       g.save();
       g.translate(x, y);
-      g.globalCompositeOperation = 'lighter';
-      const rim = g.createRadialGradient(-r * .5, -r * .55, r * .1, -r * .3, -r * .35, r * 1.25);
-      rim.addColorStop(0, 'rgba(255,248,225,.20)');
-      rim.addColorStop(1, 'rgba(255,248,225,0)');
-      g.fillStyle = rim;
-      g.beginPath(); g.arc(0, 0, r * 1.25, 0, 7); g.fill();
+      standUp(g, r * PLAYER_H);
+      g.beginPath(); g.arc(0, 0, r * 1.12, 0, 7); g.clip();
+      const vorn = g.createLinearGradient(0, -r * 1.1, 0, r * 1.1);
+      vorn.addColorStop(0, 'rgba(0,0,0,.28)');
+      vorn.addColorStop(.45, 'rgba(0,0,0,0)');
+      vorn.addColorStop(1, 'rgba(255,246,214,.16)');
+      g.fillStyle = vorn;
+      g.fillRect(-r * 1.2, -r * 1.2, r * 2.4, r * 2.4);
+      if (q().blur > 0) {
+        g.globalCompositeOperation = 'lighter';
+        const rim = g.createRadialGradient(-r * .5, -r * .5, r * .1, -r * .3, -r * .3, r * 1.2);
+        rim.addColorStop(0, 'rgba(255,248,225,.16)');
+        rim.addColorStop(1, 'rgba(255,248,225,0)');
+        g.fillStyle = rim;
+        g.fillRect(-r * 1.2, -r * 1.2, r * 2.4, r * 2.4);
+      }
       g.restore();
     }
 
@@ -1161,6 +1213,8 @@ const RENDER = (() => {
     g.save();
     g.globalAlpha = Math.min(1, k * 1.6);
     g.translate(c.x, c.y);
+    // Sinkt beim Umfallen von Stehhoehe auf den Boden
+    standUp(g, C.PLAYER_R * PLAYER_H * k);
     g.rotate(c.ang + c.rot);
     const scale = 1 + (1 - k) * 0.22;
     g.scale(scale, scale * (0.62 + 0.38 * k));
@@ -1175,7 +1229,11 @@ const RENDER = (() => {
     const bob = Math.sin(time * 2.6 + pk.i) * 3;
     const col = pk.ty === 'health' ? '#4ade80' : '#ffd166';
     g.save();
-    g.translate(pk.x, pk.y + bob);
+    g.translate(pk.x, pk.y);
+    // Schatten bleibt am Boden, die Kiste schwebt darueber
+    g.fillStyle = 'rgba(0,0,0,.35)';
+    g.beginPath(); g.ellipse(EX * .4, EY * .4, 15, 10, 0, 0, 7); g.fill();
+    standUp(g, 16 + bob);
     const glow = g.createRadialGradient(0, 0, 8, 0, 0, 30);
     glow.addColorStop(0, col + '55');
     glow.addColorStop(1, col + '00');
@@ -1209,6 +1267,7 @@ const RENDER = (() => {
     const ready = mi.rd === 1;
     g.save();
     g.translate(mi.x, mi.y);
+    standUp(g, 4);
     if (!armed) {
       // noch im Flug
       g.globalAlpha = .8;
@@ -1464,12 +1523,14 @@ const RENDER = (() => {
     const s = cam.scale;
     ctx.save();
     ctx.translate(W / 2 + cam.shakeX, H / 2 + cam.shakeY);
-    ctx.scale(s, s);
+    ctx.scale(s, s * TILT);          // Bodenebene in der Hoehe gestaucht
     ctx.translate(-cam.x, -cam.y);
 
+    /* Sichtfenster: in der Hoehe grosszuegiger, weil stehende Objekte um ihre
+       Hoehe nach oben ragen und sonst am oberen Rand abgeschnitten wuerden. */
     const view = {
       x0: cam.x - W / 2 / s - 60, x1: cam.x + W / 2 / s + 60,
-      y0: cam.y - H / 2 / s - 60, y1: cam.y + H / 2 / s + 60
+      y0: cam.y - H / 2 / (s * TILT) - 140, y1: cam.y + H / 2 / (s * TILT) + 80
     };
 
     // Map - nur den sichtbaren Ausschnitt kopieren
