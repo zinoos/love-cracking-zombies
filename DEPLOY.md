@@ -10,14 +10,45 @@ Deshalb zwei Teile:
 
 | Teil | Wo | Was |
 |------|-----|-----|
-| Client (HTML/JS/CSS) | Firebase Hosting *oder* Cloud Run | statische Dateien |
-| Spielserver (Node + `ws`) | **Cloud Run** | WebSockets, Matchlogik |
-
-Beide Varianten sind vorbereitet und getestet.
+| Client (HTML/JS/CSS) | Firebase Hosting | statische Dateien |
+| Spielserver (Node + `ws`) | **Render** (oder Cloud Run) | WebSockets, Matchlogik |
 
 ---
 
-## Variante A — alles auf Cloud Run (einfachste, empfohlen)
+## Variante 0 — Render, kostenlos und ohne Kreditkarte (aktuell genutzt)
+
+`render.yaml` liegt im Repo, Render erkennt es als Blueprint.
+
+### Einmalig
+
+1. Repo zu GitHub schieben.
+2. Auf https://render.com mit dem GitHub-Konto anmelden.
+3. **New → Blueprint** → das Repo auswählen. Render liest `render.yaml`.
+4. Beim Anlegen fragt Render nach `GOOGLE_SERVICE_ACCOUNT` (im Blueprint als
+   `sync: false` markiert, also bewusst nicht im Repo). Dort den kompletten
+   Inhalt des Dienstkonto-Schlüssels einfügen — eine Zeile, JSON.
+5. Danach die Render-URL in den Client eintragen:
+
+```bash
+npm run build:hosting -- --server=DEIN-DIENST.onrender.com
+npx firebase-tools deploy --only hosting
+```
+
+### Was am freien Plan anders ist
+
+- **Kein dauerhaftes Dateisystem.** Deshalb liegt die Bestenliste in Firestore
+  (`server/store.js`), nicht in `data/players.json`. Ohne den Schlüssel in
+  `GOOGLE_SERVICE_ACCOUNT` fällt der Server auf die lokale Datei zurück — in
+  der Cloud wäre die Liste dann nach jedem Neustart leer.
+- **Der Dienst schläft nach 15 Minuten ohne Zugriff ein.** Der nächste Aufruf
+  weckt ihn, das dauert ungefähr eine Minute. Laufende Lobbys sind dann weg,
+  die Bestenliste nicht.
+- **Nur eine Instanz.** Der freie Plan skaliert ohnehin nicht — genau richtig,
+  denn Lobbys liegen im Arbeitsspeicher eines einzelnen Prozesses.
+
+---
+
+## Variante A — alles auf Cloud Run (braucht Kreditkarte)
 
 Eine URL, ein Dienst, keine Trennung. Der Container ist gebaut und getestet.
 
@@ -153,10 +184,11 @@ Projekteinstellungen → Nutzer und Berechtigungen.
 
 ## Grenzen dieses Aufbaus
 
-- **Ein Server, ein Prozess.** Mit `--max-instances 1` gibt es keine
-  Skalierung. Für ein paar Dutzend gleichzeitige Spieler reicht das locker
-  (eine Lobby kostet ~1,5 KB pro Snapshot bei 30 Hz). Für mehr bräuchte es
-  einen geteilten Zustand, z.B. Lobby-Zuordnung über Redis.
+- **Ein Server, ein Prozess.** Es gibt keine Skalierung. Für ein paar Dutzend
+  gleichzeitige Spieler reicht das locker (eine Lobby kostet ~1,5 KB pro
+  Snapshot bei 30 Hz). Für mehr bräuchte es einen geteilten Zustand, z.B.
+  Lobby-Zuordnung über Redis.
 - **Kein Neustart ohne Verlust.** Ein Deploy beendet laufende Matches.
-- **Keine Persistenz.** Lobbys, Punkte und Skins überleben keinen Neustart;
-  Skins liegen nur im `localStorage` des Browsers.
+- **Lobbys leben nur im Speicher.** Sterne und Bestenliste liegen dagegen in
+  Firestore und überleben jeden Neustart. Skins liegen im `localStorage` des
+  Browsers.
