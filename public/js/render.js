@@ -1091,6 +1091,212 @@ const RENDER = (() => {
   }
 
 
+  /* =============== Soldat im Match ===============
+     Die Kamera schaut schraeg von vorn, also steht die Figur auch im Spiel
+     aufrecht und dreht sich um ihre eigene Achse, statt wie ein Plaettchen
+     mitzurotieren.
+
+     Der Trick ist die Breite: ein Koerper ist von vorn breit und im Profil
+     schmal. Mit Schulterbreite S und Koerpertiefe D ergibt sich die
+     sichtbare Breite aus sqrt((S*zurKamera)^2 + (D*zurSeite)^2) - das ist
+     die Projektion eines Ellipsenquerschnitts und reicht voellig, um eine
+     echte Drehung vorzutaeuschen.
+
+     Gezeichnet wird im aufrechten Bildschirmraum: y nach oben ist negativ,
+     die Fuesse stehen bei y = 0. Nichts hier dreht die Leinwand mit dem
+     Blickwinkel - sonst wuerde die Figur kippen statt sich zu drehen. */
+  function drawSoldierBattle(g, p, r, o) {
+    const sw = C.WEAPONS.sword;
+
+    /* Rundumschlag: der ganze Koerper dreht sich einmal um sich selbst.
+       Beim Schwert ist das die Angriffsbewegung, sonst passiert hier nichts. */
+    let spin = 0;
+    if (o.swing > 0 && p.weapon === 'sword') {
+      const k = 1 - Math.min(1, o.swing / sw.swingTime);
+      if (k < 0.2) spin = -SPIN_WIND * (k / 0.2);
+      else {
+        const a = (k - 0.2) / 0.8;
+        spin = -SPIN_WIND + (Math.PI * 2 + SPIN_WIND) * (1 - Math.pow(1 - a, 2.2));
+      }
+    }
+
+    const aim = o.aim + spin;
+    const zurKamera = Math.sin(aim);      // +1 = schaut den Betrachter an
+    const zurSeite = Math.cos(aim);       // +-1 = Profil
+    // Blickrichtung auf dem Schirm, in der Hoehe durch die Kameraneigung gestaucht
+    const fx = Math.cos(aim), fy = Math.sin(aim) * TILT;
+    const fLen = Math.hypot(fx, fy) || 1;
+
+    const H = r * 2.7;
+    const LW = Math.max(0.8, r * 0.075);
+    const uni = p.color || '#4ade80';
+    const uniL = shade(uni, 32);
+    const uniD = shade(uni, -32);
+    const uniDD = shade(uni, -58);
+
+    const atem = (o.breath || 0) * r * 0.05;
+    const schulterY = -H * 0.72 - atem;
+    const hueftY = -H * 0.42;
+    const kopfY = -H * 0.88 - atem;
+    const kopfR = r * 0.46;
+
+    const schulter = r * 0.92, tiefe = r * 0.52;
+    const breite = Math.hypot(schulter * zurKamera, tiefe * zurSeite);
+    const hueftB = breite * 0.82;
+
+    /* Hiebspur des Rundumschlags - liegt auf dem Boden, gehoert also in die
+       gestauchte Ebene und wird darum flachgedrueckt gezeichnet. */
+    if (spin > 0.05) {
+      const fortschritt = spin / (Math.PI * 2);
+      g.save();
+      g.translate(0, -hueftY * 0 + hueftY * 0);
+      g.scale(1, TILT);
+      g.lineCap = 'round';
+      g.globalAlpha = .3 * (1 - fortschritt * .55);
+      g.strokeStyle = '#dceaff'; g.lineWidth = r * .5;
+      g.beginPath(); g.arc(0, hueftY / TILT, r * 1.5, -SPIN_WIND, spin); g.stroke();
+      g.globalAlpha = .7 * (1 - fortschritt * .6);
+      g.strokeStyle = '#fff'; g.lineWidth = r * .14;
+      g.beginPath(); g.arc(0, hueftY / TILT, r * 1.85, -SPIN_WIND, spin); g.stroke();
+      g.globalAlpha = 1;
+      g.restore();
+    }
+
+    /** Waffe an der Faust, in Blickrichtung, mit Verkuerzung nach hinten. */
+    const zeichneWaffe = () => {
+      const hx = fx * r * 0.62, hy = schulterY + r * 0.28 + fy * r * 0.62;
+      g.save();
+      g.translate(hx, hy);
+      g.rotate(Math.atan2(fy, fx));
+      g.scale(fLen, 1);                 // zeigt sie zur Kamera, wirkt sie kuerzer
+      drawWeapon(g, r * 1.25, LW, p.weapon || 'pistol', o);
+      g.restore();
+      return { hx, hy };
+    };
+
+    // Waffe hinter dem Koerper, wenn die Figur von uns weg zielt
+    if (zurKamera < 0) zeichneWaffe();
+
+    // ---------- Beine ----------
+    const schritt = (o.walk || 0) * r * 0.5;
+    [-1, 1].forEach(seite => {
+      const bx = seite * breite * 0.34;
+      const zx = bx + fx * schritt * seite;
+      const zy = fy * schritt * seite;
+      g.save();
+      g.lineCap = 'round'; g.lineJoin = 'round';
+      g.strokeStyle = INK; g.lineWidth = r * 0.42 + LW * 1.6;
+      g.beginPath(); g.moveTo(bx, hueftY); g.lineTo(zx, zy - r * 0.1); g.stroke();
+      g.strokeStyle = uniDD; g.lineWidth = r * 0.42;
+      g.beginPath(); g.moveTo(bx, hueftY); g.lineTo(zx, zy - r * 0.1); g.stroke();
+      g.restore();
+      // Stiefel
+      g.fillStyle = BOOT;
+      g.beginPath(); g.ellipse(zx + fx * r * .12, zy - r * .06, r * .26, r * .2, 0, 0, 7);
+      g.fill(); ink(g, LW);
+    });
+
+    // ---------- Rumpf ----------
+    const torso = () => {
+      g.beginPath();
+      g.moveTo(-breite, schulterY + r * .1);
+      g.quadraticCurveTo(-breite * 1.06, hueftY - r * .3, -hueftB, hueftY);
+      g.lineTo(hueftB, hueftY);
+      g.quadraticCurveTo(breite * 1.06, hueftY - r * .3, breite, schulterY + r * .1);
+      g.quadraticCurveTo(0, schulterY - r * .22, -breite, schulterY + r * .1);
+      g.closePath();
+    };
+    shaded(g, torso, -breite, schulterY, breite, hueftY, uniL, uni, uniDD, LW * 1.2);
+
+    // Weste und Gurtzeug
+    g.save();
+    torso(); g.clip();
+    g.fillStyle = shade(uni, -34);
+    roundRect(g, -breite * .78, schulterY + r * .18, breite * 1.56, (hueftY - schulterY) * .72, r * .18);
+    g.fill();
+    if (zurKamera >= 0) {
+      g.fillStyle = shade(uni, -54);
+      roundRect(g, -breite * .5, schulterY + r * .42, breite * .42, r * .34, r * .08); g.fill();
+      roundRect(g, breite * .08, schulterY + r * .42, breite * .42, r * .34, r * .08); g.fill();
+    } else {
+      // Rueckenansicht: Rucksack
+      g.fillStyle = shade(uni, -46);
+      roundRect(g, -breite * .62, schulterY + r * .22, breite * 1.24, (hueftY - schulterY) * .6, r * .2);
+      g.fill();
+    }
+    g.restore();
+
+    // Guertel
+    g.fillStyle = STOCK_D;
+    roundRect(g, -hueftB * 1.04, hueftY - r * .16, hueftB * 2.08, r * .26, r * .07); g.fill();
+
+    // ---------- Arme ----------
+    const { hx, hy } = zurKamera < 0
+      ? { hx: fx * r * 0.62, hy: schulterY + r * 0.28 + fy * r * 0.62 }
+      : { hx: fx * r * 0.62, hy: schulterY + r * 0.28 + fy * r * 0.62 };
+    [-1, 1].forEach(seite => {
+      const sx = seite * breite * 0.92;
+      const zielX = seite > 0 ? hx : hx * .55 - seite * breite * .2;
+      const zielY = seite > 0 ? hy : schulterY + r * .55;
+      g.save();
+      g.lineCap = 'round';
+      g.strokeStyle = INK; g.lineWidth = r * 0.34 + LW * 1.6;
+      g.beginPath(); g.moveTo(sx, schulterY + r * .12); g.lineTo(zielX, zielY); g.stroke();
+      g.strokeStyle = uniD; g.lineWidth = r * 0.34;
+      g.beginPath(); g.moveTo(sx, schulterY + r * .12); g.lineTo(zielX, zielY); g.stroke();
+      g.restore();
+      // Schulterpolster - schmaler als der Arm, sonst wirkt es wie ein Ballon
+      g.fillStyle = uniL;
+      g.beginPath();
+      g.ellipse(sx * .92, schulterY + r * .1, r * .2, r * .16, seite * .3, 0, 7);
+      g.fill(); ink(g, LW * .8);
+    });
+    // Faeuste
+    g.fillStyle = FLESH_SH;
+    g.beginPath(); g.arc(hx, hy, r * .19, 0, 7); g.fill(); ink(g, LW * .8);
+
+    // ---------- Kopf ----------
+    // Hals
+    g.fillStyle = FLESH_SH;
+    roundRect(g, -r * .16, kopfY + kopfR * .5, r * .32, r * .3, r * .1); g.fill();
+
+    const kopf = () => { g.beginPath(); g.arc(0, kopfY, kopfR, 0, 7); g.closePath(); };
+    shaded(g, kopf, -kopfR, kopfY - kopfR, kopfR, kopfY + kopfR,
+      shade(FLESH, 20), FLESH, shade(FLESH, -36), LW);
+
+    if (zurKamera > 0.02) {
+      /* Gesicht nur, wenn die Figur uns zugewandt ist. Im Profil wandert es
+         an den Rand, von hinten ist es gar nicht zu sehen. */
+      const versatz = zurSeite * kopfR * .45;
+      const auf = Math.min(1, zurKamera * 1.6);
+      [-1, 1].forEach(s => {
+        const ax = versatz + s * kopfR * .3 * Math.abs(zurKamera);
+        g.fillStyle = '#fdfdfd';
+        g.beginPath(); g.ellipse(ax, kopfY - kopfR * .05, kopfR * .19 * auf, kopfR * .16, 0, 0, 7); g.fill();
+        g.fillStyle = '#3d2b15';
+        g.beginPath(); g.arc(ax + zurSeite * kopfR * .05, kopfY - kopfR * .05, kopfR * .09 * auf, 0, 7); g.fill();
+      });
+      g.strokeStyle = 'rgba(92,44,26,.6)'; g.lineWidth = LW;
+      g.beginPath(); g.arc(versatz, kopfY + kopfR * .26, kopfR * .2, .3, Math.PI - .3); g.stroke();
+    }
+
+    /* Helm sitzt oben auf und laesst die Stirn frei. Zog man den Rand tiefer,
+       verschwand das Gesicht vollstaendig darunter. */
+    const helm = () => {
+      g.beginPath();
+      g.arc(0, kopfY - kopfR * .22, kopfR * 1.06, Math.PI, 0);
+      g.quadraticCurveTo(0, kopfY - kopfR * .34, -kopfR * 1.06, kopfY - kopfR * .22);
+      g.closePath();
+    };
+    shaded(g, helm, -kopfR, kopfY - kopfR * 1.1, kopfR, kopfY,
+      shade(uni, 36), shade(uni, -10), shade(uni, -50), LW);
+    g.fillStyle = 'rgba(255,255,255,.2)';
+    g.beginPath(); g.ellipse(-kopfR * .35, kopfY - kopfR * .55, kopfR * .34, kopfR * .16, -.4, 0, 7); g.fill();
+
+    // Waffe vor dem Koerper, wenn die Figur zu uns zeigt
+    if (zurKamera >= 0) zeichneWaffe();
+  }
+
   function drawPlayer(g, p, isMe, g_) {
     const r = C.PLAYER_R;
     const x = p.rx, y = p.ry, a = p.ra;
@@ -1132,15 +1338,13 @@ const RENDER = (() => {
       g.beginPath(); g.ellipse(0, r * .5, r * 1.68, r * .88, 0, 0, 7); g.stroke();
     }
 
-    /* Ab hier steht die Figur: Stauchung herausrechnen und um ihre Hoehe
-       anheben. Der Schatten oben bleibt am Boden - dadurch sieht man, dass
-       die Figur darauf steht und nicht daraufgeklebt ist. Wichtig ist die
-       Reihenfolge: erst aufrichten, dann drehen. Andersherum wuerde die
-       Drehung in der gestauchten Ebene stattfinden und den Soldaten
-       verscheren. */
-    standUp(g, r * PLAYER_H);
-    g.rotate(a);
-    drawSoldier(g, p, r, {
+    /* Ab hier steht die Figur aufrecht: Stauchung herausrechnen. Der Schatten
+       oben bleibt am Boden - dadurch sieht man, dass die Figur darauf steht
+       und nicht daraufgeklebt ist. Angehoben wird nicht mehr; die Figur
+       waechst aus ihrem Standpunkt nach oben. */
+    standUp(g, 0);
+    drawSoldierBattle(g, p, r, {
+      aim: a,
       walk: moving ? Math.sin(phase) : 0,
       spin: p.spinAngle || 0,
       swing: p.swingT || 0,
@@ -1153,25 +1357,16 @@ const RENDER = (() => {
        auf dem Schirm unten - heller, die abgewandte oben dunkler. Der
        Verlauf haengt am Bildschirm, nicht an der Blickrichtung der Figur:
        das Licht dreht sich nicht mit, wenn jemand herumschaut. */
-    if (!p.cloaked) {
+    if (!p.cloaked && q().blur > 0) {
       g.save();
       g.translate(x, y);
-      standUp(g, r * PLAYER_H);
-      g.beginPath(); g.arc(0, 0, r * 1.12, 0, 7); g.clip();
-      const vorn = g.createLinearGradient(0, -r * 1.1, 0, r * 1.1);
-      vorn.addColorStop(0, 'rgba(0,0,0,.28)');
-      vorn.addColorStop(.45, 'rgba(0,0,0,0)');
-      vorn.addColorStop(1, 'rgba(255,246,214,.16)');
-      g.fillStyle = vorn;
-      g.fillRect(-r * 1.2, -r * 1.2, r * 2.4, r * 2.4);
-      if (q().blur > 0) {
-        g.globalCompositeOperation = 'lighter';
-        const rim = g.createRadialGradient(-r * .5, -r * .5, r * .1, -r * .3, -r * .3, r * 1.2);
-        rim.addColorStop(0, 'rgba(255,248,225,.16)');
-        rim.addColorStop(1, 'rgba(255,248,225,0)');
-        g.fillStyle = rim;
-        g.fillRect(-r * 1.2, -r * 1.2, r * 2.4, r * 2.4);
-      }
+      standUp(g, 0);
+      g.globalCompositeOperation = 'lighter';
+      const rim = g.createLinearGradient(-r, -r * 2.7, r * .6, 0);
+      rim.addColorStop(0, 'rgba(255,248,225,.13)');
+      rim.addColorStop(1, 'rgba(255,248,225,0)');
+      g.fillStyle = rim;
+      g.fillRect(-r * 1.3, -r * 3, r * 2.6, r * 3);
       g.restore();
     }
 
@@ -2032,6 +2227,7 @@ const RENDER = (() => {
   return {
     resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld,
     drawAvatar, drawAvatarFront, shade,
+    __battle: drawSoldierBattle,   // fuer Tests: Figur einzeln zeichnen
     setQuality,
     get quality() {
       return { level: qLevel, name: q().name, avgMs: Math.round(drawAvg * 100) / 100, pinned: qPinned >= 0 };
