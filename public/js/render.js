@@ -85,106 +85,25 @@ const RENDER = (() => {
     }
   }
 
-  /* Mauern sind echte Bloecke, keine flachen Kacheln mit Lippe.
-
-     Der Fussabdruck bleibt genau die Kachel - dort sitzt die Kollision. Von
-     dort wachsen die Waende auf dem Bild nach oben, so wie die Spielfigur aus
-     ihrem Standpunkt nach oben waechst. Wuerden Waende flach bleiben und nur
-     die Figur stehen, saehe die Szene aus zwei verschiedenen Blickwinkeln
-     gleichzeitig aus.
-
-     WALL_H ist die Bauhoehe in Welteinheiten; auf dem Schirm erscheint sie um
-     die Kameraneigung gestaucht. EX versetzt die Deckflaeche leicht zur
-     Seite, damit auch eine Schmalseite sichtbar wird - ohne diesen Versatz
-     stuende man exakt frontal davor und saehe nur Front und Deckel. */
-  const WALL_H = Math.round(C.TILE * 1.05);
-  const EX = Math.round(C.TILE * 0.12);
-  const EY = WALL_H;                       // fuer Schattenversatz weiterverwendet
-
-  /** Alle sichtbaren Seitenflaechen eines Wandblocks. */
-  function paintWallSides(g, tx, ty, b) {
-    const T = C.TILE, x = tx * T, y = ty * T;
-    const dx = EX, dy = -WALL_H;           // Deckflaeche liegt um dies versetzt
-
-    // Vorderseite: nur wenn dahinter keine Wand steht
-    if (!isWallAt(tx, ty + 1)) {
-      const grad = g.createLinearGradient(0, y + T + dy, 0, y + T);
-      grad.addColorStop(0, shade(b.wall, -6));
-      grad.addColorStop(.55, shade(b.wall, -34));
-      grad.addColorStop(1, shade(b.wall, -66));
-      g.fillStyle = grad;
-      g.beginPath();
-      g.moveTo(x, y + T); g.lineTo(x + T, y + T);
-      g.lineTo(x + T + dx, y + T + dy); g.lineTo(x + dx, y + T + dy);
-      g.closePath(); g.fill();
-
-      // Fugen, damit die Front nicht wie eine glatte Flaeche wirkt
-      g.strokeStyle = 'rgba(0,0,0,.16)';
-      g.lineWidth = 1.4;
-      g.beginPath();
-      for (let i = 1; i <= 2; i++) {
-        const f = i / 3;
-        g.moveTo(x + dx * f, y + T + dy * f);
-        g.lineTo(x + T + dx * f, y + T + dy * f);
-      }
-      g.stroke();
-      // Lichtkante an der Oberkante der Front
-      g.strokeStyle = 'rgba(255,255,255,.10)';
-      g.lineWidth = 1.6;
-      g.beginPath();
-      g.moveTo(x + dx, y + T + dy); g.lineTo(x + T + dx, y + T + dy);
-      g.stroke();
-    }
-
-    // Schmalseite rechts
-    if (!isWallAt(tx + 1, ty)) {
-      const grad = g.createLinearGradient(x + T, 0, x + T + dx, 0);
-      grad.addColorStop(0, shade(b.wall, -44));
-      grad.addColorStop(1, shade(b.wall, -72));
-      g.fillStyle = grad;
-      g.beginPath();
-      g.moveTo(x + T, y); g.lineTo(x + T, y + T);
-      g.lineTo(x + T + dx, y + T + dy); g.lineTo(x + T + dx, y + dy);
-      g.closePath(); g.fill();
-    }
-    // Schmalseite links - nur sichtbar, weil der Versatz nach rechts geht
-    if (!isWallAt(tx - 1, ty)) {
-      g.fillStyle = shade(b.wall, -30);
-      g.beginPath();
-      g.moveTo(x, y); g.lineTo(x, y + T);
-      g.lineTo(x + dx, y + T + dy); g.lineTo(x + dx, y + dy);
-      g.closePath(); g.fill();
-    }
-  }
-
-  /** Deckflaeche des Blocks - liegt um die Bauhoehe nach oben versetzt. */
+  /** Wandkoerper inkl. Kanten. */
   function paintWall(g, tx, ty, b) {
-    const T = C.TILE, x = tx * T + EX, y = ty * T - WALL_H;
-    const grad = g.createLinearGradient(x, y, x + T * .6, y + T);
-    grad.addColorStop(0, shade(b.wallTop, 16));
-    grad.addColorStop(1, shade(b.wallTop, -14));
+    const T = C.TILE, x = tx * T, y = ty * T;
+    const grad = g.createLinearGradient(x, y, x, y + T);
+    grad.addColorStop(0, b.wallTop);
+    grad.addColorStop(1, b.wall);
     g.fillStyle = grad;
     g.fillRect(x, y, T, T);
-
-    const frei = {
-      o: !isWallAt(tx, ty - 1), u: !isWallAt(tx, ty + 1),
-      l: !isWallAt(tx - 1, ty), r: !isWallAt(tx + 1, ty)
-    };
-    g.lineWidth = 2;
     g.strokeStyle = b.edge;
+    g.lineWidth = 2;
     g.beginPath();
-    if (frei.o) { g.moveTo(x, y + 1); g.lineTo(x + T, y + 1); }
-    if (frei.l) { g.moveTo(x + 1, y); g.lineTo(x + 1, y + T); }
+    if (!isWallAt(tx, ty - 1)) { g.moveTo(x, y + 1); g.lineTo(x + T, y + 1); }
+    if (!isWallAt(tx, ty + 1)) { g.moveTo(x, y + T - 1); g.lineTo(x + T, y + T - 1); }
+    if (!isWallAt(tx - 1, ty)) { g.moveTo(x + 1, y); g.lineTo(x + 1, y + T); }
+    if (!isWallAt(tx + 1, ty)) { g.moveTo(x + T - 1, y); g.lineTo(x + T - 1, y + T); }
     g.stroke();
-    g.strokeStyle = shade(b.wallTop, -40);
-    g.beginPath();
-    if (frei.u) { g.moveTo(x, y + T - 1); g.lineTo(x + T, y + T - 1); }
-    if (frei.r) { g.moveTo(x + T - 1, y); g.lineTo(x + T - 1, y + T); }
-    g.stroke();
-
-    if (frei.o) {
+    if (!isWallAt(tx, ty - 1)) {
       g.fillStyle = b.accent;
-      g.globalAlpha = .16;
+      g.globalAlpha = .18;
       g.fillRect(x, y, T, 3);
       g.globalAlpha = 1;
     }
@@ -193,45 +112,22 @@ const RENDER = (() => {
   /** Kachelbereich neu malen - beim Aufbau und nach jeder Sprengung. */
   function repaintRegion(tx0, ty0, tx1, ty1) {
     const T = C.TILE, n = curMap.n, b = biome(), g = mapCtx;
-    /* Bloecke ragen ueber ihre Kachel hinaus: nach oben um die Bauhoehe, nach
-       unten reichen Schatten hinein. Der neu zu malende Bereich muss das
-       umfassen, sonst bleiben nach einer Sprengung Reste stehen. */
-    const hoch = Math.ceil(WALL_H / T) + 1;
-    const gx0 = Math.max(0, tx0 - 2), gy0 = Math.max(0, ty0 - 2);
-    const gx1 = Math.min(n - 1, tx1 + 2), gy1 = Math.min(n - 1, ty1 + hoch + 1);
-
+    tx0 = Math.max(0, tx0); ty0 = Math.max(0, ty0);
+    tx1 = Math.min(n - 1, tx1); ty1 = Math.min(n - 1, ty1);
     g.save();
     g.beginPath();
-    g.rect(gx0 * T, gy0 * T - WALL_H, (gx1 - gx0 + 1) * T + EX, (gy1 - gy0 + 1) * T + WALL_H);
+    g.rect(tx0 * T, ty0 * T, (tx1 - tx0 + 1) * T, (ty1 - ty0 + 1) * T);
     g.clip();
-    for (let ty = gy0; ty <= gy1; ty++) for (let tx = gx0; tx <= gx1; tx++) paintGround(g, tx, ty, b);
-
-    // Schlagschatten der Bloecke auf den Boden
-    g.fillStyle = 'rgba(0,0,0,.40)';
-    for (let ty = gy0; ty <= gy1; ty++) {
-      for (let tx = gx0; tx <= gx1; tx++) {
-        if (isWallAt(tx, ty)) g.fillRect(tx * T + EX + 6, ty * T + 7, T, T);
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) paintGround(g, tx, ty, b);
+    // Schatten fallen nach unten rechts -> Quellkachel oben/links mitnehmen
+    g.fillStyle = 'rgba(0,0,0,.45)';
+    for (let ty = ty0 - 1; ty <= ty1; ty++) {
+      for (let tx = tx0 - 1; tx <= tx1; tx++) {
+        if (isWallAt(tx, ty)) g.fillRect(tx * T + 5, ty * T + 6, T, T);
       }
     }
-    // Kontaktschatten am Fuss der Vorderseite
-    for (let ty = gy0; ty <= gy1; ty++) {
-      for (let tx = gx0; tx <= gx1; tx++) {
-        if (!isWallAt(tx, ty) || isWallAt(tx, ty + 1)) continue;
-        const gy = ty * T + T;
-        const ao = g.createLinearGradient(0, gy, 0, gy + T * .45);
-        ao.addColorStop(0, 'rgba(0,0,0,.48)');
-        ao.addColorStop(1, 'rgba(0,0,0,0)');
-        g.fillStyle = ao;
-        g.fillRect(tx * T, gy, T + EX, T * .45);
-      }
-    }
-
-    /* Zeilenweise von hinten nach vorn: erst die Seitenflaechen einer Zeile,
-       dann ihre Deckflaechen. Eine weiter vorn stehende Zeile ueberdeckt so
-       die Zeile dahinter - genau wie es die Tiefe verlangt. */
-    for (let ty = gy0; ty <= gy1; ty++) {
-      for (let tx = gx0; tx <= gx1; tx++) if (isWallAt(tx, ty)) paintWallSides(g, tx, ty, b);
-      for (let tx = gx0; tx <= gx1; tx++) if (isWallAt(tx, ty)) paintWall(g, tx, ty, b);
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      if (isWallAt(tx, ty)) paintWall(g, tx, ty, b);
     }
     g.restore();
   }
@@ -261,27 +157,8 @@ const RENDER = (() => {
   }
 
 
-  /* ---------- Kamera ----------
-
-     Gespielt wird weiter in der Ebene, aber die Kamera steht nicht mehr
-     senkrecht ueber dem Feld, sondern etwas davor und schaut hinab. Umgesetzt
-     als Stauchung der Bodenebene in der Hoehe: bei TILT = 0.8 erscheint eine
-     Strecke nach hinten kuerzer als dieselbe Strecke zur Seite - genau das
-     macht der Blickwinkel.
-
-     Alles, was auf dem Boden liegt (Karte, Blutflecken, Sichtbereich), wird
-     mitgestaucht. Alles, was steht (Spieler, Buesche, Kisten), rechnet die
-     Stauchung fuer sich wieder heraus und wird zusaetzlich um seine Hoehe
-     nach oben versetzt - so steht es auf dem Boden statt darauf zu kleben. */
-  const TILT = 0.66;
-  const PLAYER_H = 0.55;      // Augenhoehe der Figur in Spielerradien
+  /* ---------- Kamera ---------- */
   const cam = { x: 0, y: 0, scale: 1, shakeX: 0, shakeY: 0 };
-
-  /** In den aufrechten Raum wechseln: Figur um hoehe angehoben, nicht gestaucht. */
-  function standUp(g, hoehe) {
-    g.scale(1, 1 / TILT);
-    if (hoehe) g.translate(0, -hoehe);
-  }
 
   function updateCamera(g, dt) {
     const target = g.viewTarget();
@@ -296,25 +173,16 @@ const RENDER = (() => {
 
     const worldSize = curMap ? curMap.n * C.TILE : 1280;
     cam.scale = Math.max(0.7, Math.min(1.9, Math.min(W / 1000, H / 620)));
-    // Durch die Stauchung passt in der Hoehe mehr Welt ins Bild
-    const halfW = W / 2 / cam.scale, halfH = H / 2 / (cam.scale * TILT);
+    const halfW = W / 2 / cam.scale, halfH = H / 2 / cam.scale;
     cam.x = worldSize <= halfW * 2 ? worldSize / 2 : Math.max(halfW, Math.min(worldSize - halfW, cam.x));
     cam.y = worldSize <= halfH * 2 ? worldSize / 2 : Math.max(halfH, Math.min(worldSize - halfH, cam.y));
   }
 
-  /* Welt <-> Bildschirm. Beide Richtungen muessen die Stauchung enthalten,
-     sonst zielt die Maus nicht mehr dorthin, wo der Zeiger steht. */
   function worldToScreen(x, y) {
-    return {
-      x: (x - cam.x) * cam.scale + W / 2 + cam.shakeX,
-      y: (y - cam.y) * cam.scale * TILT + H / 2 + cam.shakeY
-    };
+    return { x: (x - cam.x) * cam.scale + W / 2 + cam.shakeX, y: (y - cam.y) * cam.scale + H / 2 + cam.shakeY };
   }
   function screenToWorld(sx, sy) {
-    return {
-      x: (sx - W / 2 - cam.shakeX) / cam.scale + cam.x,
-      y: (sy - H / 2 - cam.shakeY) / (cam.scale * TILT) + cam.y
-    };
+    return { x: (sx - W / 2 - cam.shakeX) / cam.scale + cam.x, y: (sy - H / 2 - cam.shakeY) / cam.scale + cam.y };
   }
 
   /* ---------- Adaptive Qualitaet ----------
@@ -449,8 +317,8 @@ const RENDER = (() => {
     g.fillStyle = '#4c5470';
     g.fillRect(0, 0, fogCv.width, fogCv.height);
 
-    // Weltkoordinaten auf die Nebelebene abbilden - mit derselben Stauchung
-    g.setTransform(s, 0, 0, s * TILT, fogCv.width / 2 + cam.shakeX * FOG_SCALE, fogCv.height / 2 + cam.shakeY * FOG_SCALE);
+    // Weltkoordinaten auf die Nebelebene abbilden
+    g.setTransform(s, 0, 0, s, fogCv.width / 2 + cam.shakeX * FOG_SCALE, fogCv.height / 2 + cam.shakeY * FOG_SCALE);
     g.translate(-cam.x, -cam.y);
 
     g.globalCompositeOperation = 'destination-out';
@@ -518,44 +386,26 @@ const RENDER = (() => {
       const g = c.getContext('2d');
       g.translate(BUSH_SS / 2, BUSH_SS / 2);
       const seed = v / 5 + 0.11;
-      /* Schatten faellt in dieselbe Richtung wie bei den Waenden - nur wenn
-         alles aus derselben Ecke beleuchtet wird, wirkt die Szene raeumlich. */
-      g.fillStyle = 'rgba(0,0,0,.38)';
-      g.beginPath(); g.ellipse(EX * .8, EY * .8, T * 0.56, T * 0.4, 0, 0, 7); g.fill();
-
-      // Untere Blattlage: dunkler, sitzt weiter unten -> Volumen
-      g.fillStyle = '#183d24';
-      for (let k = 0; k < 5; k++) {
-        const a = (k / 5) * Math.PI * 2 + seed * 6;
-        const rr = T * (0.29 + ((seed * 13 + k) % 3) * 0.045);
-        g.beginPath();
-        g.ellipse(Math.cos(a) * T * .2 + 2, Math.sin(a) * T * .18 + 4, rr, rr * .84, a, 0, 7);
-        g.fill();
-      }
-      // Obere Lage mit Kugelverlauf
-      const grd = g.createRadialGradient(-T * .2, -T * .24, 2, 0, 0, T * 0.66);
-      grd.addColorStop(0, '#6fbb74');
-      grd.addColorStop(.45, '#3d8049');
-      grd.addColorStop(1, '#1c4a2b');
+      g.fillStyle = 'rgba(0,0,0,.32)';
+      g.beginPath(); g.ellipse(3, 5, T * 0.55, T * 0.42, 0, 0, 7); g.fill();
+      const grd = g.createRadialGradient(-6, -8, 2, 0, 0, T * 0.62);
+      grd.addColorStop(0, '#4c8f56');
+      grd.addColorStop(.6, '#2f6a3c');
+      grd.addColorStop(1, '#1a4327');
       g.fillStyle = grd;
       for (let k = 0; k < 5; k++) {
         const a = (k / 5) * Math.PI * 2 + seed * 6;
-        const rr = T * (0.27 + ((seed * 13 + k) % 3) * 0.045);
+        const rr = T * (0.28 + ((seed * 13 + k) % 3) * 0.045);
         g.beginPath();
         g.ellipse(Math.cos(a) * T * .2, Math.sin(a) * T * .18, rr, rr * .86, a, 0, 7);
         g.fill();
       }
-      // Glanzlicht oben links
-      g.globalAlpha = .3;
-      g.fillStyle = '#bff2c6';
-      g.beginPath(); g.ellipse(-T * .17, -T * .2, T * .2, T * .13, -.5, 0, 7); g.fill();
-      // Einzelne Blaetter
-      g.globalAlpha = .42;
-      g.fillStyle = '#8ef0a6';
-      for (let k = 0; k < 5; k++) {
+      g.globalAlpha = .38;
+      g.fillStyle = '#7fe89a';
+      for (let k = 0; k < 4; k++) {
         const a = seed * 20 + k * 1.7;
         g.beginPath();
-        g.ellipse(Math.cos(a) * 9, Math.sin(a) * 8 - 4, 4.5, 2.4, a, 0, 7);
+        g.ellipse(Math.cos(a) * 9, Math.sin(a) * 8 - 4, 4.5, 2.6, a, 0, 7);
         g.fill();
       }
       g.globalAlpha = 1;
@@ -576,12 +426,7 @@ const RENDER = (() => {
         const ph = (tx * 0.7 + ty * 1.3);
         const sway = Math.sin(time * 1.6 + ph) * 2.4;
         const s = 1 + Math.sin(time * 2.1 + ph) * 0.035;
-        // Buesche stehen: aufrichten und um die halbe Wuchshoehe anheben
-        g.save();
-        g.translate(cx, cy);
-        standUp(g, T * 0.30);
-        g.drawImage(bushSprites[h], -half * s + sway, -half * s, BUSH_SS * s, BUSH_SS * s);
-        g.restore();
+        g.drawImage(bushSprites[h], cx - half * s + sway, cy - half * s, BUSH_SS * s, BUSH_SS * s);
       }
     }
   }
@@ -871,9 +716,6 @@ const RENDER = (() => {
         g.beginPath(); g.moveTo(r * 1.3, -r * .1); g.lineTo(r * 1.5, 0); g.lineTo(r * 1.3, r * .1); g.closePath(); g.fill();
         return { front: r * .75, back: -r * .4 };
       }
-      /* Sergio traegt statt eines Laufs ein kleines DJ-Pult vor sich: zwei
-         Plattenteller, ein Mischpult dazwischen. Die Wurfplatte liegt rechts
-         auf dem Teller, solange er eine hat. */
       case 'sergio': {
         const puls = 0.5 + 0.5 * Math.sin(time * 9);
         // Gehaeuse
@@ -942,8 +784,7 @@ const RENDER = (() => {
    */
   function drawSoldier(g, p, radius, opts) {
     const o = opts || {};
-    // Atmen: der Koerper hebt und senkt sich minimal, wenn man stillsteht
-    const r = radius * 1.45 * (1 + (o.breath || 0) * 0.012);
+    const r = radius * 1.45;
     const LW = Math.max(0.9, r * 0.032);
     const uni = p.color;
     const uniD = shade(uni, -26);      // Helm
@@ -1165,309 +1006,6 @@ const RENDER = (() => {
   }
 
 
-  /* =============== Soldat im Match ===============
-     Die Kamera schaut schraeg von vorn, also steht die Figur auch im Spiel
-     aufrecht und dreht sich um ihre eigene Achse, statt wie ein Plaettchen
-     mitzurotieren.
-
-     Der Trick ist die Breite: ein Koerper ist von vorn breit und im Profil
-     schmal. Mit Schulterbreite S und Koerpertiefe D ergibt sich die
-     sichtbare Breite aus sqrt((S*zurKamera)^2 + (D*zurSeite)^2) - das ist
-     die Projektion eines Ellipsenquerschnitts und reicht voellig, um eine
-     echte Drehung vorzutaeuschen.
-
-     Gezeichnet wird im aufrechten Bildschirmraum: y nach oben ist negativ,
-     die Fuesse stehen bei y = 0. Nichts hier dreht die Leinwand mit dem
-     Blickwinkel - sonst wuerde die Figur kippen statt sich zu drehen. */
-  function drawSoldierBattle(g, p, r, o) {
-    const sw = C.WEAPONS.sword;
-
-    /* Rundumschlag: der ganze Koerper dreht sich einmal um sich selbst.
-       Beim Schwert ist das die Angriffsbewegung, sonst passiert hier nichts. */
-    let spin = 0;
-    if (o.swing > 0 && p.weapon === 'sword') {
-      const k = 1 - Math.min(1, o.swing / sw.swingTime);
-      if (k < 0.2) spin = -SPIN_WIND * (k / 0.2);
-      else {
-        const a = (k - 0.2) / 0.8;
-        spin = -SPIN_WIND + (Math.PI * 2 + SPIN_WIND) * (1 - Math.pow(1 - a, 2.2));
-      }
-    }
-
-    const aim = o.aim + spin;
-    const zurKamera = Math.sin(aim);      // +1 = schaut den Betrachter an
-    const zurSeite = Math.cos(aim);       // +-1 = Profil
-    // Blickrichtung auf dem Schirm, in der Hoehe durch die Kameraneigung gestaucht
-    const fx = Math.cos(aim), fy = Math.sin(aim) * TILT;
-    const fLen = Math.hypot(fx, fy) || 1;
-
-    /* Gedrungene Proportionen mit grossem Kopf: knapp drei Kopflaengen hoch.
-       Eine realistisch geteilte Figur wird bei dieser Groesse auf dem Schirm
-       zu einem Strich - kraeftige Formen bleiben auch klein erkennbar. */
-    const H = r * 3.0;
-    const LW = Math.max(0.9, r * 0.085);
-
-    /* Einsatzanzug statt bunter Uniform: Arme, Beine und Helm sind dunkel,
-       die Spielerfarbe sitzt auf Weste, Schulterstreifen und Helmband. So
-       sieht die Figur nach Spezialeinheit aus und bleibt trotzdem auf einen
-       Blick ihrem Team zuzuordnen - das ist der Grund, warum nicht einfach
-       alles schwarz ist. */
-    const uni = p.color || '#4ade80';
-    const uniL = shade(uni, 32);
-    const anzug = '#242832';
-    const anzugL = '#333949';
-    const anzugD = '#171a22';
-    const gurt = '#14161c';
-
-    const atem = (o.breath || 0) * r * 0.05;
-    const schulterY = -H * 0.56 - atem;
-    const hueftY = -H * 0.32;
-    const kopfR = H * 0.205;
-    const kopfY = -H * 0.75 - atem;
-
-    // Je groesser der Unterschied, desto deutlicher die Drehung
-    const schulter = r * 0.9, tiefe = r * 0.40;
-    const breite = Math.hypot(schulter * zurKamera, tiefe * zurSeite);
-    const hueftB = breite * 0.82;
-
-    /* Hiebspur des Rundumschlags - liegt auf dem Boden, gehoert also in die
-       gestauchte Ebene und wird darum flachgedrueckt gezeichnet. */
-    if (spin > 0.05) {
-      const fortschritt = spin / (Math.PI * 2);
-      g.save();
-      g.translate(0, -hueftY * 0 + hueftY * 0);
-      g.scale(1, TILT);
-      g.lineCap = 'round';
-      g.globalAlpha = .3 * (1 - fortschritt * .55);
-      g.strokeStyle = '#dceaff'; g.lineWidth = r * .5;
-      g.beginPath(); g.arc(0, hueftY / TILT, r * 1.5, -SPIN_WIND, spin); g.stroke();
-      g.globalAlpha = .7 * (1 - fortschritt * .6);
-      g.strokeStyle = '#fff'; g.lineWidth = r * .14;
-      g.beginPath(); g.arc(0, hueftY / TILT, r * 1.85, -SPIN_WIND, spin); g.stroke();
-      g.globalAlpha = 1;
-      g.restore();
-    }
-
-    /** Waffe an der Faust, in Blickrichtung, mit Verkuerzung nach hinten. */
-    const zeichneWaffe = () => {
-      const hx = fx * r * 0.62, hy = schulterY + r * 0.28 + fy * r * 0.62;
-      g.save();
-      g.translate(hx, hy);
-      g.rotate(Math.atan2(fy, fx));
-      g.scale(fLen, 1);                 // zeigt sie zur Kamera, wirkt sie kuerzer
-      drawWeapon(g, r * 1.25, LW, p.weapon || 'pistol', o);
-      g.restore();
-      return { hx, hy };
-    };
-
-    // Waffe hinter dem Koerper, wenn die Figur von uns weg zielt
-    if (zurKamera < 0) zeichneWaffe();
-
-    // ---------- Beine ----------
-    const schritt = (o.walk || 0) * r * 0.5;
-    [-1, 1].forEach(seite => {
-      const bx = seite * breite * 0.34;
-      const zx = bx + fx * schritt * seite;
-      const zy = fy * schritt * seite;
-      g.save();
-      g.lineCap = 'round'; g.lineJoin = 'round';
-      g.strokeStyle = INK; g.lineWidth = r * 0.42 + LW * 1.6;
-      g.beginPath(); g.moveTo(bx, hueftY); g.lineTo(zx, zy - r * 0.1); g.stroke();
-      g.strokeStyle = anzug; g.lineWidth = r * 0.42;
-      g.beginPath(); g.moveTo(bx, hueftY); g.lineTo(zx, zy - r * 0.1); g.stroke();
-      // Beintasche in Spielerfarbe - macht das Team auch von hinten erkennbar
-      g.strokeStyle = uni; g.lineWidth = r * .12;
-      g.beginPath();
-      g.moveTo(bx + seite * r * .16, hueftY + r * .18);
-      g.lineTo(bx + seite * r * .16 + fx * schritt * seite * .4, hueftY + r * .45);
-      g.stroke();
-      g.restore();
-      // Einsatzstiefel
-      g.fillStyle = '#101218';
-      g.beginPath(); g.ellipse(zx + fx * r * .12, zy - r * .06, r * .27, r * .21, 0, 0, 7);
-      g.fill(); ink(g, LW);
-      g.fillStyle = 'rgba(255,255,255,.10)';
-      g.beginPath(); g.ellipse(zx + fx * r * .1, zy - r * .13, r * .17, r * .08, 0, 0, 7); g.fill();
-    });
-
-    // ---------- Rumpf ----------
-    const torso = () => {
-      g.beginPath();
-      g.moveTo(-breite, schulterY + r * .1);
-      g.quadraticCurveTo(-breite * 1.06, hueftY - r * .3, -hueftB, hueftY);
-      g.lineTo(hueftB, hueftY);
-      g.quadraticCurveTo(breite * 1.06, hueftY - r * .3, breite, schulterY + r * .1);
-      g.quadraticCurveTo(0, schulterY - r * .22, -breite, schulterY + r * .1);
-      g.closePath();
-    };
-    shaded(g, torso, -breite, schulterY, breite, hueftY, anzugL, anzug, anzugD, LW * 1.2);
-
-    // Schutzweste in Spielerfarbe - das Erkennungsmerkmal der Figur
-    g.save();
-    torso(); g.clip();
-    const weste = () => {
-      roundRect(g, -breite * .8, schulterY + r * .16, breite * 1.6, (hueftY - schulterY) * .78, r * .16);
-    };
-    shaded(g, weste, -breite * .8, schulterY, breite * .8, hueftY, uniL, uni, shade(uni, -46), 0);
-    if (zurKamera >= 0) {
-      // Magazintaschen und Gurtband auf der Brust
-      g.fillStyle = shade(uni, -52);
-      roundRect(g, -breite * .5, schulterY + r * .44, breite * .4, r * .32, r * .07); g.fill();
-      roundRect(g, breite * .1, schulterY + r * .44, breite * .4, r * .32, r * .07); g.fill();
-      g.fillStyle = gurt;
-      g.fillRect(-breite * .12, schulterY + r * .16, breite * .24, (hueftY - schulterY) * .78);
-      g.fillStyle = 'rgba(255,255,255,.14)';
-      g.fillRect(-breite * .12, schulterY + r * .3, breite * .24, r * .07);
-    } else {
-      // Von hinten: Rucksack und Trageriemen
-      g.fillStyle = anzugD;
-      roundRect(g, -breite * .58, schulterY + r * .2, breite * 1.16, (hueftY - schulterY) * .66, r * .18);
-      g.fill();
-      g.fillStyle = gurt;
-      [-1, 1].forEach(s => g.fillRect(s * breite * .3 - breite * .07, schulterY + r * .16, breite * .14, (hueftY - schulterY) * .78));
-    }
-    g.restore();
-
-    // Koppel mit Schnalle
-    g.fillStyle = gurt;
-    roundRect(g, -hueftB * 1.06, hueftY - r * .16, hueftB * 2.12, r * .28, r * .07); g.fill();
-    g.fillStyle = shade(uni, 20);
-    roundRect(g, -r * .12, hueftY - r * .13, r * .24, r * .22, r * .05); g.fill();
-
-    // ---------- Arme ----------
-    const { hx, hy } = zurKamera < 0
-      ? { hx: fx * r * 0.62, hy: schulterY + r * 0.28 + fy * r * 0.62 }
-      : { hx: fx * r * 0.62, hy: schulterY + r * 0.28 + fy * r * 0.62 };
-    [-1, 1].forEach(seite => {
-      const sx = seite * breite * 0.92;
-      /* Nur der Waffenarm greift nach vorn. Der freie Arm haengt am Koerper -
-         vorher zog er zur Seite weg und machte die Figur je nach Blickrichtung
-         unterschiedlich breit. */
-      const zielX = seite > 0 ? hx : seite * breite * 0.78;
-      const zielY = seite > 0 ? hy : hueftY - r * .1;
-      g.save();
-      g.lineCap = 'round';
-      g.strokeStyle = INK; g.lineWidth = r * 0.34 + LW * 1.6;
-      g.beginPath(); g.moveTo(sx, schulterY + r * .12); g.lineTo(zielX, zielY); g.stroke();
-      g.strokeStyle = anzug; g.lineWidth = r * 0.34;
-      g.beginPath(); g.moveTo(sx, schulterY + r * .12); g.lineTo(zielX, zielY); g.stroke();
-      g.restore();
-      // Schulterplatte in Spielerfarbe
-      g.fillStyle = uni;
-      g.beginPath();
-      g.ellipse(sx * .92, schulterY + r * .1, r * .21, r * .17, seite * .3, 0, 7);
-      g.fill(); ink(g, LW * .8);
-      g.fillStyle = 'rgba(255,255,255,.2)';
-      g.beginPath();
-      g.ellipse(sx * .92 - r * .05, schulterY + r * .05, r * .11, r * .07, seite * .3, 0, 7);
-      g.fill();
-    });
-    // Taktikhandschuhe statt blosser Faeuste
-    g.fillStyle = '#15171e';
-    g.beginPath(); g.arc(hx, hy, r * .2, 0, 7); g.fill(); ink(g, LW * .8);
-    g.fillStyle = shade(uni, -10);
-    g.beginPath(); g.arc(hx - fx * r * .06, hy - fy * r * .06, r * .09, 0, 7); g.fill();
-
-    // ---------- Kopf ----------
-    // Halsschutz statt blosser Haut
-    g.fillStyle = anzugD;
-    roundRect(g, -r * .18, kopfY + kopfR * .48, r * .36, r * .32, r * .1); g.fill();
-
-    const kopf = () => { g.beginPath(); g.arc(0, kopfY, kopfR, 0, 7); g.closePath(); };
-    shaded(g, kopf, -kopfR, kopfY - kopfR, kopfR, kopfY + kopfR,
-      shade(FLESH, 20), FLESH, shade(FLESH, -36), LW);
-
-    /* Sturmhaube. Von vorn bleibt nur die Augenpartie frei, von hinten ist
-       der Kopf ganz verdeckt - sonst blitzte dort ein Hautstreifen durch,
-       der wie ein Band quer ueber den Hinterkopf aussah. */
-    g.save();
-    kopf(); g.clip();
-    g.fillStyle = anzugD;
-    if (zurKamera > 0.02) {
-      g.fillRect(-kopfR, kopfY + kopfR * .22, kopfR * 2, kopfR);
-      g.fillRect(-kopfR, kopfY - kopfR, kopfR * 2, kopfR * .55);
-    } else {
-      g.fillRect(-kopfR, kopfY - kopfR, kopfR * 2, kopfR * 2);
-      // Naht am Hinterkopf
-      g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = LW;
-      g.beginPath(); g.moveTo(0, kopfY - kopfR); g.lineTo(0, kopfY + kopfR); g.stroke();
-    }
-    g.restore();
-
-    if (zurKamera > 0.02) {
-      /* Visier statt Augen - macht die Figur zum Einsatzteam statt zum
-         Comicsoldaten. Es wandert im Profil zur Seite und verschwindet, wenn
-         die Figur uns den Ruecken zudreht. */
-      const versatz = zurSeite * kopfR * .4;
-      const auf = Math.min(1, zurKamera * 1.6);
-      g.save();
-      kopf(); g.clip();
-      /* Das Glas leuchtet in der Spielerfarbe. Ein dunkles Visier auf dunkler
-         Haube war von hinten praktisch nicht zu unterscheiden - so sieht man
-         auf einen Blick, wohin jemand schaut. */
-      const visier = g.createLinearGradient(0, kopfY - kopfR * .34, 0, kopfY + kopfR * .2);
-      visier.addColorStop(0, '#0a0e18');
-      visier.addColorStop(.45, shade(uni, -30));
-      visier.addColorStop(1, shade(uni, 44));
-      g.fillStyle = visier;
-      roundRect(g, versatz - kopfR * .84 * auf, kopfY - kopfR * .34,
-        kopfR * 1.68 * auf, kopfR * .54, kopfR * .16);
-      g.fill();
-      // Lichtstreifen quer durchs Glas
-      g.fillStyle = 'rgba(255,255,255,.55)';
-      g.beginPath();
-      g.ellipse(versatz - kopfR * .28 * auf, kopfY - kopfR * .16, kopfR * .3 * auf, kopfR * .07, -.3, 0, 7);
-      g.fill();
-      g.strokeStyle = 'rgba(10,14,24,.85)'; g.lineWidth = LW * .9;
-      roundRect(g, versatz - kopfR * .84 * auf, kopfY - kopfR * .34,
-        kopfR * 1.68 * auf, kopfR * .54, kopfR * .16);
-      g.stroke();
-      g.restore();
-      // Kinnriemen
-      g.strokeStyle = gurt; g.lineWidth = LW * 1.4;
-      g.beginPath();
-      g.moveTo(versatz - kopfR * .8, kopfY + kopfR * .1);
-      g.quadraticCurveTo(versatz, kopfY + kopfR * .62, versatz + kopfR * .8, kopfY + kopfR * .1);
-      g.stroke();
-    }
-
-    /* Einsatzhelm mit farbigem Band. Der Rand darf nicht tiefer sitzen -
-       sonst verschwindet das Visier vollstaendig darunter. */
-    const helm = () => {
-      g.beginPath();
-      g.arc(0, kopfY - kopfR * .22, kopfR * 1.08, Math.PI, 0);
-      g.quadraticCurveTo(0, kopfY - kopfR * .34, -kopfR * 1.08, kopfY - kopfR * .22);
-      g.closePath();
-    };
-    shaded(g, helm, -kopfR, kopfY - kopfR * 1.1, kopfR, kopfY, anzugL, anzug, anzugD, LW);
-    // Farbband ueber dem Helm - Teamfarbe auch von hinten sichtbar
-    g.save();
-    helm(); g.clip();
-    g.fillStyle = uni;
-    g.fillRect(-kopfR * 1.1, kopfY - kopfR * .62, kopfR * 2.2, kopfR * .2);
-    g.fillStyle = 'rgba(255,255,255,.22)';
-    g.beginPath(); g.ellipse(-kopfR * .35, kopfY - kopfR * .82, kopfR * .34, kopfR * .14, -.4, 0, 7); g.fill();
-    g.restore();
-
-    // Headset: Ohrmuschel und Mikrofonarm
-    const ohrX = zurSeite >= 0 ? kopfR * .92 : -kopfR * .92;
-    g.fillStyle = anzugD;
-    g.beginPath(); g.ellipse(ohrX, kopfY - kopfR * .05, kopfR * .22, kopfR * .3, 0, 0, 7); g.fill();
-    ink(g, LW * .7);
-    g.fillStyle = uni;
-    g.beginPath(); g.arc(ohrX, kopfY - kopfR * .05, kopfR * .09, 0, 7); g.fill();
-    if (zurKamera > 0.02) {
-      g.strokeStyle = anzugD; g.lineWidth = LW * 1.1;
-      g.beginPath();
-      g.moveTo(ohrX, kopfY + kopfR * .12);
-      g.quadraticCurveTo(ohrX * .5, kopfY + kopfR * .5, 0, kopfY + kopfR * .42);
-      g.stroke();
-    }
-
-    // Waffe vor dem Koerper, wenn die Figur zu uns zeigt
-    if (zurKamera >= 0) zeichneWaffe();
-  }
-
   function drawPlayer(g, p, isMe, g_) {
     const r = C.PLAYER_R;
     const x = p.rx, y = p.ry, a = p.ra;
@@ -1482,12 +1020,9 @@ const RENDER = (() => {
        eigene Team, und dort als Schemen. */
     if (p.cloaked) g.globalAlpha *= 0.34;
 
-    /* Schatten in derselben Richtung wie bei Waenden und Bueschen, dazu ein
-       weicher Halbschatten. Ohne den klebt die Figur flach auf dem Boden. */
-    g.fillStyle = 'rgba(0,0,0,.22)';
-    g.beginPath(); g.ellipse(EX * .6, EY * .6, r * 1.35, r * 1.05, 0, 0, 7); g.fill();
-    g.fillStyle = 'rgba(0,0,0,.44)';
-    g.beginPath(); g.ellipse(EX * .4, EY * .45, r * .98, r * .78, 0, 0, 7); g.fill();
+    // Schatten
+    g.fillStyle = 'rgba(0,0,0,.4)';
+    g.beginPath(); g.ellipse(2, 4, r * 1.02, r * .82, 0, 0, 7); g.fill();
 
     // Dash-Nachzieher
     if (p.dash) {
@@ -1509,28 +1044,13 @@ const RENDER = (() => {
       g.beginPath(); g.ellipse(0, r * .5, r * 1.68, r * .88, 0, 0, 7); g.stroke();
     }
 
-    /* Ab hier steht die Figur aufrecht: Stauchung herausrechnen. Der Schatten
-       oben bleibt am Boden - dadurch sieht man, dass die Figur darauf steht
-       und nicht daraufgeklebt ist. Angehoben wird nicht mehr; die Figur
-       waechst aus ihrem Standpunkt nach oben. */
-    standUp(g, 0);
-    drawSoldierBattle(g, p, r, {
-      aim: a,
+    g.rotate(a);
+    drawSoldier(g, p, r, {
       walk: moving ? Math.sin(phase) : 0,
       spin: p.spinAngle || 0,
-      swing: p.swingT || 0,
-      // Atmen im Stand, damit niemand wie eine Figur auf dem Brett wirkt
-      breath: moving ? 0 : Math.sin(time * 2.2 + (p.id || 0)) * .5 + .5
+      swing: p.swingT || 0
     });
     g.restore();
-
-    /* Die Kamera steht vorn, also ist die dem Betrachter zugewandte Seite -
-       auf dem Schirm unten - heller, die abgewandte oben dunkler. Der
-       Verlauf haengt am Bildschirm, nicht an der Blickrichtung der Figur:
-       das Licht dreht sich nicht mit, wenn jemand herumschaut. */
-    /* Frueher lag hier eine aufhellende Flaeche ueber der Figur. Als Rechteck
-       gefuellt war sie im Spiel als heller Kasten um den Spieler zu sehen -
-       die Beleuchtung sitzt jetzt direkt in den Koerperteilen. */
 
     // Unverwundbarkeits-Schild
     if (p.invul) {
@@ -1570,8 +1090,6 @@ const RENDER = (() => {
     g.save();
     g.globalAlpha = Math.min(1, k * 1.6);
     g.translate(c.x, c.y);
-    // Sinkt beim Umfallen von Stehhoehe auf den Boden
-    standUp(g, C.PLAYER_R * PLAYER_H * k);
     g.rotate(c.ang + c.rot);
     const scale = 1 + (1 - k) * 0.22;
     g.scale(scale, scale * (0.62 + 0.38 * k));
@@ -1586,11 +1104,7 @@ const RENDER = (() => {
     const bob = Math.sin(time * 2.6 + pk.i) * 3;
     const col = pk.ty === 'health' ? '#4ade80' : '#ffd166';
     g.save();
-    g.translate(pk.x, pk.y);
-    // Schatten bleibt am Boden, die Kiste schwebt darueber
-    g.fillStyle = 'rgba(0,0,0,.35)';
-    g.beginPath(); g.ellipse(EX * .4, EY * .4, 15, 10, 0, 0, 7); g.fill();
-    standUp(g, 16 + bob);
+    g.translate(pk.x, pk.y + bob);
     const glow = g.createRadialGradient(0, 0, 8, 0, 0, 30);
     glow.addColorStop(0, col + '55');
     glow.addColorStop(1, col + '00');
@@ -1624,7 +1138,6 @@ const RENDER = (() => {
     const ready = mi.rd === 1;
     g.save();
     g.translate(mi.x, mi.y);
-    standUp(g, 4);
     if (!armed) {
       // noch im Flug
       g.globalAlpha = .8;
@@ -1924,14 +1437,12 @@ const RENDER = (() => {
     const s = cam.scale;
     ctx.save();
     ctx.translate(W / 2 + cam.shakeX, H / 2 + cam.shakeY);
-    ctx.scale(s, s * TILT);          // Bodenebene in der Hoehe gestaucht
+    ctx.scale(s, s);
     ctx.translate(-cam.x, -cam.y);
 
-    /* Sichtfenster: in der Hoehe grosszuegiger, weil stehende Objekte um ihre
-       Hoehe nach oben ragen und sonst am oberen Rand abgeschnitten wuerden. */
     const view = {
       x0: cam.x - W / 2 / s - 60, x1: cam.x + W / 2 / s + 60,
-      y0: cam.y - H / 2 / (s * TILT) - 140, y1: cam.y + H / 2 / (s * TILT) + 80
+      y0: cam.y - H / 2 / s - 60, y1: cam.y + H / 2 / s + 60
     };
 
     // Map - nur den sichtbaren Ausschnitt kopieren
@@ -2422,6 +1933,7 @@ const RENDER = (() => {
     g.restore();
   }
 
+
   /** Ganzkoerper-Vorschau von vorn. y ist der Boden, unter dem die Figur steht. */
   function drawAvatarFront(g, x, y, hoehe, skin, t) {
     g.save();
@@ -2431,10 +1943,7 @@ const RENDER = (() => {
   }
 
   return {
-    resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld,
-    drawAvatar, drawAvatarFront, shade,
-    __battle: drawSoldierBattle,   // fuer Tests: Figur einzeln zeichnen
-    __mapCanvas: () => mapCv,      // fuer Tests: gebackene Karte auslesen
+    resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld, drawAvatar, drawAvatarFront, shade,
     setQuality,
     get quality() {
       return { level: qLevel, name: q().name, avgMs: Math.round(drawAvg * 100) / 100, pinned: qPinned >= 0 };

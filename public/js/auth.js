@@ -61,19 +61,62 @@ const AUTH = (() => {
     });
   }
 
+  /* Warum das so aufwaendig ist: auf manchen Geraeten - Schulnetz,
+     Virenschutz, strenge Erweiterungen - wird die Google-Anmeldung
+     abgefangen. Mal fehlt schon das SDK, mal geht das Fenster gar nicht auf,
+     mal bleibt es stumm haengen. Ohne Behandlung sieht der Spieler nur einen
+     hilflosen Knopf und kommt nicht ins Spiel. Jeder dieser Faelle bekommt
+     deshalb eine eigene, verstaendliche Rueckmeldung - und in allen bleibt
+     der Gastweg offen. */
+  const GRUENDE = {
+    'auth/popup-blocked': 'popup',
+    'auth/popup-closed-by-user': 'abgebrochen',
+    'auth/cancelled-popup-request': 'abgebrochen',
+    'auth/user-cancelled': 'abgebrochen',
+    'auth/network-request-failed': 'blockiert',
+    'auth/internal-error': 'blockiert',
+    'auth/unauthorized-domain': 'domain',
+    'auth/operation-not-allowed': 'projekt',
+    'auth/configuration-not-found': 'projekt'
+  };
+
+  /** Fehler in einen kurzen Grund uebersetzen, den die Oberflaeche kennt. */
+  function grundVon(e) {
+    const code = (e && e.code) || '';
+    if (GRUENDE[code]) return GRUENDE[code];
+    if (/network|blocked|failed to fetch/i.test((e && e.message) || '')) return 'blockiert';
+    return 'unbekannt';
+  }
+
   async function signIn() {
-    if (!available()) throw new Error('Firebase Auth ist nicht verfügbar');
+    if (!available()) { const f = new Error('Auth nicht geladen'); f.grund = 'blockiert'; throw f; }
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+
+    /* Zeitgrenze: ein von einem Filter abgefangenes Fenster meldet oft gar
+       nichts zurueck. Ohne diese Grenze bliebe der Knopf ewig deaktiviert. */
+    const zeitgrenze = new Promise((_, ab) => setTimeout(() => {
+      const f = new Error('Zeitueberschreitung'); f.grund = 'blockiert'; ab(f);
+    }, 25000));
+
     try {
-      await firebase.auth().signInWithPopup(provider);
+      await Promise.race([firebase.auth().signInWithPopup(provider), zeitgrenze]);
     } catch (e) {
-      // Popup geblockt oder geschlossen -> Weiterleitung als Rueckfallweg
-      if (e.code === 'auth/popup-blocked' || e.code === 'auth/operation-not-supported-in-this-environment') {
-        await firebase.auth().signInWithRedirect(provider);
-        return;
+      const grund = e.grund || grundVon(e);
+      // Fenster geblockt -> ueber eine Weiterleitung versuchen
+      if (grund === 'popup' || (e.code || '') === 'auth/operation-not-supported-in-this-environment') {
+        try {
+          await firebase.auth().signInWithRedirect(provider);
+          return;
+        } catch (e2) {
+          const f = new Error(e2.message || 'Weiterleitung fehlgeschlagen');
+          f.grund = grundVon(e2);
+          throw f;
+        }
       }
-      throw e;
+      const f = new Error(e.message || 'Anmeldung fehlgeschlagen');
+      f.grund = grund;
+      throw f;
     }
   }
 
@@ -91,6 +134,8 @@ const AUTH = (() => {
 
   return {
     init, signIn, signOut, playAsGuest, pushToken, setProfile, state, available,
+    /** Anmeldung auf diesem Geraet ueberhaupt moeglich? */
+    blocked: () => !available(),
     onChange(fn) { listeners.push(fn); fn(state()); },
     get user() { return user; },
     get profile() { return profile; },

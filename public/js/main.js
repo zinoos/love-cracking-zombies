@@ -833,23 +833,54 @@
       FB.log('leaderboard_open');
     };
 
-    // ---- Anmeldung ----
+    /* ---- Anmeldung ----
+       Wird die Anmeldung vom Geraet abgefangen, darf niemand vor einem toten
+       Knopf sitzen: der Hinweis erklaert die Lage und der Gastweg wird zum
+       Hauptknopf. Gespielt werden kann immer. */
+    function anmeldungBlockiert(text) {
+      $('login-blocked').classList.add('show');
+      if (text) $('login-err').textContent = text;
+      $('btn-google').disabled = true;
+      $('btn-google').style.opacity = .45;
+      $('btn-guest').classList.add('primary-fallback');
+      $('btn-guest').textContent = 'Ohne Anmeldung spielen';
+    }
+
+    // SDK gar nicht geladen -> Filter hat es schon vorher geblockt
+    if (AUTH.blocked()) anmeldungBlockiert('');
+
     $('btn-google').onclick = async () => {
       $('login-err').textContent = '';
       const btn = $('btn-google');
       btn.disabled = true;
+      const alt = btn.querySelector('b').textContent;
+      btn.querySelector('b').textContent = 'ANMELDEFENSTER OFFEN …';
       try {
         await AUTH.signIn();
         FB.log('login', { method: 'google' });
       } catch (e) {
-        const hint = /unauthorized-domain/.test(e.code || '')
-          ? 'Diese Domain ist in Firebase nicht freigegeben (Authentication → Settings → Authorized domains).'
-          : /configuration-not-found|operation-not-allowed/.test(e.code || '')
-            ? 'Google-Anmeldung ist im Firebase-Projekt noch nicht aktiviert.'
-            : e.message;
-        $('login-err').textContent = hint;
+        switch (e.grund) {
+          case 'blockiert':
+          case 'popup':
+            anmeldungBlockiert('');
+            break;
+          case 'abgebrochen':
+            $('login-err').textContent = 'Anmeldung abgebrochen.';
+            break;
+          case 'domain':
+            $('login-err').textContent = 'Diese Adresse ist in Firebase nicht freigegeben '
+              + '(Authentication → Settings → Authorized domains).';
+            break;
+          case 'projekt':
+            $('login-err').textContent = 'Google-Anmeldung ist im Firebase-Projekt nicht aktiviert.';
+            break;
+          default:
+            $('login-err').textContent = e.message;
+        }
+        FB.log('login_failed', { reason: e.grund || 'unbekannt' });
       } finally {
-        btn.disabled = false;
+        btn.querySelector('b').textContent = alt;
+        if (!AUTH.blocked()) btn.disabled = false;
       }
     };
     $('btn-guest').onclick = () => { AUTH.playAsGuest(); FB.log('login', { method: 'guest' }); };
