@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/
+.firebase/
+*.log
+.DS_Store
+# Zugangsdaten gehoeren nie ins Repo
+serviceaccount*.json
+.env

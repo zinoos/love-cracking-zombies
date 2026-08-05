@@ -1,0 +1,463 @@
+/* NEON STRIKE - Server: statisches Hosting, WebSocket-Lobbys, Match-Loop. */
+const path = require('path');
+const http = require('http');
+const express = require('express');
+const { WebSocketServer } = require('ws');
+
+const C = require('./shared/constants.js');
+const MAPS = require('./shared/maps.js');
+const { Match } = require('./server/match.js');
+const { botName } = require('./server/bots.js');
+const { verifyIdToken } = require('./server/auth.js');
+const STARS = require('./server/stars.js');
+
+const PORT = process.env.PORT || 3000;
+// Projekt, dessen ID-Tokens akzeptiert werden (muss zur Client-Config passen)
+const AUTH_PROJECT = process.env.AUTH_PROJECT || 'nosershooter';
+const app = express();
+app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
+app.use('/shared', express.static(path.join(__dirname, 'shared'), { maxAge: 0 }));
+// Firebase-SDK lokal ausliefern - kein CDN noetig, Spiel bleibt LAN-tauglich
+app.use('/vendor/firebase', express.static(path.join(__dirname, 'node_modules', 'firebase'), { maxAge: '1h' }));
+app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size, players: clients.size }));
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+const rooms = new Map();     // code -> Room
+const clients = new Map();   // id -> Client
+let CLIENT_ID = 1;
+
+function send(ws, obj) {
+  if (ws && ws.readyState === 1) {
+    try { ws.send(JSON.stringify(obj)); } catch (_) { /* ignore */ }
+  }
+}
+
+function sanitizeName(n) {
+  n = String(n || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, 14);
+  return n || 'Spieler';
+}
+
+function sanitizeSkin(s) {
+  s = s || {};
+  const hex = /^#[0-9a-fA-F]{6}$/;
+  return {
+    color: hex.test(s.color) ? s.color : '#5c7a2e',
+    trail: hex.test(s.trail) ? s.trail : '#ffd166',
+    pattern: C.SKIN_PATTERNS.includes(s.pattern) ? s.pattern : 'solid'
+  };
+}
+
+function newCode() {
+  let code;
+  let guard = 0;
+  do {
+    code = String(Math.floor(Math.random() * 900000) + 100000);
+  } while (rooms.has(code) && guard++ < 5000);
+  return code;
+}
+
+class Room {
+  constructor(host) {
+    this.code = newCode();
+    this.hostId = host.id;
+    this.members = new Map();
+    this.mode = 'ffa';
+    this.state = 'lobby';
+    this.match = null;
+    this.mapId = null;
+    this.snapAcc = 0;
+    this.lastResult = null;
+    rooms.set(this.code, this);
+    this.add(host);
+  }
+
+  get humans() { return [...this.members.values()].filter(m => !m.bot); }
+
+  add(client) {
+    if (this.members.size >= C.MAX_PLAYERS) return false;
+    client.roomCode = this.code;
+    this.members.set(client.id, client);
+    this.autoTeam(client);
+    return true;
+  }
+
+  autoTeam(m) {
+    if (C.MODES[this.mode].teams === 1) { m.team = 0; return; }
+    const counts = [0, 0];
+    for (const o of this.members.values()) if (o !== m) counts[o.team || 0]++;
+    m.team = counts[0] <= counts[1] ? 0 : 1;
+  }
+
+  remove(id) {
+    const m = this.members.get(id);
+    if (!m) return;
+    this.members.delete(id);
+    if (this.match) this.match.removePlayer(id);
+    if (m.bot) { /* nichts */ }
+    if (this.hostId === id) {
+      const next = this.humans[0];
+      if (next) this.hostId = next.id;
+    }
+    if (this.humans.length === 0) {
+      rooms.delete(this.code);
+      return;
+    }
+    this.broadcastRoom();
+    if (this.match && this.state === 'match') {
+      const alive = [...this.match.players.values()];
+      if (alive.length <= 1) this.match.end(alive[0] ? alive[0].id : null);
+    }
+  }
+
+  addBot() {
+    if (this.members.size >= C.MAX_PLAYERS) return;
+    const hues = ['#a8322f', '#2f4a7a', '#a08b4f', '#6b4a9c', '#3f7d8c', '#c2a05a'];
+    const bot = {
+      id: CLIENT_ID++, ws: null, bot: true,
+      name: botName(),
+      skin: { color: hues[Math.floor(Math.random() * hues.length)], trail: '#ffffff', pattern: C.SKIN_PATTERNS[Math.floor(Math.random() * C.SKIN_PATTERNS.length)] },
+      team: 0, ready: true
+    };
+    this.members.set(bot.id, bot);
+    this.autoTeam(bot);
+    this.broadcastRoom();
+  }
+
+  setMode(mode) {
+    if (!C.MODES[mode]) return;
+    this.mode = mode;
+    const cfg = C.MODES[mode];
+    // Teams neu verteilen
+    const list = [...this.members.values()];
+    if (cfg.teams === 1) list.forEach(m => { m.team = 0; });
+    else list.forEach((m, i) => { m.team = i % 2; });
+    this.broadcastRoom();
+  }
+
+  setTeam(id, team) {
+    const m = this.members.get(id);
+    if (!m || C.MODES[this.mode].teams === 1) return;
+    m.team = team ? 1 : 0;
+    this.broadcastRoom();
+  }
+
+  canStart() {
+    const cfg = C.MODES[this.mode];
+    const n = this.members.size;
+    if (n < cfg.min) return `Mindestens ${cfg.min} Spieler noetig`;
+    if (n > cfg.max) return `Maximal ${cfg.max} Spieler in ${cfg.name}`;
+    if (cfg.teams > 1) {
+      const counts = [0, 0];
+      for (const m of this.members.values()) counts[m.team]++;
+      if (counts[0] !== cfg.perTeam || counts[1] !== cfg.perTeam) {
+        return `Teams muessen ${cfg.perTeam} vs ${cfg.perTeam} sein`;
+      }
+    }
+    return null;
+  }
+
+  start() {
+    const err = this.canStart();
+    if (err) return err;
+    this.mapId = Math.floor(Math.random() * MAPS.count);
+    this.match = new Match(this, this.mode, this.mapId);
+    for (const m of this.members.values()) this.match.addPlayer(m);
+    this.state = 'match';
+    const info = {
+      t: C.MSG.MATCH,
+      mapId: this.mapId,
+      mapName: MAPS.generate(this.mapId).name,
+      mode: this.mode,
+      countdown: C.COUNTDOWN,
+      players: [...this.members.values()].map(m => {
+        const sim = this.match.players.get(m.id);
+        return {
+          id: m.id, name: m.name, color: m.skin.color, trail: m.skin.trail,
+          pattern: m.skin.pattern, team: m.team, bot: !!m.bot,
+          weapon: sim ? sim.weaponKey : 'pistol'
+        };
+      })
+    };
+    for (const m of this.humans) {
+      const sim = this.match.players.get(m.id);
+      send(m.ws, { ...info, you: m.id, choices: sim ? sim.choices : [] });
+    }
+    return null;
+  }
+
+  onMatchEnd(match) {
+    const board = match.scoreboard();
+    const teams = match.mode.teams;
+
+    // Sterne verteilen: Rang nach Kills, obere Haelfte gewinnt, untere verliert
+    const entries = board.map((p, i) => {
+      const member = this.members.get(p.id);
+      return {
+        uid: member && !member.bot ? member.uid : null,
+        name: p.name,
+        rank: i + 1,
+        kills: p.kills,
+        deaths: p.deaths,
+        wonTeam: teams > 1 && match.winner !== null && p.team === match.winner
+      };
+    });
+    const awards = STARS.award(entries);
+
+    const boardWithStars = board.map((p, i) => {
+      const member = this.members.get(p.id);
+      const a = member && member.uid ? awards.get(member.uid) : null;
+      return { ...p, rank: i + 1, stars: a ? a.delta : null, total: a ? a.after : null, capped: a ? a.capped : false };
+    });
+
+    this.lastResult = {
+      t: C.MSG.END,
+      winner: match.winner,
+      mode: this.mode,
+      teams,
+      teamScore: match.teamScore,
+      board: boardWithStars,
+      mapName: match.map.name
+    };
+    setTimeout(() => {
+      for (const m of this.humans) {
+        send(m.ws, this.lastResult);
+        if (m.uid) send(m.ws, { t: C.MSG.ME, profile: STARS.publicProfile(m.uid) });
+      }
+      this.state = 'lobby';
+      this.match = null;
+      this.broadcastRoom();
+    }, 2200);
+  }
+
+  roomPayload() {
+    return {
+      t: C.MSG.ROOM,
+      code: this.code,
+      host: this.hostId,
+      mode: this.mode,
+      state: this.state,
+      maxPlayers: C.MAX_PLAYERS,
+      canStart: this.canStart(),
+      members: [...this.members.values()].map(m => ({
+        id: m.id, name: m.name, skin: m.skin, team: m.team, bot: !!m.bot, host: m.id === this.hostId,
+        stars: m.uid ? STARS.get(m.uid).stars : null, guest: !m.bot && !m.uid
+      }))
+    };
+  }
+
+  broadcastRoom() {
+    const p = this.roomPayload();
+    for (const m of this.humans) send(m.ws, p);
+  }
+
+  chat(from, text) {
+    text = String(text || '').slice(0, 120).trim();
+    if (!text) return;
+    const msg = { t: C.MSG.CHAT, name: from.name, color: from.skin.color, text, ts: Date.now() };
+    for (const m of this.humans) send(m.ws, msg);
+  }
+
+  update(dt) {
+    if (!this.match) return;
+    this.match.step(dt);
+    this.snapAcc += dt;
+    const interval = 1 / C.SNAP_RATE;
+    if (this.snapAcc >= interval) {
+      this.snapAcc -= interval;
+      for (const m of this.humans) {
+        if (this.match) send(m.ws, this.match.snapshotFor(m.id));
+      }
+      if (this.match) this.match.clearEvents();
+    }
+  }
+}
+
+/* ---------------- WebSocket ---------------- */
+
+wss.on('connection', (ws, req) => {
+  const client = {
+    id: CLIENT_ID++, ws, bot: false,
+    name: 'Spieler', skin: sanitizeSkin({}), team: 0, roomCode: null, alive: true,
+    uid: null, authName: ''
+  };
+  clients.set(client.id, client);
+  void req;
+  send(ws, { t: C.MSG.HELLO, id: client.id, maxPlayers: C.MAX_PLAYERS, modes: C.MODES, authProject: AUTH_PROJECT });
+
+  ws.on('message', raw => {
+    let msg;
+    try { msg = JSON.parse(raw); } catch (_) { return; }
+    handle(client, msg);
+  });
+
+  ws.on('close', () => {
+    const room = rooms.get(client.roomCode);
+    if (room) room.remove(client.id);
+    clients.delete(client.id);
+  });
+
+  ws.on('pong', () => { client.alive = true; });
+});
+
+function handle(client, msg) {
+  const M = C.MSG;
+  const room = rooms.get(client.roomCode);
+
+  switch (msg.t) {
+    case M.HELLO:
+      client.name = sanitizeName(msg.name);
+      client.skin = sanitizeSkin(msg.skin);
+      if (room) room.broadcastRoom();
+      break;
+
+    case M.PING:
+      send(client.ws, { t: M.PONG, ts: msg.ts });
+      break;
+
+    case M.AUTH: {
+      // Abmelden
+      if (!msg.idToken) {
+        client.uid = null; client.authName = '';
+        send(client.ws, { t: M.ME, profile: null });
+        if (room) room.broadcastRoom();
+        break;
+      }
+      verifyIdToken(msg.idToken, AUTH_PROJECT).then(u => {
+        client.uid = u.uid;
+        client.authName = u.name;
+        if (u.name) client.name = sanitizeName(u.name);
+        STARS.touch(u.uid, u.name, u.picture);
+        send(client.ws, { t: M.ME, profile: STARS.publicProfile(u.uid), name: client.name });
+        const r = rooms.get(client.roomCode);
+        if (r) r.broadcastRoom();
+      }).catch(e => {
+        client.uid = null;
+        send(client.ws, { t: M.ERROR, msg: 'Anmeldung abgelehnt: ' + e.message });
+        send(client.ws, { t: M.ME, profile: null });
+      });
+      break;
+    }
+
+    case M.BOARDREQ:
+      send(client.ws, {
+        t: M.BOARD,
+        list: STARS.leaderboard(C.STARS.LEADERBOARD_SIZE),
+        you: client.uid ? STARS.publicProfile(client.uid) : null
+      });
+      break;
+
+    case M.CREATE: {
+      if (room) room.remove(client.id);
+      client.name = sanitizeName(msg.name || client.name);
+      client.skin = sanitizeSkin(msg.skin || client.skin);
+      const r = new Room(client);
+      if (msg.mode && C.MODES[msg.mode]) r.mode = msg.mode;
+      r.broadcastRoom();
+      break;
+    }
+
+    case M.JOIN: {
+      const code = String(msg.code || '').replace(/\D/g, '').slice(0, C.CODE_LEN);
+      const target = rooms.get(code);
+      if (!target) return send(client.ws, { t: M.ERROR, msg: 'Kein Raum mit diesem Code' });
+      if (target.state === 'match') return send(client.ws, { t: M.ERROR, msg: 'Match laeuft bereits' });
+      if (target.members.size >= C.MAX_PLAYERS) return send(client.ws, { t: M.ERROR, msg: 'Lobby ist voll (6/6)' });
+      if (room) room.remove(client.id);
+      client.name = sanitizeName(msg.name || client.name);
+      client.skin = sanitizeSkin(msg.skin || client.skin);
+      target.add(client);
+      target.broadcastRoom();
+      break;
+    }
+
+    case M.LEAVE:
+      if (room) { room.remove(client.id); client.roomCode = null; }
+      break;
+
+    case M.CHAT:
+      if (room) room.chat(client, msg.text);
+      break;
+
+    case M.SETUP:
+      if (room && room.hostId === client.id && room.state === 'lobby') room.setMode(msg.mode);
+      break;
+
+    case M.TEAM:
+      if (!room) break;
+      if (room.hostId === client.id) room.setTeam(msg.id, msg.team);
+      else if (msg.id === client.id) room.setTeam(client.id, msg.team);
+      break;
+
+    case M.ADDBOT:
+      if (room && room.hostId === client.id && room.state === 'lobby') room.addBot();
+      break;
+
+    case M.KICK:
+      if (room && room.hostId === client.id && msg.id !== client.id) {
+        const victim = room.members.get(msg.id);
+        if (victim && !victim.bot) {
+          send(victim.ws, { t: M.ERROR, msg: 'Du wurdest aus der Lobby entfernt', kicked: true });
+          victim.roomCode = null;
+        }
+        room.remove(msg.id);
+      }
+      break;
+
+    case M.START: {
+      if (!room || room.hostId !== client.id || room.state !== 'lobby') break;
+      const err = room.start();
+      if (err) send(client.ws, { t: M.ERROR, msg: err });
+      break;
+    }
+
+    case M.INPUT:
+      if (room && room.match) room.match.setInput(client.id, msg);
+      break;
+
+    case M.PICK:
+      if (room && room.match) room.match.pickWeapon(client.id, msg.w);
+      break;
+  }
+}
+
+/* ---------------- Loop ---------------- */
+
+let last = Date.now();
+setInterval(() => {
+  const now = Date.now();
+  let dt = (now - last) / 1000;
+  last = now;
+  if (dt > 0.25) dt = 0.25;
+  for (const room of rooms.values()) {
+    try { room.update(dt); } catch (e) { console.error('room update', e); }
+  }
+}, 1000 / C.TICK_RATE);
+
+// Tote Verbindungen aufraeumen
+setInterval(() => {
+  for (const c of clients.values()) {
+    if (!c.ws) continue;
+    if (c.alive === false) { try { c.ws.terminate(); } catch (_) {} continue; }
+    c.alive = false;
+    try { c.ws.ping(); } catch (_) {}
+  }
+}, 15000);
+
+/* Erst die Bestenliste einlesen, dann Verbindungen annehmen - sonst koennte
+   ein frueher Spieler eine leere Liste sehen und mit 0 Sternen ueberschrieben
+   werden. */
+STARS.init().catch(e => console.warn('  Bestenliste:', e.message)).then(() => {
+  server.listen(PORT, () => {
+    console.log(`\n  NEON STRIKE laeuft`);
+    console.log(`  Lokal:  http://localhost:${PORT}`);
+    const nets = require('os').networkInterfaces();
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name] || []) {
+        if (net.family === 'IPv4' && !net.internal) console.log(`  LAN:    http://${net.address}:${PORT}   (${name})`);
+      }
+    }
+    console.log('');
+  });
+});

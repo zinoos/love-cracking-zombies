@@ -1,0 +1,23 @@
+# Render-Blueprint: ein Web-Dienst, der Client und WebSocket-Server ausliefert.
+# Wichtig: nur EINE Instanz. Lobbys und laufende Matches liegen im Speicher -
+# eine zweite Instanz haette ihre eigenen Raeume und Spieler wuerden sich nicht
+# mehr finden.
+services:
+  - type: web
+    name: nosershooter
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci --omit=dev
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Bestenliste liegt in Firestore, weil der freie Plan keine Festplatte
+      # hat und jeder Neustart lokale Dateien loescht.
+      - key: FIREBASE_PROJECT_ID
+        value: nosershooter
+      - key: GOOGLE_SERVICE_ACCOUNT
+        sync: false # Schluessel wird im Render-Dashboard gesetzt, nie im Repo

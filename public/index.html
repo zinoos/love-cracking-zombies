@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>AyriShooter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="style.css" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🎯</text></svg>" />
+</head>
+<body>
+
+<canvas id="bgfx"></canvas>
+<div class="scanlines"></div>
+<div class="vignette"></div>
+
+<!-- ============ LOGIN ============ -->
+<section class="screen active" id="scr-login">
+  <div class="menu-wrap login-wrap">
+    <div class="logo">
+      <h1 class="title" data-text="AYRI SHOOTER">Ayri Shooter</h1>
+      <p class="tagline">2D ONLINE ARENA SHOOTER</p>
+    </div>
+
+    <div class="card login-card">
+      <p class="login-lead">Melde dich an, um Sterne zu sammeln und in die Bestenliste zu kommen.</p>
+
+      <button class="btn google-btn" id="btn-google">
+        <span class="g-logo" aria-hidden="true">
+          <svg viewBox="0 0 48 48" width="20" height="20">
+            <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.2z"/>
+            <path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.6-3.9-12.4-9.1H4.3v5.7C7.9 41.1 15.4 46 24 46z"/>
+            <path fill="#FBBC05" d="M11.6 28.2c-.5-1.3-.7-2.8-.7-4.2s.3-2.9.7-4.2v-5.7H4.3C2.8 17 2 20.4 2 24s.8 7 2.3 9.9l7.3-5.7z"/>
+            <path fill="#EA4335" d="M24 10.7c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.1 30 2 24 2 15.4 2 7.9 6.9 4.3 14.1l7.3 5.7c1.8-5.2 6.6-9.1 12.4-9.1z"/>
+          </svg>
+        </span>
+        <b>MIT GOOGLE ANMELDEN</b>
+      </button>
+
+      <button class="btn ghost" id="btn-guest">Ohne Anmeldung spielen</button>
+      <p class="login-note">Als Gast kannst du alles spielen, sammelst aber keine Sterne.</p>
+      <p class="err" id="login-err"></p>
+    </div>
+
+    <div class="chip-row login-chips">
+      <span class="chip" id="chip-status2"><i class="dot"></i><span id="conn-text2">verbinde…</span></span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ MENU ============ -->
+<section class="screen" id="scr-menu">
+  <div class="menu-wrap">
+    <div class="logo">
+      <h1 class="title" data-text="NEON STRIKE">Ayri Shooter</h1>
+      <p class="tagline">2D ONLINE ARENA SHOOTER</p>
+    </div>
+
+    <div class="ident card">
+      <div class="acct" id="acct">
+        <img class="avatar" id="acct-photo" alt="" />
+        <div class="acct-lines">
+          <b id="acct-name">Gast</b>
+          <span class="stars" id="acct-stars">★ 0</span>
+        </div>
+        <button class="btn small ghost" id="btn-signout">Abmelden</button>
+      </div>
+      <label class="lbl">DEIN NAME</label>
+      <input id="inp-name" class="txt" maxlength="14" placeholder="Spieler" autocomplete="off" />
+      <div class="chip-row">
+        <span class="chip" id="chip-status"><i class="dot"></i><span id="conn-text">verbinde…</span></span>
+        <span class="chip" id="chip-ping">— ms</span>
+        <span class="chip" id="chip-rank">Platz —</span>
+      </div>
+    </div>
+
+    <nav class="menu-btns">
+      <button class="btn big primary" id="btn-create">
+        <span class="ico">⬢</span>
+        <span class="lines"><b>GRUPPE ERSTELLEN</b><small>Lobby öffnen &amp; Code teilen</small></span>
+      </button>
+      <button class="btn big" id="btn-join">
+        <span class="ico">⌁</span>
+        <span class="lines"><b>GRUPPE BEITRETEN</b><small>6-stelligen Code eingeben</small></span>
+      </button>
+      <button class="btn big" id="btn-skins">
+        <span class="ico">◈</span>
+        <span class="lines"><b>SKINLOCKER</b><small>Farbe, Muster &amp; Spur</small></span>
+      </button>
+      <button class="btn big" id="btn-board">
+        <span class="ico">★</span>
+        <span class="lines"><b>BESTENLISTE</b><small>Sterne &amp; Platzierungen</small></span>
+      </button>
+      <button class="btn big ghost" id="btn-help">
+        <span class="ico">⌨</span>
+        <span class="lines"><b>STEUERUNG</b><small>Tasten &amp; Spielregeln</small></span>
+      </button>
+    </nav>
+    <footer class="foot">WASD bewegen · Klick schießen · Rechtsklick Granate · R nachladen · Shift Dash</footer>
+  </div>
+</section>
+
+<!-- ============ SKINLOCKER ============ -->
+<section class="screen" id="scr-skins">
+  <div class="panel wide">
+    <header class="phead">
+      <button class="back" data-back="scr-menu">‹ Zurück</button>
+      <h2>SKINLOCKER</h2>
+      <span class="pspacer"></span>
+    </header>
+
+    <div class="skin-grid">
+      <div class="skin-preview">
+        <canvas id="skin-cv" width="360" height="360"></canvas>
+        <div class="preview-tag">LIVE VORSCHAU</div>
+      </div>
+
+      <div class="skin-controls">
+        <div class="ctl">
+          <label class="lbl">UNIFORMFARBE</label>
+          <div class="swatches" id="sw-body"></div>
+          <input type="range" id="hue-body" min="0" max="360" value="140" class="slider" />
+        </div>
+
+        <div class="ctl">
+          <label class="lbl">SPUR / EFFEKTFARBE</label>
+          <div class="swatches" id="sw-trail"></div>
+          <input type="range" id="hue-trail" min="0" max="360" value="45" class="slider" />
+        </div>
+
+        <div class="ctl">
+          <label class="lbl">TARNMUSTER</label>
+          <div class="patterns" id="pattern-row"></div>
+        </div>
+
+        <button class="btn primary" id="btn-skin-save">SPEICHERN</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ JOIN ============ -->
+<section class="screen" id="scr-join">
+  <div class="panel">
+    <header class="phead">
+      <button class="back" data-back="scr-menu">‹ Zurück</button>
+      <h2>GRUPPE BEITRETEN</h2>
+      <span class="pspacer"></span>
+    </header>
+    <p class="hint">Gib den 6-stelligen Code der Lobby ein.</p>
+    <div class="code-input" id="code-input">
+      <input class="digit" inputmode="numeric" maxlength="1" />
+      <input class="digit" inputmode="numeric" maxlength="1" />
+      <input class="digit" inputmode="numeric" maxlength="1" />
+      <input class="digit" inputmode="numeric" maxlength="1" />
+      <input class="digit" inputmode="numeric" maxlength="1" />
+      <input class="digit" inputmode="numeric" maxlength="1" />
+    </div>
+    <button class="btn primary wide-btn" id="btn-do-join">BEITRETEN</button>
+    <p class="err" id="join-err"></p>
+  </div>
+</section>
+
+<!-- ============ LOBBY ============ -->
+<section class="screen" id="scr-lobby">
+  <div class="panel wide">
+    <header class="phead">
+      <button class="back" id="btn-leave">‹ Verlassen</button>
+      <h2>LOBBY</h2>
+      <span class="pspacer"></span>
+    </header>
+
+    <div class="code-box">
+      <span class="lbl">RAUMCODE</span>
+      <div class="code-display" id="room-code" title="Klicken zum Kopieren">000000</div>
+      <span class="copy-hint" id="copy-hint">klicken zum kopieren</span>
+    </div>
+
+    <div class="lobby-grid">
+      <div class="lobby-col">
+        <label class="lbl">MODUS</label>
+        <div class="modes" id="mode-row"></div>
+
+        <label class="lbl" style="margin-top:18px">SPIELER <span id="pcount">0/6</span></label>
+        <div class="players" id="player-list"></div>
+
+        <div class="host-tools" id="host-tools">
+          <button class="btn small" id="btn-addbot">+ BOT</button>
+          <button class="btn small ghost" id="btn-shuffle">TEAMS MISCHEN</button>
+        </div>
+      </div>
+
+      <div class="lobby-col">
+        <label class="lbl">CHAT</label>
+        <div class="chat" id="chat-log"></div>
+        <div class="chat-in">
+          <input id="chat-inp" class="txt" maxlength="120" placeholder="Nachricht…" />
+          <button class="btn small" id="chat-send">▶</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn primary wide-btn start" id="btn-start">MATCH STARTEN</button>
+    <p class="err" id="lobby-err"></p>
+  </div>
+</section>
+
+<!-- ============ BESTENLISTE ============ -->
+<section class="screen" id="scr-board">
+  <div class="panel wide">
+    <header class="phead">
+      <button class="back" data-back="scr-menu">‹ Zurück</button>
+      <h2>BESTENLISTE</h2>
+      <span class="pspacer"></span>
+    </header>
+
+    <div class="board-you" id="board-you"></div>
+
+    <div class="brow head lb-row">
+      <div>#</div><div></div><div>SPIELER</div>
+      <div class="num">★</div><div class="num">SIEGE</div><div class="num">SPIELE</div><div class="num">K/D</div>
+    </div>
+    <div class="lb-list" id="lb-list"></div>
+    <p class="hint" id="lb-empty" style="display:none">Noch niemand angemeldet — melde dich mit Google an, um in die Liste zu kommen.</p>
+
+    <div class="star-rules">
+      <h3>Wie es Sterne gibt</h3>
+      <p>Nach jedem Match wird nach Kills sortiert. Die <b>obere Hälfte gewinnt</b>
+      Sterne, die <b>untere verliert</b> welche — Platz 1 bekommt am meisten.
+      Unter 0 Sterne geht es nie.</p>
+      <div class="star-example" id="star-example"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ HELP ============ -->
+<section class="screen" id="scr-help">
+  <div class="panel wide">
+    <header class="phead">
+      <button class="back" data-back="scr-menu">‹ Zurück</button>
+      <h2>STEUERUNG &amp; REGELN</h2>
+      <span class="pspacer"></span>
+    </header>
+    <div class="help-grid">
+      <div class="help-card">
+        <h3>Steuerung</h3>
+        <ul class="keys">
+          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Bewegen</span></li>
+          <li><kbd>Maus</kbd><span>Zielen</span></li>
+          <li><kbd>Linksklick</kbd><span>Schießen</span></li>
+          <li><kbd>Rechtsklick</kbd><span>Granate werfen (2 pro Match)</span></li>
+          <li><kbd>R</kbd><span>Nachladen</span></li>
+          <li><kbd>Shift</kbd><span>Dash — 2,4 s, schwere Waffen 4,8 s</span></li>
+          <li><kbd>Tab</kbd><span>Scoreboard</span></li>
+          <li><kbd>Esc</kbd><span>Menü / Match verlassen</span></li>
+          <li><kbd>M</kbd><span>Sound an/aus</span></li>
+        </ul>
+      </div>
+      <div class="help-card">
+        <h3>Regeln</h3>
+        <ul class="rules">
+          <li><b>Sichtfeld:</b> du siehst nur nach vorn (106°), der Kegel dreht sich mit dir. Nur direkt um dich herum merkst du alles.</li>
+          <li><b>Waffe:</b> vor jedem Match aus 3 von 13 wählen — mehr Schaden oder Reichweite kostet Tempo.</li>
+          <li><b>Schwert:</b> Rundumschlag 360°, 40 Schaden, keine Munition, schnellste Bewegung. Nach jedem Kill 1,5 s unsichtbar.</li>
+          <li><b>Minen:</b> Linksklick wirft sie bis 310 px über Wände, zweiter Linksklick zündet — 99 Schaden im Radius. Gegner sehen sie nicht.</li>
+          <li><b>Schwere Waffen:</b> doppelter Dash-Cooldown (4,8 s).</li>
+          <li><b>Sterne:</b> obere Tabellenhälfte gewinnt, untere verliert. Nie unter 0.</li>
+          <li><b>Granaten:</b> 2 pro Match, 1 s Zünder, 80 Schaden, sprengen Wände und Büsche.</li>
+          <li><b>Büsche:</b> Gegner darin sind unsichtbar — außer sie schießen oder stehen direkt vor dir. Die Armbrust ist lautlos.</li>
+          <li><b>Wände:</b> blockieren Kugeln und Sicht — bis Bazooka oder Granate sie zu Schutt sprengen.</li>
+          <li><b>Packs:</b> grün = Heilung, gelb = volles Magazin + Granate.</li>
+          <li><b>Respawn:</b> 3 s, danach 1,6 s unverwundbar.</li>
+          <li><b>Maps:</b> 17 Stück, zufällig gewählt, quadratisch &amp; symmetrisch.</li>
+          <li><b>Modi:</b> FFA (12 Kills), 1v1 (8), 2v2 (15), 3v3 (20) — oder Zeit läuft ab.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GAME ============ -->
+<section class="screen game" id="scr-game">
+  <canvas id="cv"></canvas>
+
+  <div id="hud">
+    <div class="hud-top">
+      <div class="score-plate" id="score-plate"></div>
+      <div class="timer" id="timer">5:00</div>
+      <div class="mapname" id="mapname">—</div>
+    </div>
+
+    <div class="killfeed" id="killfeed"></div>
+
+    <div class="hud-bottom">
+      <div class="vitals">
+        <div class="hp-wrap">
+          <div class="hp-bar"><i id="hp-fill"></i></div>
+          <span class="hp-num" id="hp-num">100</span>
+        </div>
+        <div class="dash-wrap" title="Dash">
+          <div class="dash-bar"><i id="dash-fill"></i></div>
+          <span class="dash-lbl">DASH</span>
+        </div>
+        <div class="dash-wrap" id="spin-bar" title="Anlauf" style="display:none">
+          <div class="dash-bar"><i id="spin-fill" class="spin"></i></div>
+          <span class="dash-lbl">ANLAUF</span>
+        </div>
+        <div class="cloak-badge" id="cloak-badge" title="Nach einem Schwert-Kill sehen dich die Gegner nicht">UNSICHTBAR</div>
+      </div>
+      <div class="weapon-row">
+        <div class="weapon-plate" id="weapon-plate"></div>
+        <div class="ammo" id="ammo-pips"></div>
+        <div class="nades" id="nade-pips" title="Rechtsklick wirft eine Granate"></div>
+      </div>
+    </div>
+
+    <!-- Waffenwahl vor dem Match: drei zufällige Angebote -->
+    <div class="pickbox" id="pickbox">
+      <div class="pick-head">WÄHLE DEINE WAFFE</div>
+      <div class="pick-sub">Drei Angebote — für diese Runde. <span id="pick-timer">6</span> s</div>
+      <div class="pick-cards" id="pick-cards"></div>
+      <div class="pick-hint" id="pick-hint">Keine Wahl = zufällige der drei</div>
+    </div>
+
+    <canvas id="minimap" width="180" height="180"></canvas>
+
+    <div class="center-msg" id="center-msg"></div>
+    <div class="respawn" id="respawn-ui"><span class="rs-label">ELIMINIERT</span><span class="rs-time" id="rs-time">3.0</span></div>
+    <div class="dmg-vig" id="dmg-vig"></div>
+    <div class="hitmark" id="hitmark"></div>
+
+    <div class="scoreboard" id="scoreboard"></div>
+  </div>
+</section>
+
+<!-- ============ RESULT ============ -->
+<section class="screen" id="scr-result">
+  <div class="panel wide">
+    <h2 class="result-title" id="result-title">SIEG</h2>
+    <p class="result-sub" id="result-sub"></p>
+    <div class="board" id="result-board"></div>
+    <button class="btn primary wide-btn" id="btn-result-back">ZURÜCK ZUR LOBBY</button>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<div class="server-notice" id="server-notice">
+  <b>Kein Spielserver erreichbar</b>
+  <span>Ziel: <code id="notice-target">—</code></span>
+  <small>Firebase Hosting liefert nur die Seite aus — WebSockets kann es nicht.
+  Der Spielserver muss separat laufen (Cloud Run oder lokal per <code>npm start</code>).</small>
+</div>
+
+<!-- Firebase (optional): SDK wird lokal aus node_modules ausgeliefert -->
+<script src="/vendor/firebase/firebase-app-compat.js"></script>
+<script src="/vendor/firebase/firebase-auth-compat.js"></script>
+<script src="/vendor/firebase/firebase-analytics-compat.js"></script>
+<script src="js/firebase.js"></script>
+
+<script src="js/config.js"></script>
+<script src="/shared/constants.js"></script>
+<script src="/shared/maps.js"></script>
+<script src="/shared/physics.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/net.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/fx.js"></script>
+<script src="js/render.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
