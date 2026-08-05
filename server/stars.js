@@ -83,11 +83,25 @@ async function init() {
 function get(uid) {
   let p = players.get(uid);
   if (!p) {
-    p = { uid, name: '', photo: '', stars: 0, matches: 0, wins: 0, kills: 0, deaths: 0, best: 0, last: 0 };
+    p = {
+      uid, name: '', photo: '', stars: 0, matches: 0, wins: 0, kills: 0, deaths: 0,
+      best: 0, last: 0, gold: 0, owned: '', skin: ''
+    };
     players.set(uid, p);
     dirty.add(uid);
   }
+  /* Aeltere Eintraege kennen Gold und Shop noch nicht. Beim ersten Zugriff
+     ergaenzen, damit der Rest des Codes sich nicht darum kuemmern muss. */
+  if (p.gold === undefined) { p.gold = 0; dirty.add(uid); }
+  if (p.owned === undefined) { p.owned = ''; dirty.add(uid); }
+  if (p.skin === undefined) { p.skin = ''; dirty.add(uid); }
   return p;
+}
+
+/** Gekaufte Skins als Liste. Gespeichert wird ein Text, damit ein Eintrag in
+    Firestore ein flaches Feld bleibt. */
+function ownedList(p) {
+  return String(p.owned || '').split(',').filter(Boolean);
 }
 
 /** Namen/Bild aus dem Google-Profil uebernehmen. */
@@ -101,9 +115,9 @@ function touch(uid, name, photo) {
 }
 
 /**
- * Sterne nach einem Match verteilen.
+ * Sterne und Gold nach einem Match verteilen.
  * @param entries [{uid, name, rank, kills, deaths, wonTeam}] - rank 1-basiert
- * @returns Map uid -> {before, delta, after, capped}
+ * @returns Map uid -> {before, delta, after, capped, gold, goldTotal}
  */
 function award(entries) {
   const total = entries.length;
@@ -117,16 +131,50 @@ function award(entries) {
     let capped = false;
     if (after < C.STARS.MIN) { after = C.STARS.MIN; capped = true; }   // nie unter 0
     p.stars = after;
+    // Gold gibt es immer - auch fuer den letzten Platz
+    const gold = C.goldFor(e.rank, total, e.kills || 0, !!e.wonTeam);
+    p.gold = (p.gold || 0) + gold;
     p.matches++;
     p.kills += e.kills || 0;
     p.deaths += e.deaths || 0;
     if (e.rank === 1) p.wins++;
     if (after > p.best) p.best = after;
     dirty.add(e.uid);
-    out.set(e.uid, { before, delta, after, capped, rank: e.rank });
+    out.set(e.uid, { before, delta, after, capped, rank: e.rank, gold, goldTotal: p.gold });
   }
   save();
   return out;
+}
+
+/* ---------------- Skinshop ---------------- */
+
+/** Kaufversuch. Gibt {ok, grund, profil} zurueck - der Server entscheidet. */
+function buySkin(uid, id) {
+  const skin = C.SHOP_SKINS.find(s => s.id === id);
+  if (!skin) return { ok: false, grund: 'Unbekannter Skin' };
+  const p = get(uid);
+  const besitzt = ownedList(p);
+  if (besitzt.includes(id)) return { ok: false, grund: 'Gehoert dir schon' };
+  if ((p.gold || 0) < skin.price) {
+    return { ok: false, grund: `Zu wenig Gold - ${skin.price - (p.gold || 0)} fehlen` };
+  }
+  p.gold -= skin.price;
+  besitzt.push(id);
+  p.owned = besitzt.join(',');
+  p.skin = id;                     // frisch gekauft = direkt anlegen
+  dirty.add(uid);
+  save();
+  return { ok: true, profil: publicProfile(uid) };
+}
+
+/** Gekauften Skin anlegen oder mit leerer Kennung wieder ablegen. */
+function equipSkin(uid, id) {
+  const p = get(uid);
+  if (id && !ownedList(p).includes(id)) return { ok: false, grund: 'Nicht gekauft' };
+  p.skin = id || '';
+  dirty.add(uid);
+  save();
+  return { ok: true, profil: publicProfile(uid) };
 }
 
 /* Reihenfolge: Sterne, dann Siege, Kills, Spiele, zuletzt Name.
@@ -167,7 +215,8 @@ function publicProfile(uid) {
   return {
     uid: p.uid, name: p.name, photo: p.photo, stars: p.stars,
     matches: p.matches, wins: p.wins, kills: p.kills, deaths: p.deaths,
-    best: p.best, rank: r.rank, totalPlayers: r.total
+    best: p.best, rank: r.rank, totalPlayers: r.total,
+    gold: p.gold || 0, owned: ownedList(p), skin: p.skin || ''
   };
 }
 
@@ -195,4 +244,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, async () => { await save(); process.exit(0); });
 }
 
-module.exports = { init, get, touch, award, leaderboard, rankOf, publicProfile, save };
+module.exports = {
+  init, get, touch, award, leaderboard, rankOf, publicProfile, save,
+  buySkin, equipSkin, ownedList
+};

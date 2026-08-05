@@ -327,6 +327,16 @@
 
   NET.on(C.MSG.BOARD, m => UI.renderBoard(m));
 
+  // Vorbereitung: Karte waehlen, Waffe sperren, Waffe waehlen
+  NET.on(C.MSG.PHASE, m => UI.renderPhase(m));
+  UI.onPhaseVote(v => NET.send({ t: C.MSG.VOTE, v }));
+
+  NET.on(C.MSG.SHOP, m => UI.renderShop(m));
+  UI.onShop(
+    id => NET.send({ t: C.MSG.BUY, id }),
+    id => NET.send({ t: C.MSG.EQUIP, id })
+  );
+
   NET.on(C.MSG.ERROR, m => {
     UI.toast(m.msg, 'err');
     if (m.kicked) { resetMatch(); UI.show('scr-menu'); }
@@ -392,7 +402,7 @@
       const wKey = C.WEAPONS[p.weapon] ? p.weapon : 'pistol';
       G.players.set(p.id, {
         id: p.id, name: p.name, color: p.color, trail: p.trail, pattern: p.pattern,
-        team: p.team, bot: p.bot, weapon: wKey,
+        team: p.team, bot: p.bot, weapon: wKey, fx: p.fx || '',
         teamColor: teams > 1 ? C.TEAM_COLORS[p.team] : (p.id === m.you ? '#ffffff' : '#ff9d6b'),
         buf: [], rx: C.WORLD / 2, ry: C.WORLD / 2, ra: 0,
         hp: C.HP_MAX, alive: true, visible: false, mv: 0, bush: false,
@@ -407,12 +417,12 @@
     localAmmo = weapon().mag;
     UI.setWeapon(G.myWeaponKey);
 
-    /* Drei Angebote zur Wahl - wer nicht waehlt, bekommt eine zugelost.
-       Nach einer Wiederaufnahme entfaellt das: die Waffe steht schon fest,
-       ein Auswahlfenster mitten im laufenden Match waere nur im Weg. */
-    if (!m.resumed) {
-      const choices = (m.choices && m.choices.length) ? m.choices : [G.myWeaponKey];
-      UI.weaponPicker(choices, (m.countdown || C.COUNTDOWN) - 1.2, key => {
+    /* Die Waffe steht beim Matchstart laengst fest - gewaehlt wird in der
+       Vorbereitung, bevor die Karte ueberhaupt geladen ist. Nur wenn der
+       Server ausnahmsweise doch Angebote mitschickt, gibt es hier noch eine
+       Auswahl. */
+    if (!m.resumed && m.choices && m.choices.length > 1) {
+      UI.weaponPicker(m.choices, (m.countdown || C.COUNTDOWN) - 1.2, key => {
         NET.send({ t: C.MSG.PICK, w: key });
         applyMyWeapon(key);
         FB.log('weapon_picked', { weapon: key, mode: m.mode, map: m.mapName });
@@ -831,6 +841,11 @@
       NET.send({ t: C.MSG.BOARDREQ });
       UI.show('scr-board');
       FB.log('leaderboard_open');
+    };
+    $('btn-shop').onclick = () => {
+      NET.send({ t: C.MSG.SHOP });
+      UI.show('scr-shop');
+      FB.log('shop_open');
     };
 
     /* ---- Anmeldung ----

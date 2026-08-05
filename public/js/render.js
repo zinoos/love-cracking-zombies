@@ -1044,6 +1044,14 @@ const RENDER = (() => {
       g.beginPath(); g.ellipse(0, r * .5, r * 1.68, r * .88, 0, 0, 7); g.stroke();
     }
 
+    /* Gekaufter Shop-Skin: seine Bewegung liegt unter der Figur, damit sie
+       nicht das Gesicht verdeckt. Der Versatz aus der Spielerkennung sorgt
+       dafuer, dass zwei Traeger desselben Skins nicht im Gleichtakt laufen. */
+    if (p.fx) {
+      const s = C.SHOP_SKINS.find(x => x.id === p.fx);
+      if (s) skinEffekt(g, s.anim, r, time + (p.id || 0) * 0.37, s.color, s.trail);
+    }
+
     g.rotate(a);
     drawSoldier(g, p, r, {
       walk: moving ? Math.sin(phase) : 0,
@@ -1942,8 +1950,113 @@ const RENDER = (() => {
     g.restore();
   }
 
+  /* =============== Shop-Skins ===============
+     Jeder gekaufte Skin hat eine eigene Bewegung. Gezeichnet wird sie um die
+     Figur herum, damit sie im Spiel auch dann zu sehen ist, wenn die Figur
+     selbst klein ist. Die Bewegung haengt nur an der Zeit und an der
+     Spielerkennung - so laufen zwei Spieler mit demselben Skin nicht im
+     Gleichschritt. */
+  function skinEffekt(g, art, r, t, farbe, spur) {
+    switch (art) {
+      case 'pulse': {
+        for (let i = 0; i < 3; i++) {
+          const k = ((t * 0.9 + i / 3) % 1);
+          g.globalAlpha = (1 - k) * .5;
+          g.strokeStyle = farbe;
+          g.lineWidth = 2.4;
+          g.beginPath(); g.arc(0, 0, r * (0.9 + k * 1.5), 0, 7); g.stroke();
+        }
+        break;
+      }
+      case 'flame': {
+        for (let i = 0; i < 7; i++) {
+          const a = t * 2.2 + i * 0.9;
+          const h = ((t * 1.6 + i / 7) % 1);
+          const x = Math.sin(a) * r * .5;
+          const y = -h * r * 2.1 + r * .4;
+          g.globalAlpha = (1 - h) * .8;
+          g.fillStyle = h < .45 ? spur : farbe;
+          g.beginPath();
+          g.ellipse(x, y, r * .3 * (1 - h * .55), r * .5 * (1 - h * .4), 0, 0, 7);
+          g.fill();
+        }
+        break;
+      }
+      case 'bubble': {
+        for (let i = 0; i < 8; i++) {
+          const h = ((t * 0.8 + i / 8) % 1);
+          const x = Math.sin(t * 1.3 + i * 2.1) * r * .8;
+          g.globalAlpha = (1 - h) * .65;
+          g.fillStyle = i % 2 ? farbe : spur;
+          g.beginPath(); g.arc(x, -h * r * 2, r * .13 * (1 - h * .4), 0, 7); g.fill();
+        }
+        break;
+      }
+      case 'frost': {
+        for (let i = 0; i < 6; i++) {
+          const a = t * 1.1 + i * (Math.PI * 2 / 6);
+          const rr = r * (1.1 + Math.sin(t * 2 + i) * .16);
+          const x = Math.cos(a) * rr, y = Math.sin(a) * rr * .6;
+          g.globalAlpha = .7;
+          g.strokeStyle = i % 2 ? spur : farbe;
+          g.lineWidth = 1.8; g.lineCap = 'round';
+          for (let k = 0; k < 3; k++) {
+            const b = a * 2 + k * (Math.PI / 3);
+            g.beginPath();
+            g.moveTo(x - Math.cos(b) * r * .13, y - Math.sin(b) * r * .13);
+            g.lineTo(x + Math.cos(b) * r * .13, y + Math.sin(b) * r * .13);
+            g.stroke();
+          }
+        }
+        break;
+      }
+      case 'void': {
+        for (let i = 0; i < 5; i++) {
+          const k = ((t * 0.7 + i / 5) % 1);
+          g.globalAlpha = (1 - k) * .55;
+          const grd = g.createRadialGradient(0, 0, r * .2, 0, 0, r * (0.8 + k * 1.4));
+          grd.addColorStop(0, farbe + '00');
+          grd.addColorStop(.6, farbe + 'aa');
+          grd.addColorStop(1, farbe + '00');
+          g.fillStyle = grd;
+          g.beginPath(); g.arc(0, 0, r * (0.8 + k * 1.4), 0, 7); g.fill();
+        }
+        break;
+      }
+      case 'sparkle': {
+        for (let i = 0; i < 10; i++) {
+          const a = t * 1.7 + i * (Math.PI * 2 / 10);
+          const k = ((t * 1.1 + i / 10) % 1);
+          const rr = r * (0.6 + k * 1.1);
+          const x = Math.cos(a) * rr, y = Math.sin(a) * rr * .55 - k * r * .5;
+          g.globalAlpha = (1 - k) * .9;
+          g.fillStyle = i % 3 ? farbe : spur;
+          const s = r * .1 * (1 - k * .5);
+          g.beginPath();
+          g.moveTo(x, y - s); g.lineTo(x + s * .5, y); g.lineTo(x, y + s); g.lineTo(x - s * .5, y);
+          g.closePath(); g.fill();
+        }
+        break;
+      }
+    }
+    g.globalAlpha = 1;
+  }
+
+  /** Vorschau im Shop: Figur von vorn mit ihrer Bewegung. */
+  function drawShopPreview(g, x, y, hoehe, skin, t) {
+    g.save();
+    g.translate(x, y);
+    g.save();
+    g.translate(0, -hoehe * 0.45);
+    skinEffekt(g, skin.anim, hoehe * 0.34, t, skin.color, skin.trail);
+    g.restore();
+    drawSoldierFront(g, { color: skin.color, pattern: 'solid', trail: skin.trail }, hoehe, t);
+    g.restore();
+  }
+
   return {
-    resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld, drawAvatar, drawAvatarFront, shade,
+    resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld,
+    drawAvatar, drawAvatarFront, drawShopPreview, shade,
     setQuality,
     get quality() {
       return { level: qLevel, name: q().name, avgMs: Math.round(drawAvg * 100) / 100, pinned: qPinned >= 0 };

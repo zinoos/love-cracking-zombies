@@ -120,6 +120,21 @@ class Match {
     return true;
   }
 
+  /** Waffe direkt setzen. Die Wahl passiert seit der Vorbereitung im Raum,
+      bevor das Match ueberhaupt existiert - hier wird sie nur uebernommen. */
+  forceWeapon(id, key) {
+    const p = this.players.get(id);
+    const w = C.WEAPONS[key];
+    if (!p || !w) return false;
+    p.weaponKey = key;
+    p.weapon = w;
+    p.speedMult = w.speedMult;
+    p.ammo = w.mag;
+    p.picked = true;
+    p.choices = [key];
+    return true;
+  }
+
   /** Wer bis zum Start nicht gewaehlt hat, bekommt eine der drei zugelost. */
   finalizeChoices() {
     for (const p of this.players.values()) {
@@ -339,9 +354,9 @@ class Match {
     const m = this.muzzlePoint(p, base);
 
     if (w.boomerang) {
-      /* Die Platte fliegt geradeaus, prallt von Waenden ab und dreht nach
-         der Reichweite um. Getroffene Spieler merkt sie sich, damit ein Wurf
-         nicht mehrfach am selben Gegner Schaden macht - auf dem Rueckweg
+      /* Die Platte fliegt geradeaus und kehrt um - an der ersten Wand oder
+         am Ende der Reichweite. Getroffene Spieler merkt sie sich, damit ein
+         Wurf nicht mehrfach am selben Gegner Schaden macht; auf dem Rueckweg
          zaehlt jeder wieder neu. */
       this.projectiles.push({
         id: PROJ_ID++, type: 'disc', owner: p.id, team: p.team,
@@ -349,7 +364,7 @@ class Match {
         vx: Math.cos(base) * w.bulletSpeed, vy: Math.sin(base) * w.bulletSpeed,
         dmg: shotDmg, falloffStart: w.falloffStart, falloffMin: w.falloffMin,
         weapon: w, hits: [], strecke: 0, zurueck: false,
-        prallt: w.bounces || 0, life: 6, spin: 0
+        life: 6, spin: 0
       });
     } else if (w.projectile === 'rocket') {
       const ang = base + (Math.random() - 0.5) * 2 * spread;
@@ -529,15 +544,16 @@ class Match {
 
         if (!b.zurueck) {
           let bx = b.x + b.vx * dt, by = b.y + b.vy * dt;
-          // Achsenweise abprallen, damit die Platte an Ecken sauber umkehrt
+          /* Die erste Wand schickt die Platte zurueck. Achsenweise geprueft,
+             damit sie auch in einer Ecke sauber umkehrt. */
           if (PHYS.tileAtWorld(this.map, bx, b.y) === C.T_WALL) {
-            if (b.prallt-- > 0) { b.vx = -b.vx; this.events.push({ e: 'discwall', id: b.id, x: b.x, y: b.y }); }
-            else b.zurueck = true;
+            b.zurueck = true;
+            this.events.push({ e: 'discwall', id: b.id, x: b.x, y: b.y });
             bx = b.x;
           }
           if (PHYS.tileAtWorld(this.map, b.x, by) === C.T_WALL) {
-            if (b.prallt-- > 0) { b.vy = -b.vy; this.events.push({ e: 'discwall', id: b.id, x: b.x, y: b.y }); }
-            else b.zurueck = true;
+            if (!b.zurueck) this.events.push({ e: 'discwall', id: b.id, x: b.x, y: b.y });
+            b.zurueck = true;
             by = b.y;
           }
           b.strecke += Math.hypot(bx - b.x, by - b.y);

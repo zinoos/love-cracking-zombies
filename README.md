@@ -53,29 +53,39 @@ Läuft die Zeit ab, gewinnt die höhere Punktzahl (bei Gleichstand: Unentschiede
 | `M` | Sound an/aus |
 | `Esc` | Match verlassen |
 
+## Vor jedem Match
+
+Drei Schritte, bevor es losgeht — alle Spieler zusammen:
+
+| Schritt | Dauer | Was passiert |
+|---------|-------|--------------|
+| **1 · Karte** | 8 s | Drei zufällige Karten stehen zur Wahl, jeder hat eine Stimme. Die meistgenannte wird gespielt; bei Gleichstand entscheidet das Los. |
+| **2 · Sperre** | 5 s | Jeder nennt eine Waffe. Die **drei meistgenannten sind für diese Runde gesperrt**. |
+| **3 · Waffe** | 5 s | Freie Wahl aus allem, was übrig ist. Ohne Wahl gibt es eine zufällige erlaubte Waffe. |
+
+Haben alle abgestimmt, geht es sofort weiter — niemand wartet die Uhr ab.
+Gesperrt wird nie so viel, dass weniger als drei Waffen übrig bleiben.
+
 ## Waffen
 
-Vor jedem Match werden **drei zufällige Waffen zur Wahl** gestellt — eine davon
-gilt für die Runde. Wer nicht wählt, bekommt eine der drei zugelost.
-
-Dreizehn Waffen. Jede hat eine **eigene Mechanik**, keine ist eine Zahlenvariante
+Vierzehn Waffen. Jede hat eine **eigene Mechanik**, keine ist eine Zahlenvariante
 einer anderen. Wer viel Schaden oder Reichweite hat, zahlt mit Tempo, Magazin
 oder Nachladezeit.
 
 | Waffe | Mag | Schaden | TTK | Reichweite | Tempo | Eigene Mechanik |
 |-------|-----|---------|-----|-----------|-------|-----------------|
-| Schwert | ∞ | 35 | 0,99 s | **68 px** | **222 px/s** | **Rundumschlag 360°**, 0,5 s unsichtbar nach jedem Kill |
+| Schwert | ∞ | 25 | 1,49 s | **68 px** | **222 px/s** | **Rundumschlag 360°**, 0,5 s unsichtbar nach jedem Kill |
 | MP | 35 | 15 | 0,45 s | 300 px | 196 px/s | zweitschnellste Bewegung, höchste Feuerrate |
 | Pistole | 15 | 25 | 0,75 s | 400 px | 185 px/s | volles Tempo, 15 Schuss, schnellstes Nachladen |
 | Revolver | 5 | 40 | 1,10 s | 420 px | 181 px/s | **letzte Patrone macht 80**, Rückstoß trägt dich |
 | Schrotflinte | 6 | 8×9 | 0,80 s | 210 px | 174 px/s | breitester Schrotkegel, nur auf Tuchfühlung |
 | Armbrust | 1 | 55 | 1,55 s | 580 px | 170 px/s | **lautlos** — verrät dich im Busch nicht |
-| Sergio | 1 | 34 | — | 280 px | 189 px/s | **Schallplatte prallt ab und kommt zurück**, trifft zweimal |
+| Sergio | 1 | 34 | — | 280 px | 189 px/s | **Schallplatte kehrt an der Wand um**, trifft zweimal |
 | AK-47 | 20 | 18 | 0,65 s | 460 px | 167 px/s | größte Reichweite der Automatikwaffen |
 | Minenleger | 1 | **99** Splash | 1,60 s | 310 px | 159 px/s | **fliegt über Wände, unsichtbar, von Hand gezündet** |
 | Scharfschütze | 5 | 70 | 1,25 s | **780 px** | 155 px/s | Durchschlag, kein Schadensabfall |
 | Granatwerfer | 5 | 55 Splash | 0,90 s | 560 px | 148 px/s | prallt von Wänden ab, Zeitzünder |
-| Flammenwerfer | 200 | 2×5 | 0,45 s | 240 px | 133 px/s | setzt in Brand — 9 Schaden/s für 3,5 s |
+| Flammenwerfer | 200 | 2×5 | 0,45 s | 240 px | 133 px/s | setzt in Brand — 4,5 Schaden/s für 3,5 s |
 | Minigun | 100 | 9 | 1,16 s | 400 px | 115 px/s | 0,55 s Anlaufzeit |
 | Bazooka | 4 | 75 Splash | 1,50 s | 900 px | **107 px/s** | sprengt Wände |
 
@@ -90,8 +100,8 @@ konsistent.
 
 **Schwert** ist ein **Rundumschlag**: er trifft alles im Umkreis von 68 px,
 auch was hinter dem Träger steht. Kein Geschoss, keine Munition, Wände
-blockieren den Hieb. **35 Schaden** bei **0,495 s** zwischen zwei Hieben — drei
-Treffer bis zum Kill, knapp eine Sekunde am Gegner kleben. Der Soldat dreht sich
+blockieren den Hieb. **25 Schaden** bei **0,495 s** zwischen zwei Hieben — vier
+Treffer bis zum Kill, rund anderthalb Sekunden am Gegner kleben. Der Soldat dreht sich
 dafür sichtbar einmal um sich selbst (0,26 s) und zieht dabei einen Lichtring.
 
 Nach **jedem Kill mit dem Schwert** ist der Träger **0,5 Sekunden unsichtbar**:
@@ -101,8 +111,8 @@ zählt die Restzeit herunter. Ein halber Atemzug, um aus der Schusslinie zu
 kommen — kein Verschwinden. Beim Respawn verfällt die Tarnung.
 
 **Sergio** ist ein DJ mit Pult vor der Brust. Er wirft eine Schallplatte, die
-geradeaus fliegt, bis zu dreimal von Wänden **abprallt** und nach 280 px
-umkehrt — auf dem Rückweg fliegt sie durch Wände zurück in seine Hand. Sie
+geradeaus fliegt, an der **ersten Wand umkehrt** und spätestens nach 280 px
+zurückfliegt — auf dem Rückweg fliegt sie durch Wände zurück in seine Hand. Sie
 trifft auf Hin- und Rückweg je einmal, denselben Gegner also höchstens zweimal
 pro Wurf. **Nachgeladen wird nicht:** erst wenn die Platte wieder in der Hand
 liegt, ist der nächste Wurf frei. Wer daneben wirft, steht so lange ohne Waffe
@@ -157,6 +167,31 @@ Kills sortiert, die **obere Hälfte gewinnt** Sterne, die **untere verliert**:
 
 Formel: `(Mitte − Platz) × 2`, Platz 1 zusätzlich +2, im Teammodus +2 fürs
 Siegerteam. **Unter 0 Sterne geht es nie.** Bots und Gäste sammeln nichts.
+
+## Gold & Skinshop
+
+Neben Sternen gibt es **Gold** — und Gold kann man nie verlieren. Auch der
+letzte Platz bekommt etwas, sonst würde sich ein aussichtsloses Match nicht
+mehr lohnen.
+
+`10 + (Spielerzahl − Platz) × 8 + Kills × 2`, Platz 1 zusätzlich +15, im
+Teammodus +10 fürs Siegerteam. Bei sechs Spielern ohne Kills also
+**65 · 42 · 34 · 26 · 18 · 10**.
+
+Im **Skinshop** stehen sechs Farben mit eigener Bewegung:
+
+| Skin | Preis | Bewegung |
+|------|-------|----------|
+| Neon | 120 | pulsierender Lichtkranz |
+| Toxisch | 180 | aufsteigende Blasen |
+| Frost | 180 | wirbelnde Eiskristalle |
+| Inferno | 220 | Flammenzungen |
+| Leere | 260 | dunkler Schleier |
+| Gold | 400 | springende Funken |
+
+Gekauft wird auf dem Server — der Client schickt nur den Wunsch. Gold, Besitz
+und der angelegte Skin liegen im Spielerprofil und überleben jeden Neustart.
+Zum Kaufen muss man angemeldet sein; Gäste sammeln kein Gold.
 
 **Auf der Liste steht jeder, der sich je angemeldet hat** — auch ohne
 gespieltes Match (dann mit 0 Sternen und dem Hinweis `NOCH KEIN SPIEL`).

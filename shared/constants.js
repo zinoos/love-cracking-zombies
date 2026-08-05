@@ -32,7 +32,7 @@
 
     BULLET_LIFE: 1.6,
     BULLET_R: 3.5,
-    BURN_DPS: 9,          // Brandschaden je Sekunde (Flammenwerfer)
+    BURN_DPS: 4.5,        // Brandschaden je Sekunde (Flammenwerfer)
 
     /* ---------------- Waffen ----------------
        Jede Waffe hat drei Stellschrauben, die gegeneinander arbeiten:
@@ -108,12 +108,12 @@
         key: 'sergio', name: 'Sergio', short: 'SERGIO', icon: '🎧', tier: 2,
         boomerang: true,
         mag: 1, dmg: 34, fireCd: 0.32, reload: 0, auto: false,
-        bulletSpeed: 430, range: 280,        // etwas weiter als die Schrotflinte (210)
+        bulletSpeed: 559, range: 280,        // etwas weiter als die Schrotflinte (210)
         spread: 0, spreadGrow: 0, spreadMax: 0,
         speedMult: 1.02, falloffStart: 9999, falloffMin: 1, recoil: 40,
-        bounces: 3,          // so oft prallt die Platte von Waenden ab
-        returnSpeed: 520,    // Rueckflug ist schneller als der Hinweg
-        pros: ['Prallt von Waenden ab und kommt zurueck', 'Trifft auf Hin- und Rueckweg',
+        // Die erste Wand schickt die Platte zurueck - sie springt nicht weiter
+        returnSpeed: 620,    // Rueckflug ist schneller als der Hinweg
+        pros: ['Kehrt an der ersten Wand um und kommt zurueck', 'Trifft auf Hin- und Rueckweg',
           'Kein Nachladen - die Platte kommt von selbst'],
         cons: ['Nur eine Platte gleichzeitig', 'Erst wieder werfen, wenn sie zurueck ist',
           'Mittlere Reichweite']
@@ -123,7 +123,7 @@
         melee: true, arc: Math.PI * 2,  // Rundumschlag - trifft in alle Richtungen
         swingTime: 0.26,                // Dauer der sichtbaren Drehung
         cloakTime: 0.5,                 // nach einem Kill so lange unsichtbar
-        mag: 0, dmg: 35, fireCd: 0.495, reload: 0, auto: true,
+        mag: 0, dmg: 25, fireCd: 0.495, reload: 0, auto: true,
         range: 68, bulletSpeed: 1, spread: 0, spreadGrow: 0, spreadMax: 0,
         speedMult: 1.20, falloffStart: 9999, falloffMin: 1, recoil: 0,
         pros: ['Trifft rundum - 360 Grad, auch im Ruecken', 'Schnellste Bewegung im Spiel',
@@ -274,12 +274,39 @@
       LEADERBOARD_SIZE: 100
     },
 
+    /* ---------------- Gold ----------------
+       Waehrung fuer den Skinshop. Anders als Sterne kann Gold nie verloren
+       gehen - auch der letzte Platz bekommt etwas, sonst lohnt sich ein
+       aussichtsloses Match nicht mehr. */
+    GOLD: {
+      BASE: 10,          // bekommt jeder, der das Match beendet
+      PER_RANK: 8,       // je Platz nach oben
+      WIN_BONUS: 15,     // zusaetzlich fuer Platz 1
+      PER_KILL: 2,
+      TEAM_WIN_BONUS: 10
+    },
+
+    /* ---------------- Ablauf vor dem Match ----------------
+       Erst waehlen alle gemeinsam die Karte, dann sperrt jeder eine Waffe,
+       dann sucht sich jeder aus dem Rest seine aus. */
+    PREMATCH: {
+      VOTE_TIME: 8,      // Kartenwahl
+      BAN_TIME: 5,       // Waffensperre
+      PICK_TIME: 5,      // Waffenwahl
+      MAP_CHOICES: 3,    // Karten zur Auswahl
+      BANS: 3            // so viele Waffen werden gesperrt
+    },
+
     MSG: {
       HELLO: 'hello', CREATE: 'create', JOIN: 'join', LEAVE: 'leave',
       CHAT: 'chat', SETUP: 'setup', START: 'start', INPUT: 'in',
       ADDBOT: 'addbot', KICK: 'kick', TEAM: 'team', READY: 'ready',
       ROOM: 'room', ERROR: 'err', MATCH: 'match', SNAP: 's', END: 'end', PONG: 'pong', PING: 'ping',
-      AUTH: 'auth', ME: 'me', BOARD: 'board', BOARDREQ: 'boardreq', PICK: 'pick'
+      AUTH: 'auth', ME: 'me', BOARD: 'board', BOARDREQ: 'boardreq', PICK: 'pick',
+      // Vorbereitung: Server meldet die Phase, Client schickt seine Stimme
+      PHASE: 'phase', VOTE: 'vote',
+      // Skinshop
+      SHOP: 'shop', BUY: 'buy', EQUIP: 'equip'
     },
 
     WEAPON_CHOICES: 3,   // Zur Auswahl gestellte Waffen vor dem Match
@@ -301,7 +328,47 @@
       if (rank === 1) d += this.STARS.WIN_BONUS;
       if (wonTeam) d += this.STARS.TEAM_WIN_BONUS;
       return d;
-    }
+    },
+
+    /** Gold fuer einen Platz. Nie negativ - der letzte Platz bekommt BASE. */
+    goldFor(rank, total, kills, wonTeam) {
+      const g = this.GOLD;
+      let v = g.BASE + Math.max(0, total - rank) * g.PER_RANK + (kills || 0) * g.PER_KILL;
+      if (rank === 1) v += g.WIN_BONUS;
+      if (wonTeam) v += g.TEAM_WIN_BONUS;
+      return Math.round(v);
+    },
+
+    /* ---------------- Skinshop ----------------
+       Farben mit eigener Bewegung. Der Preis richtet sich nach dem Aufwand
+       der Animation, nicht nach der Farbe - eine Flamme faellt im Spiel
+       staerker auf als ein Leuchten. */
+    SHOP_SKINS: [
+      {
+        id: 'neon', name: 'Neon', price: 120, color: '#3fd0ff', trail: '#9ef1ff',
+        anim: 'pulse', desc: 'Pulsierender Lichtkranz im Takt'
+      },
+      {
+        id: 'inferno', name: 'Inferno', price: 220, color: '#ff5c2a', trail: '#ffd166',
+        anim: 'flame', desc: 'Flammenzungen steigen vom Koerper auf'
+      },
+      {
+        id: 'toxic', name: 'Toxisch', price: 180, color: '#7cff4a', trail: '#c8ff9b',
+        anim: 'bubble', desc: 'Blubbernde Schlieren steigen auf'
+      },
+      {
+        id: 'frost', name: 'Frost', price: 180, color: '#7fd7ff', trail: '#ffffff',
+        anim: 'frost', desc: 'Eiskristalle wirbeln um dich'
+      },
+      {
+        id: 'void', name: 'Leere', price: 260, color: '#8b5cf6', trail: '#d8b4fe',
+        anim: 'void', desc: 'Dunkler Schleier zieht hinter dir her'
+      },
+      {
+        id: 'gold', name: 'Gold', price: 400, color: '#ffd166', trail: '#fff3c4',
+        anim: 'sparkle', desc: 'Goldfunken springen bei jedem Schritt'
+      }
+    ]
   };
 
   /* Reichweite in Geschoss-Lebensdauer umrechnen. So ist "range" die eine

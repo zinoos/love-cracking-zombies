@@ -30,6 +30,10 @@ const clients = new Map();   // id -> Client
 const sessions = new Map();  // Sitzungsschluessel -> Client, fuer Wiederaufnahme
 let CLIENT_ID = 1;
 
+/* Dauer der Vorbereitungsphasen. Tests setzen den Faktor herunter, sonst
+   wartet jeder Durchlauf 18 Sekunden auf Kartenwahl, Sperre und Waffenwahl. */
+const PHASE_SCALE = Number(process.env.PHASE_SCALE || 1);
+
 /* Wie lange ein Platz nach einem Verbindungsabriss reserviert bleibt. Lang
    genug fuer einen Tunnel-Neustart oder ein kurzes Funkloch, kurz genug, dass
    eine Lobby nicht ewig von Karteileichen blockiert wird. */
@@ -78,6 +82,16 @@ class Room {
     this.mapId = null;
     this.snapAcc = 0;
     this.lastResult = null;
+    /* Vorbereitung vor dem Match: Kartenwahl, Waffensperre, Waffenwahl.
+       Laeuft im Raum, nicht im Match - die Karte steht ja erst am Ende der
+       ersten Phase fest, vorher gibt es gar kein Match. */
+    this.phase = null;        // 'vote' | 'ban' | 'pick'
+    this.phaseT = 0;
+    this.mapChoices = [];
+    this.mapVotes = new Map();   // Spieler-ID -> Karten-ID
+    this.banVotes = new Map();   // Spieler-ID -> Waffe
+    this.banned = [];
+    this.picks = new Map();      // Spieler-ID -> Waffe
     rooms.set(this.code, this);
     this.add(host);
   }
@@ -190,8 +204,10 @@ class Room {
       countdown: resumed ? 0 : C.COUNTDOWN,
       resumed: !!resumed,
       you: member.id,
-      // Nach einem Abriss keine neue Waffenwahl - die Waffe steht laengst fest
-      choices: resumed ? [] : (sim ? sim.choices : []),
+      /* Keine Auswahl mehr im Match: gewaehlt wird in der Vorbereitung,
+         bevor die Karte ueberhaupt geladen ist. */
+      choices: [],
+      banned: this.banned,
       // Nur die gesprengten Felder nachreichen, nicht die ganze Karte
       tiles: resumed ? this.tileDiff() : undefined,
       players: [...this.members.values()].map(m => {
@@ -199,21 +215,173 @@ class Room {
         return {
           id: m.id, name: m.name, color: m.skin.color, trail: m.skin.trail,
           pattern: m.skin.pattern, team: m.team, bot: !!m.bot,
-          weapon: s ? s.weaponKey : 'pistol'
+          weapon: s ? s.weaponKey : 'pistol',
+          // Gekaufter Skin mit eigener Bewegung, falls angelegt
+          fx: m.uid ? (STARS.get(m.uid).skin || '') : ''
         };
       })
     };
   }
 
+  /* ---------------- Vorbereitung ----------------
+     Drei Phasen nacheinander, jede mit eigener Uhr. Bots stimmen sofort ab,
+     damit eine Runde mit Bots nicht auf Zeitablauf warten muss. */
+
   start() {
     const err = this.canStart();
     if (err) return err;
-    this.mapId = Math.floor(Math.random() * MAPS.count);
+    this.beginVote();
+    return null;
+  }
+
+  /** Phase 1: drei Karten zur Wahl. */
+  beginVote() {
+    this.state = 'prematch';
+    this.phase = 'vote';
+    this.phaseT = C.PREMATCH.VOTE_TIME * PHASE_SCALE;
+    this.mapVotes.clear();
+    this.banVotes.clear();
+    this.picks.clear();
+    this.banned = [];
+
+    // Drei verschiedene Karten ziehen
+    const alle = [];
+    for (let i = 0; i < MAPS.count; i++) alle.push(i);
+    this.mapChoices = [];
+    for (let i = 0; i < C.PREMATCH.MAP_CHOICES && alle.length; i++) {
+      this.mapChoices.push(alle.splice(Math.floor(Math.random() * alle.length), 1)[0]);
+    }
+    for (const m of this.members.values()) {
+      if (m.bot) this.mapVotes.set(m.id, this.mapChoices[Math.floor(Math.random() * this.mapChoices.length)]);
+    }
+    this.broadcastPhase();
+  }
+
+  /** Phase 2: jeder sperrt eine Waffe. */
+  beginBan() {
+    // Karte mit den meisten Stimmen; bei Gleichstand entscheidet der Zufall
+    const zaehler = new Map();
+    for (const id of this.mapVotes.values()) zaehler.set(id, (zaehler.get(id) || 0) + 1);
+    let best = -1, sieger = [];
+    for (const wahl of this.mapChoices) {
+      const n = zaehler.get(wahl) || 0;
+      if (n > best) { best = n; sieger = [wahl]; }
+      else if (n === best) sieger.push(wahl);
+    }
+    this.mapId = sieger[Math.floor(Math.random() * sieger.length)];
+
+    this.phase = 'ban';
+    this.phaseT = C.PREMATCH.BAN_TIME * PHASE_SCALE;
+    for (const m of this.members.values()) {
+      if (m.bot) this.banVotes.set(m.id, C.WEAPON_ORDER[Math.floor(Math.random() * C.WEAPON_ORDER.length)]);
+    }
+    this.broadcastPhase();
+  }
+
+  /** Phase 3: freie Waffenwahl aus allem, was nicht gesperrt ist. */
+  beginPick() {
+    // Die drei meistgenannten Waffen sperren
+    const zaehler = new Map();
+    for (const w of this.banVotes.values()) zaehler.set(w, (zaehler.get(w) || 0) + 1);
+    const sortiert = [...zaehler.entries()].sort((a, b) => b[1] - a[1] || (Math.random() - .5));
+    this.banned = sortiert.slice(0, C.PREMATCH.BANS).map(e => e[0]);
+    /* Nie alles sperren: es muessen genug Waffen uebrig bleiben, sonst
+       stuende jemand ohne Auswahl da. */
+    const erlaubt = C.WEAPON_ORDER.filter(w => !this.banned.includes(w));
+    if (erlaubt.length < 3) this.banned = this.banned.slice(0, C.WEAPON_ORDER.length - 3);
+
+    this.phase = 'pick';
+    this.phaseT = C.PREMATCH.PICK_TIME * PHASE_SCALE;
+    for (const m of this.members.values()) {
+      if (m.bot) this.picks.set(m.id, this.zufallsWaffe());
+    }
+    this.broadcastPhase();
+  }
+
+  zufallsWaffe() {
+    const erlaubt = C.WEAPON_ORDER.filter(w => !this.banned.includes(w));
+    return erlaubt[Math.floor(Math.random() * erlaubt.length)];
+  }
+
+  /** Stand der laufenden Phase an alle schicken. */
+  broadcastPhase() {
+    for (const m of this.humans) send(m.ws, this.phasePayload(m));
+    this.broadcastRoom();
+  }
+
+  phasePayload(member) {
+    const p = {
+      t: C.MSG.PHASE,
+      phase: this.phase,
+      time: Math.max(0, Math.round(this.phaseT * 10) / 10,),
+      mode: this.mode,
+      players: [...this.members.values()].map(m => ({ id: m.id, name: m.name, bot: !!m.bot }))
+    };
+    if (this.phase === 'vote') {
+      p.maps = this.mapChoices.map(id => ({ id, name: MAPS.generate(id).name }));
+      p.votes = this.mapChoices.map(id => [...this.mapVotes.values()].filter(v => v === id).length);
+      p.you = this.mapVotes.get(member.id);
+      p.gesamt = this.members.size;
+    } else if (this.phase === 'ban') {
+      p.mapId = this.mapId;
+      p.mapName = MAPS.generate(this.mapId).name;
+      p.weapons = C.WEAPON_ORDER;
+      p.votes = C.WEAPON_ORDER.map(w => [...this.banVotes.values()].filter(v => v === w).length);
+      p.you = this.banVotes.get(member.id);
+      p.bans = C.PREMATCH.BANS;
+    } else if (this.phase === 'pick') {
+      p.mapId = this.mapId;
+      p.mapName = MAPS.generate(this.mapId).name;
+      p.banned = this.banned;
+      p.you = this.picks.get(member.id);
+      p.taken = [...this.members.values()].map(m => ({ id: m.id, w: this.picks.get(m.id) || null }));
+    }
+    return p;
+  }
+
+  /** Stimme entgegennehmen. Der Server prueft die Phase, nicht der Client. */
+  vote(client, wahl) {
+    if (this.state !== 'prematch') return;
+    if (this.phase === 'vote') {
+      const id = Number(wahl);
+      if (!this.mapChoices.includes(id)) return;
+      this.mapVotes.set(client.id, id);
+    } else if (this.phase === 'ban') {
+      if (!C.WEAPON_ORDER.includes(wahl)) return;
+      this.banVotes.set(client.id, wahl);
+    } else if (this.phase === 'pick') {
+      if (!C.WEAPON_ORDER.includes(wahl) || this.banned.includes(wahl)) return;
+      this.picks.set(client.id, wahl);
+    } else return;
+    this.broadcastPhase();
+    // Wenn alle gewaehlt haben, muss niemand die Uhr abwarten
+    const stimmen = this.phase === 'vote' ? this.mapVotes
+      : this.phase === 'ban' ? this.banVotes : this.picks;
+    if (stimmen.size >= this.members.size) this.phaseT = Math.min(this.phaseT, 1.2);
+  }
+
+  stepPhase(dt) {
+    if (this.state !== 'prematch') return;
+    const vorher = Math.ceil(this.phaseT);
+    this.phaseT -= dt;
+    if (Math.ceil(this.phaseT) !== vorher && this.phaseT > 0) this.broadcastPhase();
+    if (this.phaseT > 0) return;
+    if (this.phase === 'vote') this.beginBan();
+    else if (this.phase === 'ban') this.beginPick();
+    else this.startMatch();
+  }
+
+  startMatch() {
     this.match = new Match(this, this.mode, this.mapId);
-    for (const m of this.members.values()) this.match.addPlayer(m);
+    for (const m of this.members.values()) {
+      this.match.addPlayer(m);
+      // Wer nichts gewaehlt hat, bekommt eine erlaubte Waffe zugelost
+      const w = this.picks.get(m.id) || this.zufallsWaffe();
+      this.match.forceWeapon(m.id, w);
+    }
+    this.phase = null;
     this.state = 'match';
     for (const m of this.humans) send(m.ws, this.matchInfo(m, false));
-    return null;
   }
 
   onMatchEnd(match) {
@@ -237,7 +405,11 @@ class Room {
     const boardWithStars = board.map((p, i) => {
       const member = this.members.get(p.id);
       const a = member && member.uid ? awards.get(member.uid) : null;
-      return { ...p, rank: i + 1, stars: a ? a.delta : null, total: a ? a.after : null, capped: a ? a.capped : false };
+      return {
+        ...p, rank: i + 1,
+        stars: a ? a.delta : null, total: a ? a.after : null, capped: a ? a.capped : false,
+        gold: a ? a.gold : null, goldTotal: a ? a.goldTotal : null
+      };
     });
 
     this.lastResult = {
@@ -289,6 +461,7 @@ class Room {
   }
 
   update(dt) {
+    if (this.state === 'prematch') { this.stepPhase(dt); return; }
     if (!this.match) return;
     this.match.step(dt);
     this.snapAcc += dt;
@@ -499,6 +672,45 @@ function handle(client, msg) {
     case M.PICK:
       if (room && room.match) room.match.pickWeapon(client.id, msg.w);
       break;
+
+    // Stimme in der Vorbereitung: Karte, Waffensperre oder Waffenwahl
+    case M.VOTE:
+      if (room) room.vote(client, msg.v);
+      break;
+
+    case M.SHOP:
+      send(client.ws, {
+        t: M.SHOP,
+        skins: C.SHOP_SKINS,
+        profile: client.uid ? STARS.publicProfile(client.uid) : null
+      });
+      break;
+
+    case M.BUY: {
+      if (!client.uid) {
+        send(client.ws, { t: M.ERROR, msg: 'Zum Kaufen musst du angemeldet sein' });
+        break;
+      }
+      const r = STARS.buySkin(client.uid, String(msg.id || ''));
+      if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
+      else {
+        send(client.ws, { t: M.ME, profile: r.profil });
+        send(client.ws, { t: M.SHOP, skins: C.SHOP_SKINS, profile: r.profil });
+      }
+      break;
+    }
+
+    case M.EQUIP: {
+      if (!client.uid) break;
+      const r = STARS.equipSkin(client.uid, String(msg.id || ''));
+      if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
+      else {
+        send(client.ws, { t: M.ME, profile: r.profil });
+        const rr = rooms.get(client.roomCode);
+        if (rr) rr.broadcastRoom();
+      }
+      break;
+    }
   }
 }
 

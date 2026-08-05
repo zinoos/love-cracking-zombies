@@ -92,6 +92,10 @@
         <span class="ico">◈</span>
         <span class="lines"><b>SKINLOCKER</b><small>Farbe, Muster &amp; Spur</small></span>
       </button>
+      <button class="btn big" id="btn-shop">
+        <span class="ico">◆</span>
+        <span class="lines"><b>SKINSHOP</b><small>Besondere Farben für Gold</small></span>
+      </button>
       <button class="btn big" id="btn-board">
         <span class="ico">★</span>
         <span class="lines"><b>BESTENLISTE</b><small>Sterne &amp; Platzierungen</small></span>
@@ -237,6 +241,47 @@
   </div>
 </section>
 
+<!-- ============ VORBEREITUNG: KARTE, SPERRE, WAFFE ============ -->
+<section class="screen" id="scr-prematch">
+  <div class="prep-wrap">
+    <div class="prep-steps" id="prep-steps">
+      <span class="pstep" data-step="vote">1 · KARTE</span>
+      <span class="pstep" data-step="ban">2 · SPERRE</span>
+      <span class="pstep" data-step="pick">3 · WAFFE</span>
+    </div>
+
+    <h2 class="prep-title" id="prep-title">KARTE WÄHLEN</h2>
+    <p class="prep-sub" id="prep-sub"></p>
+
+    <div class="prep-clock">
+      <div class="prep-bar"><i id="prep-fill"></i></div>
+      <span class="prep-time" id="prep-time">8</span>
+    </div>
+
+    <div class="map-choices" id="map-choices"></div>
+    <div class="ban-grid" id="ban-grid"></div>
+    <div class="pick-grid" id="pick-grid"></div>
+
+    <p class="prep-note" id="prep-note"></p>
+  </div>
+</section>
+
+<!-- ============ SKINSHOP ============ -->
+<section class="screen" id="scr-shop">
+  <div class="panel wide">
+    <header class="phead">
+      <button class="back" data-back="scr-menu">‹ Zurück</button>
+      <h2>SKINSHOP</h2>
+      <span class="gold-badge" id="shop-gold">0 Gold</span>
+    </header>
+
+    <p class="hint" id="shop-hint">Gold bekommst du nach jedem Match — für Platz 1 am meisten,
+      aber auch der letzte Platz geht nicht leer aus.</p>
+
+    <div class="shop-grid" id="shop-grid"></div>
+  </div>
+</section>
+
 <!-- ============ EINSTELLUNGEN ============ -->
 <section class="screen" id="scr-settings">
   <div class="panel wide">
@@ -338,7 +383,9 @@
           <li><b>Sichtfeld:</b> du siehst nur nach vorn (106°), der Kegel dreht sich mit dir. Nur direkt um dich herum merkst du alles.</li>
           <li><b>Waffe:</b> vor jedem Match aus 3 von 13 wählen — mehr Schaden oder Reichweite kostet Tempo.</li>
           <li><b>Schwert:</b> Rundumschlag 360°, 35 Schaden, keine Munition, schnellste Bewegung. Nach jedem Kill 0,5 s unsichtbar.</li>
-          <li><b>Sergio:</b> wirft eine Schallplatte, die von Wänden abprallt und zurückkommt. Trifft auf Hin- und Rückweg — erst wenn sie wieder in der Hand liegt, kannst du erneut werfen.</li>
+          <li><b>Sergio:</b> wirft eine Schallplatte, die an der ersten Wand umkehrt und zurückkommt. Trifft auf Hin- und Rückweg — erst wenn sie wieder in der Hand liegt, kannst du erneut werfen.</li>
+          <li><b>Vor dem Match:</b> 8 s Kartenwahl, 5 s Waffensperre (die 3 meistgenannten fallen weg), 5 s freie Waffenwahl.</li>
+          <li><b>Gold:</b> gibt es nach jedem Match — für Platz 1 am meisten, für den letzten Platz immer noch etwas. Dafür gibt es im Skinshop Farben mit eigener Animation.</li>
           <li><b>Minen:</b> Linksklick wirft sie bis 310 px über Wände, zweiter Linksklick zündet — 99 Schaden im Radius. Gegner sehen sie nicht.</li>
           <li><b>Schwere Waffen:</b> doppelter Dash-Cooldown (4,8 s).</li>
           <li><b>Sterne:</b> obere Tabellenhälfte gewinnt, untere verliert. Nie unter 0.</li>

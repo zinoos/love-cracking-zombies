@@ -98,7 +98,7 @@ async function accessToken() {
 
 /* ---------- Firestore-Werte <-> einfache Objekte ---------- */
 
-const NUMBERS = new Set(['stars', 'matches', 'wins', 'kills', 'deaths', 'best', 'last']);
+const NUMBERS = new Set(['stars', 'matches', 'wins', 'kills', 'deaths', 'best', 'last', 'gold']);
 
 function toFields(rec) {
   const fields = {};

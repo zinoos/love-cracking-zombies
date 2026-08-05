@@ -412,6 +412,216 @@ const UI = (() => {
     }
   }
 
+  /* ---------- Vorbereitung: Karte, Sperre, Waffe ----------
+     Der Server fuehrt Regie und schickt bei jeder Aenderung den kompletten
+     Stand. Die Oberflaeche zeichnet nur, was ankommt, und meldet Klicks
+     zurueck - so kann kein Client eine Sperre umgehen. */
+
+  let phaseSend = null;      // Rueckmeldung an main.js
+  let phaseMax = 1;
+  let phaseLast = null;
+
+  function onPhaseVote(fn) { phaseSend = fn; }
+
+  /** Kleine Kartenvorschau aus der Kachelkarte zeichnen. */
+  function malMap(cv, mapId) {
+    const map = MAPS.generate(mapId);
+    const n = map.n;
+    cv.width = n; cv.height = n;
+    const g = cv.getContext('2d');
+    const bild = g.createImageData(n, n);
+    for (let i = 0; i < n * n; i++) {
+      const v = map.tiles[i];
+      const c = v === C.T_WALL ? [92, 106, 140]
+        : v === C.T_BUSH ? [58, 112, 70]
+          : v === C.T_RUBBLE ? [74, 68, 58] : [26, 32, 46];
+      bild.data[i * 4] = c[0]; bild.data[i * 4 + 1] = c[1];
+      bild.data[i * 4 + 2] = c[2]; bild.data[i * 4 + 3] = 255;
+    }
+    g.putImageData(bild, 0, 0);
+  }
+
+  function renderPhase(m) {
+    show('scr-prematch');
+    const neu = m.phase !== phaseLast;
+    phaseLast = m.phase;
+    if (neu) {
+      phaseMax = m.phase === 'vote' ? C.PREMATCH.VOTE_TIME
+        : m.phase === 'ban' ? C.PREMATCH.BAN_TIME : C.PREMATCH.PICK_TIME;
+    }
+    phaseMax = Math.max(phaseMax, m.time);
+
+    [...$('prep-steps').children].forEach(el => {
+      const s = el.dataset.step;
+      const rang = { vote: 0, ban: 1, pick: 2 };
+      el.classList.toggle('on', s === m.phase);
+      el.classList.toggle('done', rang[s] < rang[m.phase]);
+    });
+
+    $('prep-time').textContent = Math.ceil(m.time);
+    $('prep-fill').style.width = Math.max(0, Math.min(100, (m.time / phaseMax) * 100)) + '%';
+
+    $('map-choices').classList.toggle('show', m.phase === 'vote');
+    $('ban-grid').classList.toggle('show', m.phase === 'ban');
+    $('pick-grid').classList.toggle('show', m.phase === 'pick');
+
+    if (m.phase === 'vote') phaseVote(m);
+    else if (m.phase === 'ban') phaseBan(m);
+    else phasePick(m);
+  }
+
+  function phaseVote(m) {
+    $('prep-title').textContent = 'KARTE WÄHLEN';
+    $('prep-sub').textContent = 'Die Karte mit den meisten Stimmen wird gespielt.';
+    $('prep-note').textContent = m.you === undefined
+      ? 'Ohne Stimme zählst du nicht mit.' : '';
+    const host = $('map-choices');
+    if (host.dataset.sig !== m.maps.map(x => x.id).join(',')) {
+      host.dataset.sig = m.maps.map(x => x.id).join(',');
+      host.innerHTML = '';
+      for (const k of m.maps) {
+        const card = document.createElement('div');
+        card.className = 'map-card';
+        card.dataset.id = k.id;
+        const cv = document.createElement('canvas');
+        malMap(cv, k.id);
+        const b = document.createElement('b');
+        b.textContent = k.name;
+        const v = document.createElement('div');
+        v.className = 'map-votes';
+        card.append(cv, b, v);
+        card.onclick = () => { if (phaseSend) phaseSend(k.id); SFX.ui(true); };
+        host.appendChild(card);
+      }
+    }
+    [...host.children].forEach((card, i) => {
+      card.classList.toggle('on', Number(card.dataset.id) === m.you);
+      const v = card.querySelector('.map-votes');
+      v.innerHTML = '';
+      for (let k = 0; k < (m.votes[i] || 0); k++) v.appendChild(document.createElement('i'));
+    });
+  }
+
+  function waffenKarte(key) {
+    const w = C.WEAPONS[key];
+    const card = document.createElement('div');
+    card.className = 'wcard';
+    card.dataset.w = key;
+    card.innerHTML = `<div class="wico">${w.icon}</div>`
+      + `<div class="wname">${esc(w.short)}</div>`
+      + `<div class="wstat">${w.melee ? 'Nahkampf' : w.mine ? 'Falle' : w.dmg + ' Schaden'}</div>`;
+    return card;
+  }
+
+  function phaseBan(m) {
+    $('prep-title').textContent = 'WAFFE SPERREN';
+    $('prep-sub').textContent = `Karte: ${m.mapName} — die ${m.bans} meistgenannten Waffen fallen weg.`;
+    $('prep-note').textContent = 'Jeder hat eine Stimme.';
+    const host = $('ban-grid');
+    if (!host.children.length) {
+      for (const key of m.weapons) {
+        const card = waffenKarte(key);
+        const v = document.createElement('div');
+        v.className = 'wvotes';
+        card.appendChild(v);
+        card.onclick = () => { if (phaseSend) phaseSend(key); SFX.ui(true); };
+        host.appendChild(card);
+      }
+    }
+    [...host.children].forEach((card, i) => {
+      card.classList.toggle('on', card.dataset.w === m.you);
+      card.querySelector('.wvotes').textContent = m.votes[i] ? '✕'.repeat(m.votes[i]) : '';
+    });
+  }
+
+  function phasePick(m) {
+    $('prep-title').textContent = 'WAFFE WÄHLEN';
+    $('prep-sub').textContent = `Karte: ${m.mapName} — gesperrt: `
+      + (m.banned.length ? m.banned.map(k => C.WEAPONS[k].short).join(', ') : 'nichts');
+    $('prep-note').textContent = 'Ohne Wahl bekommst du eine zufällige erlaubte Waffe.';
+    const host = $('pick-grid');
+    if (!host.children.length) {
+      for (const key of C.WEAPON_ORDER) {
+        const card = waffenKarte(key);
+        const t = document.createElement('div');
+        t.className = 'wtaken';
+        card.appendChild(t);
+        card.onclick = () => {
+          if (card.classList.contains('banned')) return;
+          if (phaseSend) phaseSend(key);
+          SFX.ui(true);
+        };
+        host.appendChild(card);
+      }
+    }
+    [...host.children].forEach(card => {
+      const key = card.dataset.w;
+      card.classList.toggle('banned', m.banned.includes(key));
+      card.classList.toggle('on', key === m.you);
+      const wer = (m.taken || []).filter(x => x.w === key).length;
+      card.querySelector('.wtaken').textContent = wer ? `${wer}× gewählt` : '';
+    });
+  }
+
+  /* ---------- Skinshop ---------- */
+
+  let shopBuy = null, shopEquip = null;
+  const shopAnim = [];      // laufende Vorschauen
+
+  function onShop(kaufen, anlegen) { shopBuy = kaufen; shopEquip = anlegen; }
+
+  function renderShop(m) {
+    const p = m.profile;
+    $('shop-gold').textContent = (p ? p.gold : 0) + ' Gold';
+    $('shop-hint').textContent = p
+      ? 'Gold bekommst du nach jedem Match — für Platz 1 am meisten, aber auch der letzte Platz geht nicht leer aus.'
+      : 'Zum Kaufen musst du angemeldet sein. Gold sammelst du als angemeldeter Spieler in jedem Match.';
+    const host = $('shop-grid');
+    host.innerHTML = '';
+    shopAnim.length = 0;
+    for (const s of m.skins) {
+      const hat = p && p.owned.includes(s.id);
+      const an = p && p.skin === s.id;
+      const card = document.createElement('div');
+      card.className = 'shop-card' + (hat ? ' owned' : '') + (an ? ' active' : '');
+      const cv = document.createElement('canvas');
+      cv.width = 240; cv.height = 240;
+      card.appendChild(cv);
+      shopAnim.push({ cv, skin: s });
+      const b = document.createElement('b');
+      b.textContent = s.name;
+      const d = document.createElement('div');
+      d.className = 'sdesc';
+      d.textContent = s.desc;
+      const pr = document.createElement('div');
+      pr.className = 'sprice';
+      pr.textContent = hat ? 'gekauft' : s.price + ' Gold';
+      const btn = document.createElement('button');
+      btn.className = 'btn small' + (hat ? ' ghost' : ' primary');
+      btn.textContent = an ? 'Angelegt' : hat ? 'Anlegen' : 'Kaufen';
+      btn.disabled = !p || an;
+      btn.onclick = () => {
+        if (!p) return;
+        if (hat) { if (shopEquip) shopEquip(s.id); }
+        else if (shopBuy) shopBuy(s.id);
+      };
+      card.append(b, d, pr, btn);
+      host.appendChild(card);
+    }
+  }
+
+  /** Vorschauen im Shop weiterlaufen lassen. */
+  let shopT = 0;
+  function shopTick(dt) {
+    if (current !== 'scr-shop' || !shopAnim.length) return;
+    shopT += dt;
+    for (const a of shopAnim) {
+      const g = a.cv.getContext('2d');
+      g.clearRect(0, 0, a.cv.width, a.cv.height);
+      RENDER.drawShopPreview(g, a.cv.width / 2, a.cv.height - 30, a.cv.height * 0.62, a.skin, shopT);
+    }
+  }
+
   /* ---------- Einstellungen ---------- */
 
   let lauscht = null;      // Aktion, die gerade auf eine neue Taste wartet
@@ -800,11 +1010,13 @@ const UI = (() => {
     if (current !== 'scr-game') drawBg(dt);
     if (current === 'scr-skins') drawSkinPreview(dt);
     if (current === 'scr-settings') settingsLive();
+    if (current === 'scr-shop') shopTick(dt);
   }
 
   return {
     $, show, currentScreen, toast, skin, buildSkinUI, saveSkin,
     wireSettings, renderSettings,
+    renderPhase, onPhaseVote, renderShop, onShop,
     get name() { return profileName; },
     set name(v) { profileName = v; },
     renderRoom, addChat, updateHUD, setScorePlate, killfeed, centerMsg, reconnecting,
