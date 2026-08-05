@@ -258,13 +258,16 @@
   /* ================= Netz-Handling ================= */
   NET.on('open', () => {
     UI.setConn(true);
-    NET.send({ t: C.MSG.HELLO, name: UI.name, skin: UI.skin });
+    NET.send({ t: C.MSG.HELLO, name: UI.name, skin: UI.skin, session: NET.session });
   });
   let connectFails = 0, everConnected = false;
   NET.on('open', () => { connectFails = 0; everConnected = true; UI.serverNotice(false); });
   NET.on('close', () => {
     UI.setConn(false);
     connectFails++;
+    /* Im Match sofort sagen, dass die Verbindung weg ist. Vorher blieb einfach
+       das letzte Bild stehen und niemand wusste, was los war. */
+    if (G.inMatch) UI.reconnecting(true);
     // Nie verbunden gewesen -> sofort sagen, dass der Spielserver fehlt.
     // Auf Firebase Hosting allein gibt es keinen WebSocket.
     // Waehrend des Spiels erst nach mehreren Aussetzern, damit kurze
@@ -274,9 +277,20 @@
   NET.on('ping', ms => UI.setPing(ms, G.inMatch ? Math.round(snapJitter) : 0));
 
   NET.on(C.MSG.HELLO, m => {
+    const warImMatch = G.inMatch;
     G.myId = m.id;
     // Nach (Wieder-)Verbindung Anmeldung erneut nachweisen
     AUTH.pushToken(false);
+    if (m.resumed) return;               // MATCH-Nachricht folgt gleich
+    UI.reconnecting(false);
+    /* Neue Verbindung ohne Wiederaufnahme, obwohl wir im Match waren: der
+       Platz war zu lange leer und ist verfallen. Ohne diesen Zweig blieb der
+       Spieler im Spielbildschirm haengen und bekam nie wieder ein Bild. */
+    if (warImMatch) {
+      resetMatch();
+      UI.show('scr-menu');
+      UI.toast('Verbindung zu lange weg - das Match lief ohne dich weiter', 'err');
+    }
   });
 
   NET.on(C.MSG.ME, m => {
@@ -332,6 +346,8 @@
     G.mode = m.mode;
     G.mapName = m.mapName;
     G.map = MAPS.instance(m.mapId);      // eigene Kopie - Sprengungen bleiben im Match
+    // Bei Wiederaufnahme die schon gesprengten Felder nachziehen
+    if (m.tiles) for (let i = 0; i < m.tiles.length; i += 2) G.map.tiles[m.tiles[i]] = m.tiles[i + 1];
     RENDER.buildMap(G.map);
     RENDER.resize();
     FX.clear();
@@ -368,18 +384,25 @@
     localAmmo = weapon().mag;
     UI.setWeapon(G.myWeaponKey);
 
-    // Drei Angebote zur Wahl - wer nicht waehlt, bekommt eine zugelost
-    const choices = (m.choices && m.choices.length) ? m.choices : [G.myWeaponKey];
-    UI.weaponPicker(choices, (m.countdown || C.COUNTDOWN) - 1.2, key => {
-      NET.send({ t: C.MSG.PICK, w: key });
-      applyMyWeapon(key);
-      FB.log('weapon_picked', { weapon: key, mode: m.mode, map: m.mapName });
-    });
+    /* Drei Angebote zur Wahl - wer nicht waehlt, bekommt eine zugelost.
+       Nach einer Wiederaufnahme entfaellt das: die Waffe steht schon fest,
+       ein Auswahlfenster mitten im laufenden Match waere nur im Weg. */
+    if (!m.resumed) {
+      const choices = (m.choices && m.choices.length) ? m.choices : [G.myWeaponKey];
+      UI.weaponPicker(choices, (m.countdown || C.COUNTDOWN) - 1.2, key => {
+        NET.send({ t: C.MSG.PICK, w: key });
+        applyMyWeapon(key);
+        FB.log('weapon_picked', { weapon: key, mode: m.mode, map: m.mapName });
+      });
+    } else {
+      UI.pickerOpen(false);
+    }
 
     $('mapname').textContent = m.mapName.toUpperCase() + ' · ' + C.MODES[m.mode].name.toUpperCase();
     G.inMatch = true;
-    G.matchState = 'countdown';
+    G.matchState = m.resumed ? 'live' : 'countdown';
     G.matchStartedAt = performance.now();
+    UI.reconnecting(false);
     FB.log('match_start', {
       mode: m.mode, map: m.mapName,
       players: m.players.length,
@@ -387,7 +410,7 @@
     });
     UI.show('scr-game');
     SFX.resume();
-    UI.toast(`Map: ${m.mapName}`, 'ok');
+    UI.toast(m.resumed ? 'Wieder im Spiel' : `Map: ${m.mapName}`, 'ok');
   }
 
   /** Eigene Waffe uebernehmen (nach Wahl oder Serverzuteilung). */
@@ -855,6 +878,9 @@
       );
     };
     $('btn-leave').onclick = () => { NET.send({ t: C.MSG.LEAVE }); UI.show('scr-menu'); };
+    /* Tab zu = bewusst weg. Ohne diese Meldung bliebe der Platz die volle
+       Schonfrist reserviert und die anderen warteten auf eine Karteileiche. */
+    addEventListener('pagehide', () => { try { NET.send({ t: C.MSG.LEAVE }); } catch (_) { /* egal */ } });
     $('btn-addbot').onclick = () => NET.send({ t: C.MSG.ADDBOT });
     $('btn-shuffle').onclick = () => {
       const r = UI.room;

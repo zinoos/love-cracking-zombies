@@ -411,6 +411,14 @@ const UI = (() => {
     }
   }
 
+  /* Sichtbares Zeichen, dass die Verbindung weg ist. Ohne das blieb im Match
+     einfach das letzte Bild stehen - man haelt es fuer einen Absturz. */
+  function reconnecting(on) {
+    const el = $('reconnect');
+    if (!el) return;
+    el.classList.toggle('show', !!on);
+  }
+
   function setScorePlate(entries) {
     const host = $('score-plate');
     const sig = entries.map(e => e.label + e.value + e.cls).join('|');
@@ -705,7 +713,7 @@ const UI = (() => {
     $, show, currentScreen, toast, skin, buildSkinUI, saveSkin,
     get name() { return profileName; },
     set name(v) { profileName = v; },
-    renderRoom, addChat, updateHUD, setScorePlate, killfeed, centerMsg,
+    renderRoom, addChat, updateHUD, setScorePlate, killfeed, centerMsg, reconnecting,
     setWeapon, setGrenades, reloadBar, weaponPicker, pickerAssigned, pickerOpen,
     respawnUI, hitmark, showScoreboard, showResult, setConn, setPing, serverNotice,
     renderAccount, renderBoard, starBadge, tick, esc,

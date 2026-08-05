@@ -1,6 +1,7 @@
 /* NEON STRIKE - Server: statisches Hosting, WebSocket-Lobbys, Match-Loop. */
 const path = require('path');
 const http = require('http');
+const crypto = require('crypto');
 const express = require('express');
 const { WebSocketServer } = require('ws');
 
@@ -26,7 +27,15 @@ const wss = new WebSocketServer({ server });
 
 const rooms = new Map();     // code -> Room
 const clients = new Map();   // id -> Client
+const sessions = new Map();  // Sitzungsschluessel -> Client, fuer Wiederaufnahme
 let CLIENT_ID = 1;
+
+/* Wie lange ein Platz nach einem Verbindungsabriss reserviert bleibt. Lang
+   genug fuer einen Tunnel-Neustart oder ein kurzes Funkloch, kurz genug, dass
+   eine Lobby nicht ewig von Karteileichen blockiert wird. */
+const RECONNECT_GRACE = Number(process.env.RECONNECT_GRACE || 60000);
+// Ohne ein einziges Lebenszeichen so lange -> Verbindung gilt als tot
+const SILENCE_TIMEOUT = Number(process.env.SILENCE_TIMEOUT || 40000);
 
 function send(ws, obj) {
   if (ws && ws.readyState === 1) {
@@ -158,6 +167,44 @@ class Room {
     return null;
   }
 
+  /** Was sich seit dem Kartenstart veraendert hat, als Paare [Feld, Wert].
+      Der Client erzeugt die Karte selbst aus der ID - es muessen also nur die
+      Sprengungen uebertragen werden. */
+  tileDiff() {
+    const frisch = MAPS.generate(this.mapId).tiles;
+    const jetzt = this.match.map.tiles;
+    const out = [];
+    for (let i = 0; i < jetzt.length; i++) if (jetzt[i] !== frisch[i]) out.push(i, jetzt[i]);
+    return out;
+  }
+
+  /** Alles, was ein Client braucht, um das Match aufzubauen. Wird beim Start
+      verschickt und noch einmal, wenn jemand nach einem Abriss zurueckkommt. */
+  matchInfo(member, resumed) {
+    const sim = this.match.players.get(member.id);
+    return {
+      t: C.MSG.MATCH,
+      mapId: this.mapId,
+      mapName: MAPS.generate(this.mapId).name,
+      mode: this.mode,
+      countdown: resumed ? 0 : C.COUNTDOWN,
+      resumed: !!resumed,
+      you: member.id,
+      // Nach einem Abriss keine neue Waffenwahl - die Waffe steht laengst fest
+      choices: resumed ? [] : (sim ? sim.choices : []),
+      // Nur die gesprengten Felder nachreichen, nicht die ganze Karte
+      tiles: resumed ? this.tileDiff() : undefined,
+      players: [...this.members.values()].map(m => {
+        const s = this.match.players.get(m.id);
+        return {
+          id: m.id, name: m.name, color: m.skin.color, trail: m.skin.trail,
+          pattern: m.skin.pattern, team: m.team, bot: !!m.bot,
+          weapon: s ? s.weaponKey : 'pistol'
+        };
+      })
+    };
+  }
+
   start() {
     const err = this.canStart();
     if (err) return err;
@@ -165,25 +212,7 @@ class Room {
     this.match = new Match(this, this.mode, this.mapId);
     for (const m of this.members.values()) this.match.addPlayer(m);
     this.state = 'match';
-    const info = {
-      t: C.MSG.MATCH,
-      mapId: this.mapId,
-      mapName: MAPS.generate(this.mapId).name,
-      mode: this.mode,
-      countdown: C.COUNTDOWN,
-      players: [...this.members.values()].map(m => {
-        const sim = this.match.players.get(m.id);
-        return {
-          id: m.id, name: m.name, color: m.skin.color, trail: m.skin.trail,
-          pattern: m.skin.pattern, team: m.team, bot: !!m.bot,
-          weapon: sim ? sim.weaponKey : 'pistol'
-        };
-      })
-    };
-    for (const m of this.humans) {
-      const sim = this.match.players.get(m.id);
-      send(m.ws, { ...info, you: m.id, choices: sim ? sim.choices : [] });
-    }
+    for (const m of this.humans) send(m.ws, this.matchInfo(m, false));
     return null;
   }
 
@@ -280,26 +309,77 @@ wss.on('connection', (ws, req) => {
   const client = {
     id: CLIENT_ID++, ws, bot: false,
     name: 'Spieler', skin: sanitizeSkin({}), team: 0, roomCode: null, alive: true,
-    uid: null, authName: ''
+    uid: null, authName: '',
+    session: crypto.randomBytes(16).toString('hex'),
+    lastSeen: Date.now(), goneAt: 0
   };
   clients.set(client.id, client);
+  sessions.set(client.session, client);
   void req;
-  send(ws, { t: C.MSG.HELLO, id: client.id, maxPlayers: C.MAX_PLAYERS, modes: C.MODES, authProject: AUTH_PROJECT });
+  send(ws, { t: C.MSG.HELLO, id: client.id, session: client.session, maxPlayers: C.MAX_PLAYERS, modes: C.MODES, authProject: AUTH_PROJECT });
+
+  /* Die Verbindung kann waehrend des Spiels auf einen anderen Datensatz
+     umgehaengt werden (Wiederaufnahme). Deshalb immer ueber wsOwner gehen und
+     nicht ueber die Variable client, sonst landen Eingaben nach dem
+     Wiederverbinden beim alten, leeren Datensatz. */
+  let wsOwner = client;
 
   ws.on('message', raw => {
     let msg;
     try { msg = JSON.parse(raw); } catch (_) { return; }
-    handle(client, msg);
+    wsOwner.lastSeen = Date.now();
+    if (msg.t === C.MSG.HELLO && msg.session && msg.session !== wsOwner.session) {
+      const resumed = resume(msg.session, ws, wsOwner);
+      if (resumed) { wsOwner = resumed; return; }
+    }
+    handle(wsOwner, msg);
   });
 
   ws.on('close', () => {
-    const room = rooms.get(client.roomCode);
-    if (room) room.remove(client.id);
-    clients.delete(client.id);
+    if (wsOwner.ws !== ws) return;          // Verbindung wurde schon uebernommen
+    /* Nicht sofort aus dem Raum werfen. Ein kurzer Aussetzer - Funkloch,
+       Tunnel-Neustart, Browser-Tab im Hintergrund - hat vorher gereicht, um
+       mitten im Match endgueltig rauszufliegen: der Client verband sich neu,
+       bekam eine neue ID und war in keinem Raum mehr. Auf dem Bildschirm
+       blieb das letzte Bild stehen. Jetzt bleibt der Platz reserviert. */
+    wsOwner.ws = null;
+    wsOwner.goneAt = Date.now();
   });
 
-  ws.on('pong', () => { client.alive = true; });
+  ws.on('pong', () => { wsOwner.alive = true; wsOwner.lastSeen = Date.now(); });
 });
+
+/** Eine neue Verbindung an einen bestehenden Spieler haengen. */
+function resume(session, ws, temp) {
+  const old = sessions.get(session);
+  if (!old || old === temp || !clients.has(old.id)) return null;
+
+  // Alte Verbindung sauber schliessen, falls sie noch offen sein sollte
+  if (old.ws && old.ws !== ws) { try { old.ws.close(); } catch (_) {} }
+  old.ws = ws;
+  old.alive = true;
+  old.lastSeen = Date.now();
+  old.goneAt = 0;
+
+  // Den frisch angelegten Platzhalter wieder abraeumen
+  sessions.delete(temp.session);
+  clients.delete(temp.id);
+
+  send(ws, {
+    t: C.MSG.HELLO, id: old.id, session: old.session,
+    maxPlayers: C.MAX_PLAYERS, modes: C.MODES, authProject: AUTH_PROJECT, resumed: true
+  });
+
+  const room = rooms.get(old.roomCode);
+  if (room) {
+    send(ws, room.roomPayload());
+    if (room.state === 'match' && room.match) send(ws, room.matchInfo(old, true));
+    else if (room.lastResult) send(ws, room.lastResult);
+  }
+  if (old.uid) send(ws, { t: C.MSG.ME, profile: STARS.publicProfile(old.uid) });
+  console.log(`  Spieler ${old.id} (${old.name}) wieder verbunden`);
+  return old;
+}
 
 function handle(client, msg) {
   const M = C.MSG;
@@ -435,15 +515,37 @@ setInterval(() => {
   }
 }, 1000 / C.TICK_RATE);
 
-// Tote Verbindungen aufraeumen
+/* Verbindungen pruefen und abgelaufene Plaetze freigeben.
+
+   Frueher galt eine Verbindung schon als tot, wenn ein einziges Pong ausblieb.
+   Ueber einen Tunnel oder in einem Hintergrund-Tab passiert das leicht - der
+   Spieler flog mitten im Match raus, obwohl seine Daten weiter ankamen.
+   Massgeblich ist jetzt, wann zuletzt ueberhaupt etwas empfangen wurde; der
+   Client meldet sich alle zwei Sekunden mit einem Ping. */
 setInterval(() => {
+  const now = Date.now();
   for (const c of clients.values()) {
-    if (!c.ws) continue;
-    if (c.alive === false) { try { c.ws.terminate(); } catch (_) {} continue; }
-    c.alive = false;
-    try { c.ws.ping(); } catch (_) {}
+    if (c.bot) continue;
+    if (c.ws) {
+      if (now - c.lastSeen > SILENCE_TIMEOUT) {
+        try { c.ws.terminate(); } catch (_) {}
+        c.ws = null;
+        c.goneAt = now;
+        continue;
+      }
+      try { c.ws.ping(); } catch (_) {}
+      continue;
+    }
+    // Ohne Verbindung: Platz noch eine Weile halten, dann raeumen
+    if (c.goneAt && now - c.goneAt > RECONNECT_GRACE) {
+      const room = rooms.get(c.roomCode);
+      if (room) room.remove(c.id);
+      sessions.delete(c.session);
+      clients.delete(c.id);
+      console.log(`  Spieler ${c.id} (${c.name}) endgueltig entfernt`);
+    }
   }
-}, 15000);
+}, 5000);
 
 /* Erst die Bestenliste einlesen, dann Verbindungen annehmen - sonst koennte
    ein frueher Spieler eine leere Liste sehen und mit 0 Sternen ueberschrieben
