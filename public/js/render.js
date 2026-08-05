@@ -871,6 +871,42 @@ const RENDER = (() => {
         g.beginPath(); g.moveTo(r * 1.3, -r * .1); g.lineTo(r * 1.5, 0); g.lineTo(r * 1.3, r * .1); g.closePath(); g.fill();
         return { front: r * .75, back: -r * .4 };
       }
+      /* Sergio traegt statt eines Laufs ein kleines DJ-Pult vor sich: zwei
+         Plattenteller, ein Mischpult dazwischen. Die Wurfplatte liegt rechts
+         auf dem Teller, solange er eine hat. */
+      case 'sergio': {
+        const puls = 0.5 + 0.5 * Math.sin(time * 9);
+        // Gehaeuse
+        g.fillStyle = '#23252e';
+        roundRect(g, -r * .5, -r * .62, r * 1.5, r * 1.24, r * .16); g.fill(); ink(g, LW);
+        g.fillStyle = '#2e313c';
+        roundRect(g, -r * .42, -r * .54, r * 1.34, r * 1.08, r * .12); g.fill();
+        // Zwei Plattenteller
+        [-1, 1].forEach(s => {
+          const cx = r * .18, cy = s * r * .32;
+          g.fillStyle = '#14151a';
+          g.beginPath(); g.arc(cx, cy, r * .26, 0, 7); g.fill(); ink(g, LW * .8);
+          g.strokeStyle = 'rgba(255,255,255,.16)'; g.lineWidth = LW * .5;
+          g.beginPath(); g.arc(cx, cy, r * .16, 0, 7); g.stroke();
+          g.fillStyle = DISC_COL[(s > 0 ? 0 : 2)];
+          g.beginPath(); g.arc(cx, cy, r * .08, 0, 7); g.fill();
+        });
+        // Mischpult mit blinkenden Reglern
+        g.fillStyle = '#1a1c23';
+        roundRect(g, r * .52, -r * .34, r * .42, r * .68, r * .08); g.fill();
+        for (let i = 0; i < 3; i++) {
+          g.fillStyle = DISC_COL[(i + Math.floor(time * 6)) % DISC_COL.length];
+          g.globalAlpha = .45 + .55 * puls;
+          g.fillRect(r * .58, -r * .26 + i * r * .2, r * .3, r * .09);
+        }
+        g.globalAlpha = 1;
+        // Lautsprecher vorn
+        g.fillStyle = '#15161b';
+        g.beginPath(); g.arc(r * 1.12, 0, r * .22, 0, 7); g.fill(); ink(g, LW * .8);
+        g.strokeStyle = `rgba(255,255,255,${.12 + .2 * puls})`; g.lineWidth = LW * .7;
+        g.beginPath(); g.arc(r * 1.12, 0, r * .12, 0, 7); g.stroke();
+        return { front: r * .55, back: -r * .3 };
+      }
       case 'grenadier': {
         g.fillStyle = '#4a5540';
         roundRect(g, -r * .8, -r * .2, r * 2.0, r * .4, r * .13); g.fill(); ink(g, LW);
@@ -1170,10 +1206,18 @@ const RENDER = (() => {
        zu einem Strich - kraeftige Formen bleiben auch klein erkennbar. */
     const H = r * 3.0;
     const LW = Math.max(0.9, r * 0.085);
+
+    /* Einsatzanzug statt bunter Uniform: Arme, Beine und Helm sind dunkel,
+       die Spielerfarbe sitzt auf Weste, Schulterstreifen und Helmband. So
+       sieht die Figur nach Spezialeinheit aus und bleibt trotzdem auf einen
+       Blick ihrem Team zuzuordnen - das ist der Grund, warum nicht einfach
+       alles schwarz ist. */
     const uni = p.color || '#4ade80';
     const uniL = shade(uni, 32);
-    const uniD = shade(uni, -32);
-    const uniDD = shade(uni, -58);
+    const anzug = '#242832';
+    const anzugL = '#333949';
+    const anzugD = '#171a22';
+    const gurt = '#14161c';
 
     const atem = (o.breath || 0) * r * 0.05;
     const schulterY = -H * 0.56 - atem;
@@ -1229,13 +1273,21 @@ const RENDER = (() => {
       g.lineCap = 'round'; g.lineJoin = 'round';
       g.strokeStyle = INK; g.lineWidth = r * 0.42 + LW * 1.6;
       g.beginPath(); g.moveTo(bx, hueftY); g.lineTo(zx, zy - r * 0.1); g.stroke();
-      g.strokeStyle = uniDD; g.lineWidth = r * 0.42;
+      g.strokeStyle = anzug; g.lineWidth = r * 0.42;
       g.beginPath(); g.moveTo(bx, hueftY); g.lineTo(zx, zy - r * 0.1); g.stroke();
+      // Beintasche in Spielerfarbe - macht das Team auch von hinten erkennbar
+      g.strokeStyle = uni; g.lineWidth = r * .12;
+      g.beginPath();
+      g.moveTo(bx + seite * r * .16, hueftY + r * .18);
+      g.lineTo(bx + seite * r * .16 + fx * schritt * seite * .4, hueftY + r * .45);
+      g.stroke();
       g.restore();
-      // Stiefel
-      g.fillStyle = BOOT;
-      g.beginPath(); g.ellipse(zx + fx * r * .12, zy - r * .06, r * .26, r * .2, 0, 0, 7);
+      // Einsatzstiefel
+      g.fillStyle = '#101218';
+      g.beginPath(); g.ellipse(zx + fx * r * .12, zy - r * .06, r * .27, r * .21, 0, 0, 7);
       g.fill(); ink(g, LW);
+      g.fillStyle = 'rgba(255,255,255,.10)';
+      g.beginPath(); g.ellipse(zx + fx * r * .1, zy - r * .13, r * .17, r * .08, 0, 0, 7); g.fill();
     });
 
     // ---------- Rumpf ----------
@@ -1248,29 +1300,39 @@ const RENDER = (() => {
       g.quadraticCurveTo(0, schulterY - r * .22, -breite, schulterY + r * .1);
       g.closePath();
     };
-    shaded(g, torso, -breite, schulterY, breite, hueftY, uniL, uni, uniDD, LW * 1.2);
+    shaded(g, torso, -breite, schulterY, breite, hueftY, anzugL, anzug, anzugD, LW * 1.2);
 
-    // Weste und Gurtzeug
+    // Schutzweste in Spielerfarbe - das Erkennungsmerkmal der Figur
     g.save();
     torso(); g.clip();
-    g.fillStyle = shade(uni, -34);
-    roundRect(g, -breite * .78, schulterY + r * .18, breite * 1.56, (hueftY - schulterY) * .72, r * .18);
-    g.fill();
+    const weste = () => {
+      roundRect(g, -breite * .8, schulterY + r * .16, breite * 1.6, (hueftY - schulterY) * .78, r * .16);
+    };
+    shaded(g, weste, -breite * .8, schulterY, breite * .8, hueftY, uniL, uni, shade(uni, -46), 0);
     if (zurKamera >= 0) {
-      g.fillStyle = shade(uni, -54);
-      roundRect(g, -breite * .5, schulterY + r * .42, breite * .42, r * .34, r * .08); g.fill();
-      roundRect(g, breite * .08, schulterY + r * .42, breite * .42, r * .34, r * .08); g.fill();
+      // Magazintaschen und Gurtband auf der Brust
+      g.fillStyle = shade(uni, -52);
+      roundRect(g, -breite * .5, schulterY + r * .44, breite * .4, r * .32, r * .07); g.fill();
+      roundRect(g, breite * .1, schulterY + r * .44, breite * .4, r * .32, r * .07); g.fill();
+      g.fillStyle = gurt;
+      g.fillRect(-breite * .12, schulterY + r * .16, breite * .24, (hueftY - schulterY) * .78);
+      g.fillStyle = 'rgba(255,255,255,.14)';
+      g.fillRect(-breite * .12, schulterY + r * .3, breite * .24, r * .07);
     } else {
-      // Rueckenansicht: Rucksack
-      g.fillStyle = shade(uni, -46);
-      roundRect(g, -breite * .62, schulterY + r * .22, breite * 1.24, (hueftY - schulterY) * .6, r * .2);
+      // Von hinten: Rucksack und Trageriemen
+      g.fillStyle = anzugD;
+      roundRect(g, -breite * .58, schulterY + r * .2, breite * 1.16, (hueftY - schulterY) * .66, r * .18);
       g.fill();
+      g.fillStyle = gurt;
+      [-1, 1].forEach(s => g.fillRect(s * breite * .3 - breite * .07, schulterY + r * .16, breite * .14, (hueftY - schulterY) * .78));
     }
     g.restore();
 
-    // Guertel
-    g.fillStyle = STOCK_D;
-    roundRect(g, -hueftB * 1.04, hueftY - r * .16, hueftB * 2.08, r * .26, r * .07); g.fill();
+    // Koppel mit Schnalle
+    g.fillStyle = gurt;
+    roundRect(g, -hueftB * 1.06, hueftY - r * .16, hueftB * 2.12, r * .28, r * .07); g.fill();
+    g.fillStyle = shade(uni, 20);
+    roundRect(g, -r * .12, hueftY - r * .13, r * .24, r * .22, r * .05); g.fill();
 
     // ---------- Arme ----------
     const { hx, hy } = zurKamera < 0
@@ -1287,56 +1349,120 @@ const RENDER = (() => {
       g.lineCap = 'round';
       g.strokeStyle = INK; g.lineWidth = r * 0.34 + LW * 1.6;
       g.beginPath(); g.moveTo(sx, schulterY + r * .12); g.lineTo(zielX, zielY); g.stroke();
-      g.strokeStyle = uniD; g.lineWidth = r * 0.34;
+      g.strokeStyle = anzug; g.lineWidth = r * 0.34;
       g.beginPath(); g.moveTo(sx, schulterY + r * .12); g.lineTo(zielX, zielY); g.stroke();
       g.restore();
-      // Schulterpolster - schmaler als der Arm, sonst wirkt es wie ein Ballon
-      g.fillStyle = uniL;
+      // Schulterplatte in Spielerfarbe
+      g.fillStyle = uni;
       g.beginPath();
-      g.ellipse(sx * .92, schulterY + r * .1, r * .2, r * .16, seite * .3, 0, 7);
+      g.ellipse(sx * .92, schulterY + r * .1, r * .21, r * .17, seite * .3, 0, 7);
       g.fill(); ink(g, LW * .8);
+      g.fillStyle = 'rgba(255,255,255,.2)';
+      g.beginPath();
+      g.ellipse(sx * .92 - r * .05, schulterY + r * .05, r * .11, r * .07, seite * .3, 0, 7);
+      g.fill();
     });
-    // Faeuste
-    g.fillStyle = FLESH_SH;
-    g.beginPath(); g.arc(hx, hy, r * .19, 0, 7); g.fill(); ink(g, LW * .8);
+    // Taktikhandschuhe statt blosser Faeuste
+    g.fillStyle = '#15171e';
+    g.beginPath(); g.arc(hx, hy, r * .2, 0, 7); g.fill(); ink(g, LW * .8);
+    g.fillStyle = shade(uni, -10);
+    g.beginPath(); g.arc(hx - fx * r * .06, hy - fy * r * .06, r * .09, 0, 7); g.fill();
 
     // ---------- Kopf ----------
-    // Hals
-    g.fillStyle = FLESH_SH;
-    roundRect(g, -r * .16, kopfY + kopfR * .5, r * .32, r * .3, r * .1); g.fill();
+    // Halsschutz statt blosser Haut
+    g.fillStyle = anzugD;
+    roundRect(g, -r * .18, kopfY + kopfR * .48, r * .36, r * .32, r * .1); g.fill();
 
     const kopf = () => { g.beginPath(); g.arc(0, kopfY, kopfR, 0, 7); g.closePath(); };
     shaded(g, kopf, -kopfR, kopfY - kopfR, kopfR, kopfY + kopfR,
       shade(FLESH, 20), FLESH, shade(FLESH, -36), LW);
 
+    /* Sturmhaube. Von vorn bleibt nur die Augenpartie frei, von hinten ist
+       der Kopf ganz verdeckt - sonst blitzte dort ein Hautstreifen durch,
+       der wie ein Band quer ueber den Hinterkopf aussah. */
+    g.save();
+    kopf(); g.clip();
+    g.fillStyle = anzugD;
     if (zurKamera > 0.02) {
-      /* Gesicht nur, wenn die Figur uns zugewandt ist. Im Profil wandert es
-         an den Rand, von hinten ist es gar nicht zu sehen. */
-      const versatz = zurSeite * kopfR * .45;
+      g.fillRect(-kopfR, kopfY + kopfR * .22, kopfR * 2, kopfR);
+      g.fillRect(-kopfR, kopfY - kopfR, kopfR * 2, kopfR * .55);
+    } else {
+      g.fillRect(-kopfR, kopfY - kopfR, kopfR * 2, kopfR * 2);
+      // Naht am Hinterkopf
+      g.strokeStyle = 'rgba(255,255,255,.08)'; g.lineWidth = LW;
+      g.beginPath(); g.moveTo(0, kopfY - kopfR); g.lineTo(0, kopfY + kopfR); g.stroke();
+    }
+    g.restore();
+
+    if (zurKamera > 0.02) {
+      /* Visier statt Augen - macht die Figur zum Einsatzteam statt zum
+         Comicsoldaten. Es wandert im Profil zur Seite und verschwindet, wenn
+         die Figur uns den Ruecken zudreht. */
+      const versatz = zurSeite * kopfR * .4;
       const auf = Math.min(1, zurKamera * 1.6);
-      [-1, 1].forEach(s => {
-        const ax = versatz + s * kopfR * .3 * Math.abs(zurKamera);
-        g.fillStyle = '#fdfdfd';
-        g.beginPath(); g.ellipse(ax, kopfY - kopfR * .05, kopfR * .19 * auf, kopfR * .16, 0, 0, 7); g.fill();
-        g.fillStyle = '#3d2b15';
-        g.beginPath(); g.arc(ax + zurSeite * kopfR * .05, kopfY - kopfR * .05, kopfR * .09 * auf, 0, 7); g.fill();
-      });
-      g.strokeStyle = 'rgba(92,44,26,.6)'; g.lineWidth = LW;
-      g.beginPath(); g.arc(versatz, kopfY + kopfR * .26, kopfR * .2, .3, Math.PI - .3); g.stroke();
+      g.save();
+      kopf(); g.clip();
+      /* Das Glas leuchtet in der Spielerfarbe. Ein dunkles Visier auf dunkler
+         Haube war von hinten praktisch nicht zu unterscheiden - so sieht man
+         auf einen Blick, wohin jemand schaut. */
+      const visier = g.createLinearGradient(0, kopfY - kopfR * .34, 0, kopfY + kopfR * .2);
+      visier.addColorStop(0, '#0a0e18');
+      visier.addColorStop(.45, shade(uni, -30));
+      visier.addColorStop(1, shade(uni, 44));
+      g.fillStyle = visier;
+      roundRect(g, versatz - kopfR * .84 * auf, kopfY - kopfR * .34,
+        kopfR * 1.68 * auf, kopfR * .54, kopfR * .16);
+      g.fill();
+      // Lichtstreifen quer durchs Glas
+      g.fillStyle = 'rgba(255,255,255,.55)';
+      g.beginPath();
+      g.ellipse(versatz - kopfR * .28 * auf, kopfY - kopfR * .16, kopfR * .3 * auf, kopfR * .07, -.3, 0, 7);
+      g.fill();
+      g.strokeStyle = 'rgba(10,14,24,.85)'; g.lineWidth = LW * .9;
+      roundRect(g, versatz - kopfR * .84 * auf, kopfY - kopfR * .34,
+        kopfR * 1.68 * auf, kopfR * .54, kopfR * .16);
+      g.stroke();
+      g.restore();
+      // Kinnriemen
+      g.strokeStyle = gurt; g.lineWidth = LW * 1.4;
+      g.beginPath();
+      g.moveTo(versatz - kopfR * .8, kopfY + kopfR * .1);
+      g.quadraticCurveTo(versatz, kopfY + kopfR * .62, versatz + kopfR * .8, kopfY + kopfR * .1);
+      g.stroke();
     }
 
-    /* Helm sitzt oben auf und laesst die Stirn frei. Zog man den Rand tiefer,
-       verschwand das Gesicht vollstaendig darunter. */
+    /* Einsatzhelm mit farbigem Band. Der Rand darf nicht tiefer sitzen -
+       sonst verschwindet das Visier vollstaendig darunter. */
     const helm = () => {
       g.beginPath();
-      g.arc(0, kopfY - kopfR * .22, kopfR * 1.06, Math.PI, 0);
-      g.quadraticCurveTo(0, kopfY - kopfR * .34, -kopfR * 1.06, kopfY - kopfR * .22);
+      g.arc(0, kopfY - kopfR * .22, kopfR * 1.08, Math.PI, 0);
+      g.quadraticCurveTo(0, kopfY - kopfR * .34, -kopfR * 1.08, kopfY - kopfR * .22);
       g.closePath();
     };
-    shaded(g, helm, -kopfR, kopfY - kopfR * 1.1, kopfR, kopfY,
-      shade(uni, 36), shade(uni, -10), shade(uni, -50), LW);
-    g.fillStyle = 'rgba(255,255,255,.2)';
-    g.beginPath(); g.ellipse(-kopfR * .35, kopfY - kopfR * .55, kopfR * .34, kopfR * .16, -.4, 0, 7); g.fill();
+    shaded(g, helm, -kopfR, kopfY - kopfR * 1.1, kopfR, kopfY, anzugL, anzug, anzugD, LW);
+    // Farbband ueber dem Helm - Teamfarbe auch von hinten sichtbar
+    g.save();
+    helm(); g.clip();
+    g.fillStyle = uni;
+    g.fillRect(-kopfR * 1.1, kopfY - kopfR * .62, kopfR * 2.2, kopfR * .2);
+    g.fillStyle = 'rgba(255,255,255,.22)';
+    g.beginPath(); g.ellipse(-kopfR * .35, kopfY - kopfR * .82, kopfR * .34, kopfR * .14, -.4, 0, 7); g.fill();
+    g.restore();
+
+    // Headset: Ohrmuschel und Mikrofonarm
+    const ohrX = zurSeite >= 0 ? kopfR * .92 : -kopfR * .92;
+    g.fillStyle = anzugD;
+    g.beginPath(); g.ellipse(ohrX, kopfY - kopfR * .05, kopfR * .22, kopfR * .3, 0, 0, 7); g.fill();
+    ink(g, LW * .7);
+    g.fillStyle = uni;
+    g.beginPath(); g.arc(ohrX, kopfY - kopfR * .05, kopfR * .09, 0, 7); g.fill();
+    if (zurKamera > 0.02) {
+      g.strokeStyle = anzugD; g.lineWidth = LW * 1.1;
+      g.beginPath();
+      g.moveTo(ohrX, kopfY + kopfR * .12);
+      g.quadraticCurveTo(ohrX * .5, kopfY + kopfR * .5, 0, kopfY + kopfR * .42);
+      g.stroke();
+    }
 
     // Waffe vor dem Koerper, wenn die Figur zu uns zeigt
     if (zurKamera >= 0) zeichneWaffe();
@@ -1402,18 +1528,9 @@ const RENDER = (() => {
        auf dem Schirm unten - heller, die abgewandte oben dunkler. Der
        Verlauf haengt am Bildschirm, nicht an der Blickrichtung der Figur:
        das Licht dreht sich nicht mit, wenn jemand herumschaut. */
-    if (!p.cloaked && q().blur > 0) {
-      g.save();
-      g.translate(x, y);
-      standUp(g, 0);
-      g.globalCompositeOperation = 'lighter';
-      const rim = g.createLinearGradient(-r, -r * 2.7, r * .6, 0);
-      rim.addColorStop(0, 'rgba(255,248,225,.13)');
-      rim.addColorStop(1, 'rgba(255,248,225,0)');
-      g.fillStyle = rim;
-      g.fillRect(-r * 1.3, -r * 3, r * 2.6, r * 3);
-      g.restore();
-    }
+    /* Frueher lag hier eine aufhellende Flaeche ueber der Figur. Als Rechteck
+       gefuellt war sie im Spiel als heller Kasten um den Spieler zu sehen -
+       die Beleuchtung sitzt jetzt direkt in den Koerperteilen. */
 
     // Unverwundbarkeits-Schild
     if (p.invul) {
@@ -1663,10 +1780,54 @@ const RENDER = (() => {
     }
   }
 
+  /* Schallplatte mit Partyschweif. Die Farben laufen durch den Regenbogen,
+     damit die Spur nach Discolicht aussieht statt nach Rauch. */
+  const DISC_COL = ['#ff3b8d', '#ffd166', '#3fd0ff', '#b16bff', '#4ade80'];
+
+  function drawDisc(g, b) {
+    const t = time * 12 + (b.i || 0);
+    // Schweif: bunte Ringe hinter der Platte
+    for (let i = 6; i >= 1; i--) {
+      const f = i / 6;
+      const px = b.x - Math.cos(b.a) * i * 9;
+      const py = b.y - Math.sin(b.a) * i * 9;
+      g.globalAlpha = 0.42 * (1 - f) + 0.06;
+      g.fillStyle = DISC_COL[(i + Math.floor(t * 0.6)) % DISC_COL.length];
+      g.beginPath();
+      g.arc(px, py, 9 * (1 - f * 0.55), 0, 7);
+      g.fill();
+    }
+    g.globalAlpha = 1;
+
+    g.save();
+    g.translate(b.x, b.y);
+    g.rotate(t * 0.9);
+    // Vinyl
+    const scheibe = g.createRadialGradient(-3, -3, 1, 0, 0, 11);
+    scheibe.addColorStop(0, '#4a4a55');
+    scheibe.addColorStop(.7, '#16161c');
+    scheibe.addColorStop(1, '#0a0a0e');
+    g.fillStyle = scheibe;
+    g.beginPath(); g.arc(0, 0, 11, 0, 7); g.fill();
+    // Rillen
+    g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1;
+    for (let rr = 4; rr <= 9; rr += 2.5) { g.beginPath(); g.arc(0, 0, rr, 0, 7); g.stroke(); }
+    // Etikett in Discofarbe
+    g.fillStyle = DISC_COL[Math.floor(t * 0.5) % DISC_COL.length];
+    g.beginPath(); g.arc(0, 0, 4.2, 0, 7); g.fill();
+    g.fillStyle = '#0a0a0e';
+    g.beginPath(); g.arc(0, 0, 1.1, 0, 7); g.fill();
+    // Glanzstreifen
+    g.strokeStyle = 'rgba(255,255,255,.35)'; g.lineWidth = 1.6;
+    g.beginPath(); g.arc(0, 0, 8, -0.9, -0.2); g.stroke();
+    g.restore();
+  }
+
   function drawBullet(g, b) {
     if (b.ty === 1) return drawRocket(g, b);
     if (b.ty === 2) return drawGrenade(g, b);
     if (b.ty === 3) return drawFlame(g, b);
+    if (b.ty === 4) return drawDisc(g, b);
     // Am Reichweitenende ausblenden statt hart verschwinden
     const fade = b.l === undefined ? 1 : Math.min(1, b.l / 0.28);
     if (fade <= 0.02) return;

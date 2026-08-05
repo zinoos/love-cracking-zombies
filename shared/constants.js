@@ -101,6 +101,23 @@
         pros: ['Setzt Gegner in Brand — Schaden wirkt nach', '200 Einheiten Treibstoff'],
         cons: ['Kurze Reichweite', 'Sehr langsam', '4 s Nachladen']
       },
+      /* Sergio wirft eine Schallplatte, die von Waenden abprallt und wieder
+         zurueckkommt. Nachschub gibt es erst, wenn die Platte wieder in seiner
+         Hand liegt - wer daneben wirft, steht so lange ohne Waffe da. */
+      sergio: {
+        key: 'sergio', name: 'Sergio', short: 'SERGIO', icon: '🎧', tier: 2,
+        boomerang: true,
+        mag: 1, dmg: 34, fireCd: 0.32, reload: 0, auto: false,
+        bulletSpeed: 430, range: 280,        // etwas weiter als die Schrotflinte (210)
+        spread: 0, spreadGrow: 0, spreadMax: 0,
+        speedMult: 1.02, falloffStart: 9999, falloffMin: 1, recoil: 40,
+        bounces: 3,          // so oft prallt die Platte von Waenden ab
+        returnSpeed: 520,    // Rueckflug ist schneller als der Hinweg
+        pros: ['Prallt von Waenden ab und kommt zurueck', 'Trifft auf Hin- und Rueckweg',
+          'Kein Nachladen - die Platte kommt von selbst'],
+        cons: ['Nur eine Platte gleichzeitig', 'Erst wieder werfen, wenn sie zurueck ist',
+          'Mittlere Reichweite']
+      },
       sword: {
         key: 'sword', name: 'Schwert', short: 'SCHWERT', icon: '⚔️', tier: 2,
         melee: true, arc: Math.PI * 2,  // Rundumschlag - trifft in alle Richtungen
@@ -176,7 +193,7 @@
       }
     },
     WEAPON_ORDER: ['sword', 'pistol', 'smg', 'revolver', 'ak47', 'shotgun', 'flamer',
-      'crossbow', 'mine', 'grenadier', 'minigun', 'sniper', 'bazooka'],
+      'crossbow', 'sergio', 'mine', 'grenadier', 'minigun', 'sniper', 'bazooka'],
 
     /* ---------------- Minen ---------------- */
     MINE_FLIGHT: 0.55,      // Flugzeit bis zum Aufschlag

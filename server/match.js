@@ -272,7 +272,7 @@ class Match {
       p.reloadT -= dt;
       p.spin = 0;
       if (p.reloadT <= 0) { p.ammo = w.mag; this.events.push({ e: 'reloaded', id: p.id }); }
-    } else if (!w.melee && !w.mine &&
+    } else if (!w.melee && !w.mine && !w.boomerang &&
       ((wantReload && p.ammo < w.mag) || (inp.shoot && p.ammo <= 0))) {
       p.reloadT = w.reload;
       this.events.push({ e: 'reload', id: p.id, t: w.reload });
@@ -338,7 +338,20 @@ class Match {
     const base = p.aim + (p.dashT > 0 ? (Math.random() - 0.5) * 0.12 : 0);
     const m = this.muzzlePoint(p, base);
 
-    if (w.projectile === 'rocket') {
+    if (w.boomerang) {
+      /* Die Platte fliegt geradeaus, prallt von Waenden ab und dreht nach
+         der Reichweite um. Getroffene Spieler merkt sie sich, damit ein Wurf
+         nicht mehrfach am selben Gegner Schaden macht - auf dem Rueckweg
+         zaehlt jeder wieder neu. */
+      this.projectiles.push({
+        id: PROJ_ID++, type: 'disc', owner: p.id, team: p.team,
+        x: m.x, y: m.y, sx: m.x, sy: m.y,
+        vx: Math.cos(base) * w.bulletSpeed, vy: Math.sin(base) * w.bulletSpeed,
+        dmg: shotDmg, falloffStart: w.falloffStart, falloffMin: w.falloffMin,
+        weapon: w, hits: [], strecke: 0, zurueck: false,
+        prallt: w.bounces || 0, life: 6, spin: 0
+      });
+    } else if (w.projectile === 'rocket') {
       const ang = base + (Math.random() - 0.5) * 2 * spread;
       this.projectiles.push({
         id: PROJ_ID++, type: 'rocket', owner: p.id, team: p.team,
@@ -499,6 +512,67 @@ class Match {
             wallBreak: C.GRENADE_WALLBREAK, bushBreak: C.GRENADE_BUSHBREAK,
             owner: b.owner, team: b.team, selfFactor: C.GRENADE_SELF, kind: 'nade'
           });
+          this.projectiles.splice(i, 1);
+        }
+        continue;
+      }
+
+      /* Schallplatte: hin, abprallen, umkehren, zurueck in die Hand.
+         Sie verschwindet nie an einer Wand - nur beim Fangen oder wenn ihr
+         Werfer stirbt. Sonst haette man nach einem Fehlwurf gar keine Waffe
+         mehr. */
+      if (b.type === 'disc') {
+        const w = b.weapon;
+        b.life -= dt;
+        const wirf = this.players.get(b.owner);
+        b.spin += dt * 18;
+
+        if (!b.zurueck) {
+          let bx = b.x + b.vx * dt, by = b.y + b.vy * dt;
+          // Achsenweise abprallen, damit die Platte an Ecken sauber umkehrt
+          if (PHYS.tileAtWorld(this.map, bx, b.y) === C.T_WALL) {
+            if (b.prallt-- > 0) { b.vx = -b.vx; this.events.push({ e: 'discwall', id: b.id, x: b.x, y: b.y }); }
+            else b.zurueck = true;
+            bx = b.x;
+          }
+          if (PHYS.tileAtWorld(this.map, b.x, by) === C.T_WALL) {
+            if (b.prallt-- > 0) { b.vy = -b.vy; this.events.push({ e: 'discwall', id: b.id, x: b.x, y: b.y }); }
+            else b.zurueck = true;
+            by = b.y;
+          }
+          b.strecke += Math.hypot(bx - b.x, by - b.y);
+          b.x = bx; b.y = by;
+          if (b.strecke >= w.range) b.zurueck = true;
+          if (b.zurueck) b.hits.length = 0;      // Rueckweg trifft erneut
+        } else if (wirf && wirf.alive) {
+          // Zurueck zum Werfer - fliegt dabei durch Waende, sonst bliebe sie haengen
+          const dx = wirf.x - b.x, dy = wirf.y - b.y;
+          const d = Math.hypot(dx, dy) || 1;
+          b.vx = dx / d * w.returnSpeed; b.vy = dy / d * w.returnSpeed;
+          b.x += b.vx * dt; b.y += b.vy * dt;
+          if (d < C.PLAYER_R + 10) {
+            wirf.ammo = w.mag;                   // gefangen: naechster Wurf frei
+            this.events.push({ e: 'disccatch', id: wirf.id, x: b.x, y: b.y });
+            this.projectiles.splice(i, 1);
+            continue;
+          }
+        } else {
+          // Werfer ist tot - Platte loest sich auf
+          this.projectiles.splice(i, 1);
+          continue;
+        }
+
+        // Treffer auf Hin- und Rueckweg
+        for (const p of this.players.values()) {
+          if (!p.alive || p.id === b.owner || p.invulT > 0) continue;
+          if (this.mode.teams > 1 && p.team === b.team) continue;
+          if (b.hits.includes(p.id)) continue;
+          if (Math.hypot(p.x - b.x, p.y - b.y) > C.PLAYER_R + C.BULLET_R + 4) continue;
+          b.hits.push(p.id);
+          this.damage(p, b, b.x, b.y);
+        }
+        if (b.life <= 0) {
+          if (wirf) wirf.ammo = w.mag;           // nie dauerhaft ohne Waffe dastehen
           this.projectiles.splice(i, 1);
         }
         continue;
@@ -825,8 +899,8 @@ class Match {
         i: b.id, x: Math.round(b.x), y: Math.round(b.y),
         a: Math.round(Math.atan2(b.vy, b.vx) * 100) / 100,
         o: b.owner,
-        // 0 Kugel, 1 Rakete, 2 Granate, 3 Flamme
-        ty: b.type === 'rocket' ? 1 : b.type === 'grenade' ? 2 : (b.fire ? 3 : 0),
+        // 0 Kugel, 1 Rakete, 2 Granate, 3 Flamme, 4 Schallplatte
+        ty: b.type === 'disc' ? 4 : b.type === 'rocket' ? 1 : b.type === 'grenade' ? 2 : (b.fire ? 3 : 0),
         s: Math.round(Math.hypot(b.vx, b.vy)),
         // Restlebensdauer 0..1 -> Client blendet am Reichweitenende aus,
         // statt das Geschoss abrupt verschwinden zu lassen

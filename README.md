@@ -70,6 +70,7 @@ oder Nachladezeit.
 | Revolver | 5 | 40 | 1,10 s | 420 px | 181 px/s | **letzte Patrone macht 80**, Rückstoß trägt dich |
 | Schrotflinte | 6 | 8×9 | 0,80 s | 210 px | 174 px/s | breitester Schrotkegel, nur auf Tuchfühlung |
 | Armbrust | 1 | 55 | 1,55 s | 580 px | 170 px/s | **lautlos** — verrät dich im Busch nicht |
+| Sergio | 1 | 34 | — | 280 px | 189 px/s | **Schallplatte prallt ab und kommt zurück**, trifft zweimal |
 | AK-47 | 20 | 18 | 0,65 s | 460 px | 167 px/s | größte Reichweite der Automatikwaffen |
 | Minenleger | 1 | **99** Splash | 1,60 s | 310 px | 159 px/s | **fliegt über Wände, unsichtbar, von Hand gezündet** |
 | Scharfschütze | 5 | 70 | 1,25 s | **780 px** | 155 px/s | Durchschlag, kein Schadensabfall |
@@ -98,6 +99,14 @@ Gegner bekommen ihn nicht mehr geschickt — weder die Figur noch die Effekte
 seines Hiebs. Er selbst und seine Mitspieler sehen ihn als Schemen, das HUD
 zählt die Restzeit herunter. Ein halber Atemzug, um aus der Schusslinie zu
 kommen — kein Verschwinden. Beim Respawn verfällt die Tarnung.
+
+**Sergio** ist ein DJ mit Pult vor der Brust. Er wirft eine Schallplatte, die
+geradeaus fliegt, bis zu dreimal von Wänden **abprallt** und nach 280 px
+umkehrt — auf dem Rückweg fliegt sie durch Wände zurück in seine Hand. Sie
+trifft auf Hin- und Rückweg je einmal, denselben Gegner also höchstens zweimal
+pro Wurf. **Nachgeladen wird nicht:** erst wenn die Platte wieder in der Hand
+liegt, ist der nächste Wurf frei. Wer daneben wirft, steht so lange ohne Waffe
+da. Stirbt der Werfer, löst sich die Platte auf.
 
 **Minenleger**: erster Linksklick wirft die Mine — sie fliegt in gerader Linie
 **über Wände hinweg**, aber nur **310 px** weit. Nach der Landung ist sie scharf

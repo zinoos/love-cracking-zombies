@@ -161,6 +161,18 @@ const FX = (() => {
       });
     },
 
+    /** Discofunken - fuer Sergios Schallplatte. */
+    party(x, y) {
+      const farben = ['#ff3b8d', '#ffd166', '#3fd0ff', '#b16bff', '#4ade80'];
+      for (let i = 0; i < 10; i++) {
+        burst(x, y, 1, {
+          spdMin: 60, spdMax: 240, color: farben[i % farben.length],
+          rMin: 1.4, rMax: 3.2, lifeMin: .2, lifeMax: .5, drag: 3.4
+        });
+      }
+      rings.push({ x, y, r: 3, max: 30, life: .26, t: .26, color: farben[Math.floor(Math.random() * 5)], w: 2.5 });
+    },
+
     pickup(x, y, type) {
       const col = type === 'health' ? '#4ade80' : '#ffd166';
       burst(x, y, 18, { spdMin: 40, spdMax: 180, color: col, rMin: 1.2, rMax: 3, lifeMin: .3, lifeMax: .6, drag: 3 });

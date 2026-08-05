@@ -31,7 +31,7 @@ function randomOpen(map) {
    Bots ballern nicht mehr auf Ziele, die ihre Geschosse gar nicht erreichen. */
 const WANT = {
   sword: 40, pistol: 230, smg: 170, revolver: 300, ak47: 320, shotgun: 110, flamer: 90,
-  crossbow: 420, mine: 260, grenadier: 330, minigun: 260, sniper: 480, bazooka: 340
+  crossbow: 420, sergio: 200, mine: 260, grenadier: 330, minigun: 260, sniper: 480, bazooka: 340
 };
 const MIN_RANGE = { bazooka: 170, grenadier: 150, mine: 130 };   // nicht in die eigene Explosion laufen
 
@@ -142,6 +142,9 @@ function botThink(match, p, dt) {
         inp.shoot = md < p.weapon.blastRadius * 0.8 && selfD > p.weapon.blastRadius;
       }
       inp.gd = bestD;
+    } else if (p.weapon.boomerang) {
+      // Platte werfen, sobald sie wieder da ist - Nachladen gibt es nicht
+      inp.shoot = p.ammo > 0 && bestD < ai.maxRange && Math.abs(m.aimErr) < 0.3;
     } else if (p.ammo <= 0) inp.reload = true;
     else if (p.reloadT <= 0 && bestD < ai.maxRange && bestD > ai.minRange && Math.abs(m.aimErr) < 0.22) inp.shoot = true;
 
@@ -184,7 +187,8 @@ function botThink(match, p, dt) {
   // niemanden mehr entdecken, seit das Sichtfeld ein Kegel ist.
   m.scan = (m.scan || 0) + dt * (1.1 + m.skill * 0.6);
   inp.aim = Math.atan2(dy, dx) + Math.sin(m.scan) * (C.FOV * 0.45);
-  if (!p.weapon.melee && !p.weapon.mine && p.ammo < p.weapon.mag && p.reloadT <= 0) inp.reload = true;
+  if (!p.weapon.melee && !p.weapon.mine && !p.weapon.boomerang
+    && p.ammo < p.weapon.mag && p.reloadT <= 0) inp.reload = true;
 }
 
 module.exports = { botThink, botName };

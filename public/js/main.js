@@ -585,8 +585,20 @@
         const p = G.players.get(ev.id);
         const w = C.WEAPONS[ev.w];
         if (w && w.fire) FX.flameMuzzle(ev.x, ev.y, ev.a);
+        else if (w && w.boomerang) FX.party(ev.x, ev.y);
         else FX.muzzle(ev.x, ev.y, ev.a, p ? p.trail : '#ffd166');
         SFX.shoot(dist2me(ev.x, ev.y), ev.w);
+        break;
+      }
+      // Schallplatte prallt von einer Wand ab
+      case 'discwall':
+        FX.party(ev.x, ev.y);
+        SFX.impact(dist2me(ev.x, ev.y));
+        break;
+      // Platte ist wieder in Sergios Hand
+      case 'disccatch': {
+        FX.party(ev.x, ev.y);
+        if (ev.id === G.myId) { localAmmo = weapon().mag; UI.setGrenades(localGrenades); }
         break;
       }
       case 'nade': {
