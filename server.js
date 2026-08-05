@@ -85,11 +85,10 @@ class Room {
     /* Vorbereitung vor dem Match: Kartenwahl, Waffensperre, Waffenwahl.
        Laeuft im Raum, nicht im Match - die Karte steht ja erst am Ende der
        ersten Phase fest, vorher gibt es gar kein Match. */
-    this.phase = null;        // 'vote' | 'ban' | 'pick'
+    this.phase = null;        // 'vote' | 'wheel' | 'pick'
     this.phaseT = 0;
     this.mapChoices = [];
     this.mapVotes = new Map();   // Spieler-ID -> Karten-ID
-    this.banVotes = new Map();   // Spieler-ID -> Waffe
     this.banned = [];
     this.picks = new Map();      // Spieler-ID -> Waffe
     rooms.set(this.code, this);
@@ -240,7 +239,6 @@ class Room {
     this.phase = 'vote';
     this.phaseT = C.PREMATCH.VOTE_TIME * PHASE_SCALE;
     this.mapVotes.clear();
-    this.banVotes.clear();
     this.picks.clear();
     this.banned = [];
 
@@ -257,8 +255,11 @@ class Room {
     this.broadcastPhase();
   }
 
-  /** Phase 2: jeder sperrt eine Waffe. */
-  beginBan() {
+  /** Phase 2: zwei Glücksräder drehen je eine Waffe heraus, die wegfaellt.
+      Der Server wuerfelt sofort und schickt das Ergebnis mit - der Client
+      laesst die Raeder nur noch sichtbar darauf zulaufen. So kann kein
+      Client ein anderes Ergebnis anzeigen als die anderen. */
+  beginWheel() {
     // Karte mit den meisten Stimmen; bei Gleichstand entscheidet der Zufall
     const zaehler = new Map();
     for (const id of this.mapVotes.values()) zaehler.set(id, (zaehler.get(id) || 0) + 1);
@@ -270,26 +271,21 @@ class Room {
     }
     this.mapId = sieger[Math.floor(Math.random() * sieger.length)];
 
-    this.phase = 'ban';
-    this.phaseT = C.PREMATCH.BAN_TIME * PHASE_SCALE;
-    for (const m of this.members.values()) {
-      if (m.bot) this.banVotes.set(m.id, C.WEAPON_ORDER[Math.floor(Math.random() * C.WEAPON_ORDER.length)]);
+    // Zwei verschiedene Waffen ziehen, aber nie so viele, dass zu wenig bleibt
+    const topf = C.WEAPON_ORDER.slice();
+    const anzahl = Math.min(C.PREMATCH.BANS, Math.max(0, topf.length - 3));
+    this.banned = [];
+    for (let i = 0; i < anzahl; i++) {
+      this.banned.push(topf.splice(Math.floor(Math.random() * topf.length), 1)[0]);
     }
+
+    this.phase = 'wheel';
+    this.phaseT = C.PREMATCH.WHEEL_TIME * PHASE_SCALE;
     this.broadcastPhase();
   }
 
   /** Phase 3: freie Waffenwahl aus allem, was nicht gesperrt ist. */
   beginPick() {
-    // Die drei meistgenannten Waffen sperren
-    const zaehler = new Map();
-    for (const w of this.banVotes.values()) zaehler.set(w, (zaehler.get(w) || 0) + 1);
-    const sortiert = [...zaehler.entries()].sort((a, b) => b[1] - a[1] || (Math.random() - .5));
-    this.banned = sortiert.slice(0, C.PREMATCH.BANS).map(e => e[0]);
-    /* Nie alles sperren: es muessen genug Waffen uebrig bleiben, sonst
-       stuende jemand ohne Auswahl da. */
-    const erlaubt = C.WEAPON_ORDER.filter(w => !this.banned.includes(w));
-    if (erlaubt.length < 3) this.banned = this.banned.slice(0, C.WEAPON_ORDER.length - 3);
-
     this.phase = 'pick';
     this.phaseT = C.PREMATCH.PICK_TIME * PHASE_SCALE;
     for (const m of this.members.values()) {
@@ -322,13 +318,12 @@ class Room {
       p.votes = this.mapChoices.map(id => [...this.mapVotes.values()].filter(v => v === id).length);
       p.you = this.mapVotes.get(member.id);
       p.gesamt = this.members.size;
-    } else if (this.phase === 'ban') {
+    } else if (this.phase === 'wheel') {
       p.mapId = this.mapId;
       p.mapName = MAPS.generate(this.mapId).name;
       p.weapons = C.WEAPON_ORDER;
-      p.votes = C.WEAPON_ORDER.map(w => [...this.banVotes.values()].filter(v => v === w).length);
-      p.you = this.banVotes.get(member.id);
-      p.bans = C.PREMATCH.BANS;
+      p.banned = this.banned;          // Ergebnis steht schon fest
+      p.dauer = C.PREMATCH.WHEEL_TIME * PHASE_SCALE;
     } else if (this.phase === 'pick') {
       p.mapId = this.mapId;
       p.mapName = MAPS.generate(this.mapId).name;
@@ -346,17 +341,13 @@ class Room {
       const id = Number(wahl);
       if (!this.mapChoices.includes(id)) return;
       this.mapVotes.set(client.id, id);
-    } else if (this.phase === 'ban') {
-      if (!C.WEAPON_ORDER.includes(wahl)) return;
-      this.banVotes.set(client.id, wahl);
     } else if (this.phase === 'pick') {
       if (!C.WEAPON_ORDER.includes(wahl) || this.banned.includes(wahl)) return;
       this.picks.set(client.id, wahl);
-    } else return;
+    } else return;      // Waehrend der Glücksräder gibt es nichts zu waehlen
     this.broadcastPhase();
     // Wenn alle gewaehlt haben, muss niemand die Uhr abwarten
-    const stimmen = this.phase === 'vote' ? this.mapVotes
-      : this.phase === 'ban' ? this.banVotes : this.picks;
+    const stimmen = this.phase === 'vote' ? this.mapVotes : this.picks;
     if (stimmen.size >= this.members.size) this.phaseT = Math.min(this.phaseT, 1.2);
   }
 
@@ -366,8 +357,8 @@ class Room {
     this.phaseT -= dt;
     if (Math.ceil(this.phaseT) !== vorher && this.phaseT > 0) this.broadcastPhase();
     if (this.phaseT > 0) return;
-    if (this.phase === 'vote') this.beginBan();
-    else if (this.phase === 'ban') this.beginPick();
+    if (this.phase === 'vote') this.beginWheel();
+    else if (this.phase === 'wheel') this.beginPick();
     else this.startMatch();
   }
 

@@ -2038,6 +2038,136 @@ const RENDER = (() => {
         }
         break;
       }
+      case 'storm': {
+        // Blitze zucken in Schueben, nicht gleichmaessig
+        for (let i = 0; i < 3; i++) {
+          const takt = Math.sin(t * 7 + i * 2.1);
+          if (takt < .55) continue;
+          const a = t * 1.3 + i * 2.3;
+          g.globalAlpha = (takt - .55) / .45;
+          g.strokeStyle = i % 2 ? spur : farbe;
+          g.lineWidth = r * .09; g.lineCap = 'round';
+          g.beginPath();
+          let x = Math.cos(a) * r * .35, y = Math.sin(a) * r * .3;
+          g.moveTo(x, y);
+          for (let k = 0; k < 3; k++) {
+            x += Math.cos(a + (k % 2 ? .9 : -.9)) * r * .38;
+            y += Math.sin(a + (k % 2 ? .9 : -.9)) * r * .38;
+            g.lineTo(x, y);
+          }
+          g.stroke();
+        }
+        break;
+      }
+      case 'petals': {
+        for (let i = 0; i < 9; i++) {
+          const k = ((t * 0.5 + i / 9) % 1);
+          const x = Math.sin(t * 0.9 + i * 1.7) * r * 1.1;
+          const y = -r * 1.6 + k * r * 2.4;
+          g.globalAlpha = Math.min(1, (1 - k) * 1.6) * .85;
+          g.fillStyle = i % 3 ? farbe : spur;
+          g.save();
+          g.translate(x, y);
+          g.rotate(t * 2 + i);
+          g.beginPath(); g.ellipse(0, 0, r * .13, r * .07, 0, 0, 7); g.fill();
+          g.restore();
+        }
+        break;
+      }
+      case 'magma': {
+        for (let i = 0; i < 7; i++) {
+          const k = ((t * 1.2 + i / 7) % 1);
+          const x = Math.sin(i * 2.3) * r * .7;
+          const y = -r * .3 + k * r * 1.1;
+          g.globalAlpha = (1 - k) * .9;
+          g.fillStyle = k < .5 ? spur : farbe;
+          g.beginPath();
+          g.ellipse(x, y, r * .09 * (1 - k * .4), r * .16 * (1 - k * .3), 0, 0, 7);
+          g.fill();
+        }
+        // Gluehende Pfuetze am Boden
+        g.globalAlpha = .35 + .15 * Math.sin(t * 3);
+        const gl = g.createRadialGradient(0, r * .7, 1, 0, r * .7, r * .9);
+        gl.addColorStop(0, farbe);
+        gl.addColorStop(1, farbe + '00');
+        g.fillStyle = gl;
+        g.beginPath(); g.ellipse(0, r * .7, r * .9, r * .3, 0, 0, 7); g.fill();
+        break;
+      }
+      case 'ghost': {
+        for (let i = 1; i <= 4; i++) {
+          const k = i / 4;
+          g.globalAlpha = (1 - k) * .35;
+          g.fillStyle = farbe;
+          g.beginPath();
+          g.ellipse(Math.sin(t * 1.6 - k * 1.2) * r * .5 * k, k * r * .3,
+            r * (.75 - k * .12), r * (.8 - k * .12), 0, 0, 7);
+          g.fill();
+        }
+        break;
+      }
+      case 'prism': {
+        // Farbkreis, der staendig weiterwandert
+        for (let i = 0; i < 6; i++) {
+          const ton = (t * 60 + i * 60) % 360;
+          const a0 = t * 1.4 + i * (Math.PI * 2 / 6);
+          g.globalAlpha = .55;
+          g.strokeStyle = `hsl(${ton},95%,62%)`;
+          g.lineWidth = r * .16; g.lineCap = 'round';
+          g.beginPath(); g.arc(0, 0, r * 1.05, a0, a0 + .7); g.stroke();
+        }
+        break;
+      }
+      case 'disco': {
+        // Vier Scheinwerferkegel, die um die Figur kreisen
+        for (let i = 0; i < 4; i++) {
+          const a = t * 1.9 + i * (Math.PI / 2);
+          const ton = (t * 90 + i * 90) % 360;
+          g.globalAlpha = .3;
+          const kegel = g.createLinearGradient(0, 0, Math.cos(a) * r * 2.2, Math.sin(a) * r * 1.3);
+          kegel.addColorStop(0, `hsla(${ton},95%,65%,.85)`);
+          kegel.addColorStop(1, `hsla(${ton},95%,65%,0)`);
+          g.fillStyle = kegel;
+          g.beginPath();
+          g.moveTo(0, 0);
+          g.lineTo(Math.cos(a - .2) * r * 2.2, Math.sin(a - .2) * r * 1.3);
+          g.lineTo(Math.cos(a + .2) * r * 2.2, Math.sin(a + .2) * r * 1.3);
+          g.closePath(); g.fill();
+        }
+        break;
+      }
+      case 'mist': {
+        for (let i = 0; i < 5; i++) {
+          const a = t * 0.5 + i * (Math.PI * 2 / 5);
+          const rr = r * (.9 + Math.sin(t * 1.1 + i) * .2);
+          g.globalAlpha = .22;
+          g.fillStyle = i % 2 ? farbe : spur;
+          g.beginPath();
+          g.ellipse(Math.cos(a) * rr * .6, r * .55 + Math.sin(a) * rr * .18,
+            r * .55, r * .2, 0, 0, 7);
+          g.fill();
+        }
+        break;
+      }
+      case 'runes': {
+        for (let i = 0; i < 5; i++) {
+          const a = t * 1.2 + i * (Math.PI * 2 / 5);
+          const x = Math.cos(a) * r * 1.15, y = Math.sin(a) * r * .7;
+          g.globalAlpha = .55 + .35 * Math.sin(t * 3 + i);
+          g.strokeStyle = i % 2 ? spur : farbe;
+          g.lineWidth = r * .07; g.lineCap = 'round';
+          g.save();
+          g.translate(x, y);
+          g.rotate(-a);
+          const s = r * .16;
+          g.beginPath();
+          g.moveTo(-s, -s); g.lineTo(s, -s * .2); g.lineTo(-s * .4, s);
+          g.moveTo(-s * .6, 0); g.lineTo(s * .6, 0);
+          g.stroke();
+          g.restore();
+        }
+        break;
+      }
     }
     g.globalAlpha = 1;
   }

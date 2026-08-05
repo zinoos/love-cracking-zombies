@@ -107,7 +107,7 @@
       sergio: {
         key: 'sergio', name: 'Sergio', short: 'SERGIO', icon: '🎧', tier: 2,
         boomerang: true,
-        mag: 1, dmg: 34, fireCd: 0.32, reload: 0, auto: false,
+        mag: 1, dmg: 22, fireCd: 0.32, reload: 0, auto: false,
         bulletSpeed: 559, range: 280,        // etwas weiter als die Schrotflinte (210)
         spread: 0, spreadGrow: 0, spreadMax: 0,
         speedMult: 1.02, falloffStart: 9999, falloffMin: 1, recoil: 40,
@@ -287,14 +287,16 @@
     },
 
     /* ---------------- Ablauf vor dem Match ----------------
-       Erst waehlen alle gemeinsam die Karte, dann sperrt jeder eine Waffe,
-       dann sucht sich jeder aus dem Rest seine aus. */
+       Erst waehlen alle gemeinsam die Karte. Dann drehen zwei Glücksräder
+       je eine Waffe aus, die fuer diese Runde gesperrt ist - das entscheidet
+       der Zufall, niemand stimmt darueber ab. Zuletzt sucht sich jeder aus
+       dem Rest seine Waffe aus. */
     PREMATCH: {
       VOTE_TIME: 8,      // Kartenwahl
-      BAN_TIME: 5,       // Waffensperre
+      WHEEL_TIME: 5,     // Glücksräder drehen und anhalten
       PICK_TIME: 5,      // Waffenwahl
       MAP_CHOICES: 3,    // Karten zur Auswahl
-      BANS: 3            // so viele Waffen werden gesperrt
+      BANS: 2            // so viele Waffen dreht der Zufall heraus
     },
 
     MSG: {
@@ -367,6 +369,38 @@
       {
         id: 'gold', name: 'Gold', price: 400, color: '#ffd166', trail: '#fff3c4',
         anim: 'sparkle', desc: 'Goldfunken springen bei jedem Schritt'
+      },
+      {
+        id: 'storm', name: 'Gewitter', price: 240, color: '#7aa2ff', trail: '#e8f0ff',
+        anim: 'storm', desc: 'Blitze zucken um dich herum'
+      },
+      {
+        id: 'sakura', name: 'Kirschbluete', price: 200, color: '#ff9ec7', trail: '#ffe1ee',
+        anim: 'petals', desc: 'Bluetenblaetter rieseln herab'
+      },
+      {
+        id: 'magma', name: 'Magma', price: 280, color: '#ff7043', trail: '#ffbe57',
+        anim: 'magma', desc: 'Gluehende Tropfen fallen zu Boden'
+      },
+      {
+        id: 'ghost', name: 'Geist', price: 300, color: '#b8c6e8', trail: '#ffffff',
+        anim: 'ghost', desc: 'Nachbilder ziehen hinter dir her'
+      },
+      {
+        id: 'prism', name: 'Prisma', price: 350, color: '#ff5c7a', trail: '#3fd0ff',
+        anim: 'prism', desc: 'Der Lichtkranz wechselt staendig die Farbe'
+      },
+      {
+        id: 'disco', name: 'Disco', price: 450, color: '#c05cff', trail: '#ffd166',
+        anim: 'disco', desc: 'Scheinwerferkegel kreisen wie im Club'
+      },
+      {
+        id: 'nebel', name: 'Nebelschwaden', price: 160, color: '#9aa7b8', trail: '#dfe7f2',
+        anim: 'mist', desc: 'Dichter Schwaden zieht um deine Fuesse'
+      },
+      {
+        id: 'runen', name: 'Runen', price: 320, color: '#5ce1b4', trail: '#c9fff0',
+        anim: 'runes', desc: 'Leuchtende Zeichen kreisen um dich'
       }
     ]
   };

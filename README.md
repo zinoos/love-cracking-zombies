@@ -60,11 +60,13 @@ Drei Schritte, bevor es losgeht — alle Spieler zusammen:
 | Schritt | Dauer | Was passiert |
 |---------|-------|--------------|
 | **1 · Karte** | 8 s | Drei zufällige Karten stehen zur Wahl, jeder hat eine Stimme. Die meistgenannte wird gespielt; bei Gleichstand entscheidet das Los. |
-| **2 · Sperre** | 5 s | Jeder nennt eine Waffe. Die **drei meistgenannten sind für diese Runde gesperrt**. |
+| **2 · Glücksrad** | 5 s | Zwei Walzen drehen je eine Waffe aus — die **beiden sind für diese Runde gesperrt**. Reiner Zufall, niemand stimmt ab. |
 | **3 · Waffe** | 5 s | Freie Wahl aus allem, was übrig ist. Ohne Wahl gibt es eine zufällige erlaubte Waffe. |
 
-Haben alle abgestimmt, geht es sofort weiter — niemand wartet die Uhr ab.
-Gesperrt wird nie so viel, dass weniger als drei Waffen übrig bleiben.
+Bei Karte und Waffe geht es sofort weiter, sobald alle gewählt haben.
+Der Server würfelt die beiden gesperrten Waffen aus und schickt das Ergebnis
+mit — die Walzen laufen nur noch sichtbar darauf zu, damit alle dasselbe
+sehen. Gesperrt wird nie so viel, dass weniger als drei Waffen übrig bleiben.
 
 ## Waffen
 
@@ -80,7 +82,7 @@ oder Nachladezeit.
 | Revolver | 5 | 40 | 1,10 s | 420 px | 181 px/s | **letzte Patrone macht 80**, Rückstoß trägt dich |
 | Schrotflinte | 6 | 8×9 | 0,80 s | 210 px | 174 px/s | breitester Schrotkegel, nur auf Tuchfühlung |
 | Armbrust | 1 | 55 | 1,55 s | 580 px | 170 px/s | **lautlos** — verrät dich im Busch nicht |
-| Sergio | 1 | 34 | — | 280 px | 189 px/s | **Schallplatte kehrt an der Wand um**, trifft zweimal |
+| Sergio | 1 | 22 | — | 280 px | 189 px/s | **Schallplatte kehrt an der Wand um**, trifft zweimal |
 | AK-47 | 20 | 18 | 0,65 s | 460 px | 167 px/s | größte Reichweite der Automatikwaffen |
 | Minenleger | 1 | **99** Splash | 1,60 s | 310 px | 159 px/s | **fliegt über Wände, unsichtbar, von Hand gezündet** |
 | Scharfschütze | 5 | 70 | 1,25 s | **780 px** | 155 px/s | Durchschlag, kein Schadensabfall |
@@ -188,6 +190,14 @@ Im **Skinshop** stehen sechs Farben mit eigener Bewegung:
 | Inferno | 220 | Flammenzungen |
 | Leere | 260 | dunkler Schleier |
 | Gold | 400 | springende Funken |
+| Nebelschwaden | 160 | Schwaden um die Füsse |
+| Kirschblüte | 200 | rieselnde Blütenblätter |
+| Gewitter | 240 | zuckende Blitze |
+| Magma | 280 | glühende Tropfen |
+| Geist | 300 | Nachbilder |
+| Runen | 320 | kreisende Zeichen |
+| Prisma | 350 | Farbwechsel-Kranz |
+| Disco | 450 | kreisende Scheinwerfer |
 
 Gekauft wird auf dem Server — der Client schickt nur den Wunsch. Gold, Besitz
 und der angelegte Skin liegen im Spielerprofil und überleben jeden Neustart.

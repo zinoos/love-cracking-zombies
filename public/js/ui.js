@@ -447,13 +447,13 @@ const UI = (() => {
     phaseLast = m.phase;
     if (neu) {
       phaseMax = m.phase === 'vote' ? C.PREMATCH.VOTE_TIME
-        : m.phase === 'ban' ? C.PREMATCH.BAN_TIME : C.PREMATCH.PICK_TIME;
+        : m.phase === 'wheel' ? C.PREMATCH.WHEEL_TIME : C.PREMATCH.PICK_TIME;
     }
     phaseMax = Math.max(phaseMax, m.time);
 
     [...$('prep-steps').children].forEach(el => {
       const s = el.dataset.step;
-      const rang = { vote: 0, ban: 1, pick: 2 };
+      const rang = { vote: 0, wheel: 1, pick: 2 };
       el.classList.toggle('on', s === m.phase);
       el.classList.toggle('done', rang[s] < rang[m.phase]);
     });
@@ -462,11 +462,11 @@ const UI = (() => {
     $('prep-fill').style.width = Math.max(0, Math.min(100, (m.time / phaseMax) * 100)) + '%';
 
     $('map-choices').classList.toggle('show', m.phase === 'vote');
-    $('ban-grid').classList.toggle('show', m.phase === 'ban');
+    $('wheels').classList.toggle('show', m.phase === 'wheel');
     $('pick-grid').classList.toggle('show', m.phase === 'pick');
 
     if (m.phase === 'vote') phaseVote(m);
-    else if (m.phase === 'ban') phaseBan(m);
+    else if (m.phase === 'wheel') phaseWheel(m, neu);
     else phasePick(m);
   }
 
@@ -513,25 +513,77 @@ const UI = (() => {
     return card;
   }
 
-  function phaseBan(m) {
-    $('prep-title').textContent = 'WAFFE SPERREN';
-    $('prep-sub').textContent = `Karte: ${m.mapName} — die ${m.bans} meistgenannten Waffen fallen weg.`;
-    $('prep-note').textContent = 'Jeder hat eine Stimme.';
-    const host = $('ban-grid');
-    if (!host.children.length) {
-      for (const key of m.weapons) {
-        const card = waffenKarte(key);
-        const v = document.createElement('div');
-        v.className = 'wvotes';
-        card.appendChild(v);
-        card.onclick = () => { if (phaseSend) phaseSend(key); SFX.ui(true); };
-        host.appendChild(card);
+  /* Glücksräder. Das Ergebnis steht schon fest, wenn die Phase beginnt - der
+     Server hat gewuerfelt und schickt es mit. Hier laeuft nur noch die
+     Walze sichtbar darauf zu, damit man sieht, was herausfaellt. */
+  const ZELLE = 63;          // Hoehe einer Walzenzelle in px, siehe style.css
+  let radDaten = null;
+
+  function baueRad(nr, weapons) {
+    const rad = $('wheel-' + nr);
+    const strip = rad.querySelector('.wheel-strip');
+    strip.innerHTML = '';
+    /* Die Liste mehrfach hintereinander, damit die Walze lange laufen kann,
+       ohne dass eine Luecke sichtbar wird. */
+    for (let runde = 0; runde < 8; runde++) {
+      for (const key of weapons) {
+        const w = C.WEAPONS[key];
+        const z = document.createElement('div');
+        z.className = 'wheel-cell';
+        z.innerHTML = `<div class="wico">${w.icon}</div><div class="wname">${esc(w.short)}</div>`;
+        strip.appendChild(z);
       }
     }
-    [...host.children].forEach((card, i) => {
-      card.classList.toggle('on', card.dataset.w === m.you);
-      card.querySelector('.wvotes').textContent = m.votes[i] ? '✕'.repeat(m.votes[i]) : '';
-    });
+    if (!rad.querySelector('.wheel-tag')) {
+      const tag = document.createElement('div');
+      tag.className = 'wheel-tag';
+      tag.textContent = 'GESPERRT';
+      rad.appendChild(tag);
+    }
+    rad.classList.remove('locked');
+    return strip;
+  }
+
+  function phaseWheel(m, neu) {
+    $('prep-title').textContent = 'GLÜCKSRAD';
+    $('prep-sub').textContent = `Karte: ${m.mapName} — zwei Waffen fallen für diese Runde weg.`;
+    $('prep-note').textContent = 'Der Zufall entscheidet, niemand stimmt ab.';
+
+    if (neu || !radDaten) {
+      radDaten = {
+        weapons: m.weapons,
+        banned: m.banned.slice(),
+        dauer: m.dauer || C.PREMATCH.WHEEL_TIME,
+        strips: [baueRad(0, m.weapons), baueRad(1, m.weapons)],
+        // Ziel liegt in der vorletzten Runde, damit vorher genug vorbeilaeuft
+        ziel: m.banned.map(k => m.weapons.indexOf(k) + m.weapons.length * 6)
+      };
+      SFX.ui(true);
+    }
+    radDaten.rest = m.time;
+  }
+
+  /** Walzen bewegen. Laeuft im Takt der Oberflaeche, nicht der Nachrichten. */
+  function wheelTick() {
+    if (!radDaten || phaseLast !== 'wheel') return;
+    const { strips, ziel, dauer } = radDaten;
+    for (let i = 0; i < strips.length; i++) {
+      // Das zweite Rad haelt etwas spaeter - sonst wirkt es wie ein Rad
+      const anteil = i === 0 ? 0.62 : 0.9;
+      const bis = dauer * anteil;
+      const rest = Math.max(0, radDaten.rest - (dauer - bis));
+      const p = Math.min(1, 1 - rest / bis);
+      // Stark abbremsen: schnell los, langsam ins Ziel
+      const eased = 1 - Math.pow(1 - p, 3.2);
+      const y = eased * ziel[i] * ZELLE;
+      strips[i].style.transform = `translateY(${-y + (190 - ZELLE) / 2}px)`;
+      const rad = $('wheel-' + i);
+      const fest = p >= 0.999;
+      if (fest !== rad.classList.contains('locked')) {
+        rad.classList.toggle('locked', fest);
+        if (fest) SFX.ui(false);
+      }
+    }
   }
 
   function phasePick(m) {
@@ -1011,6 +1063,11 @@ const UI = (() => {
     if (current === 'scr-skins') drawSkinPreview(dt);
     if (current === 'scr-settings') settingsLive();
     if (current === 'scr-shop') shopTick(dt);
+    if (current === 'scr-prematch') {
+      // Uhr weiterlaufen lassen, auch zwischen zwei Nachrichten
+      if (radDaten && phaseLast === 'wheel') radDaten.rest = Math.max(0, radDaten.rest - dt);
+      wheelTick();
+    }
   }
 
   return {
