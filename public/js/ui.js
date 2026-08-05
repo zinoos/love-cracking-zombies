@@ -177,8 +177,9 @@ const UI = (() => {
     }
     skinCtx.globalAlpha = 1;
 
-    const ang = Math.sin(skinT * .55) * 0.75;
-    RENDER.drawAvatar(skinCtx, w / 2, h / 2 - 10, 74, skin, ang, skinT);
+    /* Frontansicht statt Draufsicht: beim Farbwaehlen will man das Gesicht
+       sehen, nicht den Helm von oben. */
+    RENDER.drawAvatarFront(skinCtx, w / 2, h - 62, h * 0.74, skin, skinT);
 
     skinCtx.font = '600 12px Rajdhani, sans-serif';
     skinCtx.fillStyle = 'rgba(160,190,225,.7)';

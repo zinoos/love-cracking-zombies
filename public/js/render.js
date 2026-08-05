@@ -85,23 +85,69 @@ const RENDER = (() => {
     }
   }
 
-  /** Wandkoerper inkl. Kanten. */
+  /* Hoehe der Mauern. Die Deckflaeche bleibt genau auf der Kachel - dort ist
+     auch die Kollision -, die Seitenflaechen wachsen nach unten rechts aus
+     ihr heraus. So wirken die Waende wie Bloecke, ohne dass Bild und
+     Trefferabfrage auseinanderlaufen. */
+  const EX = Math.round(C.TILE * 0.20);
+  const EY = Math.round(C.TILE * 0.26);
+
+  /** Sichtbare Seitenflaechen einer Wandkachel. */
+  function paintWallSides(g, tx, ty, b) {
+    const T = C.TILE, x = tx * T, y = ty * T;
+    const unten = !isWallAt(tx, ty + 1);
+    const rechts = !isWallAt(tx + 1, ty);
+    if (!unten && !rechts) return;
+
+    if (unten) {
+      const grad = g.createLinearGradient(0, y + T, 0, y + T + EY);
+      grad.addColorStop(0, shade(b.wall, -10));
+      grad.addColorStop(1, shade(b.wall, -62));
+      g.fillStyle = grad;
+      g.beginPath();
+      g.moveTo(x, y + T); g.lineTo(x + T, y + T);
+      g.lineTo(x + T + EX, y + T + EY); g.lineTo(x + EX, y + T + EY);
+      g.closePath(); g.fill();
+    }
+    if (rechts) {
+      const grad = g.createLinearGradient(x + T, 0, x + T + EX, 0);
+      grad.addColorStop(0, shade(b.wall, -26));
+      grad.addColorStop(1, shade(b.wall, -70));
+      g.fillStyle = grad;
+      g.beginPath();
+      g.moveTo(x + T, y); g.lineTo(x + T, y + T);
+      g.lineTo(x + T + EX, y + T + EY); g.lineTo(x + T + EX, y + EY);
+      g.closePath(); g.fill();
+    }
+  }
+
+  /** Deckflaeche der Wand mit Fase - hell nach oben links, dunkel nach unten rechts. */
   function paintWall(g, tx, ty, b) {
     const T = C.TILE, x = tx * T, y = ty * T;
-    const grad = g.createLinearGradient(x, y, x, y + T);
-    grad.addColorStop(0, b.wallTop);
+    const grad = g.createLinearGradient(x, y, x + T * .6, y + T);
+    grad.addColorStop(0, shade(b.wallTop, 12));
     grad.addColorStop(1, b.wall);
     g.fillStyle = grad;
     g.fillRect(x, y, T, T);
-    g.strokeStyle = b.edge;
+
+    // Fase: Lichtkante oben/links, Schattenkante unten/rechts
+    const frei = {
+      o: !isWallAt(tx, ty - 1), u: !isWallAt(tx, ty + 1),
+      l: !isWallAt(tx - 1, ty), r: !isWallAt(tx + 1, ty)
+    };
     g.lineWidth = 2;
+    g.strokeStyle = b.edge;
     g.beginPath();
-    if (!isWallAt(tx, ty - 1)) { g.moveTo(x, y + 1); g.lineTo(x + T, y + 1); }
-    if (!isWallAt(tx, ty + 1)) { g.moveTo(x, y + T - 1); g.lineTo(x + T, y + T - 1); }
-    if (!isWallAt(tx - 1, ty)) { g.moveTo(x + 1, y); g.lineTo(x + 1, y + T); }
-    if (!isWallAt(tx + 1, ty)) { g.moveTo(x + T - 1, y); g.lineTo(x + T - 1, y + T); }
+    if (frei.o) { g.moveTo(x, y + 1); g.lineTo(x + T, y + 1); }
+    if (frei.l) { g.moveTo(x + 1, y); g.lineTo(x + 1, y + T); }
     g.stroke();
-    if (!isWallAt(tx, ty - 1)) {
+    g.strokeStyle = shade(b.wall, -46);
+    g.beginPath();
+    if (frei.u) { g.moveTo(x, y + T - 1); g.lineTo(x + T, y + T - 1); }
+    if (frei.r) { g.moveTo(x + T - 1, y); g.lineTo(x + T - 1, y + T); }
+    g.stroke();
+
+    if (frei.o) {
       g.fillStyle = b.accent;
       g.globalAlpha = .18;
       g.fillRect(x, y, T, 3);
@@ -119,12 +165,32 @@ const RENDER = (() => {
     g.rect(tx0 * T, ty0 * T, (tx1 - tx0 + 1) * T, (ty1 - ty0 + 1) * T);
     g.clip();
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) paintGround(g, tx, ty, b);
-    // Schatten fallen nach unten rechts -> Quellkachel oben/links mitnehmen
-    g.fillStyle = 'rgba(0,0,0,.45)';
-    for (let ty = ty0 - 1; ty <= ty1; ty++) {
-      for (let tx = tx0 - 1; tx <= tx1; tx++) {
-        if (isWallAt(tx, ty)) g.fillRect(tx * T + 5, ty * T + 6, T, T);
+
+    /* Reihenfolge macht die Tiefe: erst der weiche Schlagschatten auf dem
+       Boden, dann die Seitenflaechen aller Bloecke, zuletzt die Deckflaechen.
+       Wuerde man je Kachel alles zusammen malen, schnitte die naechste
+       Deckflaeche die vorige Seitenflaeche ab. */
+    const schattenAus = EX + 5, schattenRunter = EY + 6;
+    g.fillStyle = 'rgba(0,0,0,.42)';
+    for (let ty = ty0 - 2; ty <= ty1; ty++) {
+      for (let tx = tx0 - 2; tx <= tx1; tx++) {
+        if (isWallAt(tx, ty)) g.fillRect(tx * T + schattenAus, ty * T + schattenRunter, T, T);
       }
+    }
+    // Kontaktschatten direkt am Fuss der Wand - laesst die Bloecke aufsitzen
+    for (let ty = ty0 - 2; ty <= ty1; ty++) {
+      for (let tx = tx0 - 2; tx <= tx1; tx++) {
+        if (!isWallAt(tx, ty) || isWallAt(tx, ty + 1)) continue;
+        const gy = ty * T + T + EY;
+        const ao = g.createLinearGradient(0, gy, 0, gy + T * .5);
+        ao.addColorStop(0, 'rgba(0,0,0,.5)');
+        ao.addColorStop(1, 'rgba(0,0,0,0)');
+        g.fillStyle = ao;
+        g.fillRect(tx * T + EX, gy, T, T * .5);
+      }
+    }
+    for (let ty = ty0 - 2; ty <= ty1; ty++) for (let tx = tx0 - 2; tx <= tx1; tx++) {
+      if (isWallAt(tx, ty)) paintWallSides(g, tx, ty, b);
     }
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
       if (isWallAt(tx, ty)) paintWall(g, tx, ty, b);
@@ -386,26 +452,44 @@ const RENDER = (() => {
       const g = c.getContext('2d');
       g.translate(BUSH_SS / 2, BUSH_SS / 2);
       const seed = v / 5 + 0.11;
-      g.fillStyle = 'rgba(0,0,0,.32)';
-      g.beginPath(); g.ellipse(3, 5, T * 0.55, T * 0.42, 0, 0, 7); g.fill();
-      const grd = g.createRadialGradient(-6, -8, 2, 0, 0, T * 0.62);
-      grd.addColorStop(0, '#4c8f56');
-      grd.addColorStop(.6, '#2f6a3c');
-      grd.addColorStop(1, '#1a4327');
+      /* Schatten faellt in dieselbe Richtung wie bei den Waenden - nur wenn
+         alles aus derselben Ecke beleuchtet wird, wirkt die Szene raeumlich. */
+      g.fillStyle = 'rgba(0,0,0,.38)';
+      g.beginPath(); g.ellipse(EX * .8, EY * .8, T * 0.56, T * 0.4, 0, 0, 7); g.fill();
+
+      // Untere Blattlage: dunkler, sitzt weiter unten -> Volumen
+      g.fillStyle = '#183d24';
+      for (let k = 0; k < 5; k++) {
+        const a = (k / 5) * Math.PI * 2 + seed * 6;
+        const rr = T * (0.29 + ((seed * 13 + k) % 3) * 0.045);
+        g.beginPath();
+        g.ellipse(Math.cos(a) * T * .2 + 2, Math.sin(a) * T * .18 + 4, rr, rr * .84, a, 0, 7);
+        g.fill();
+      }
+      // Obere Lage mit Kugelverlauf
+      const grd = g.createRadialGradient(-T * .2, -T * .24, 2, 0, 0, T * 0.66);
+      grd.addColorStop(0, '#6fbb74');
+      grd.addColorStop(.45, '#3d8049');
+      grd.addColorStop(1, '#1c4a2b');
       g.fillStyle = grd;
       for (let k = 0; k < 5; k++) {
         const a = (k / 5) * Math.PI * 2 + seed * 6;
-        const rr = T * (0.28 + ((seed * 13 + k) % 3) * 0.045);
+        const rr = T * (0.27 + ((seed * 13 + k) % 3) * 0.045);
         g.beginPath();
         g.ellipse(Math.cos(a) * T * .2, Math.sin(a) * T * .18, rr, rr * .86, a, 0, 7);
         g.fill();
       }
-      g.globalAlpha = .38;
-      g.fillStyle = '#7fe89a';
-      for (let k = 0; k < 4; k++) {
+      // Glanzlicht oben links
+      g.globalAlpha = .3;
+      g.fillStyle = '#bff2c6';
+      g.beginPath(); g.ellipse(-T * .17, -T * .2, T * .2, T * .13, -.5, 0, 7); g.fill();
+      // Einzelne Blaetter
+      g.globalAlpha = .42;
+      g.fillStyle = '#8ef0a6';
+      for (let k = 0; k < 5; k++) {
         const a = seed * 20 + k * 1.7;
         g.beginPath();
-        g.ellipse(Math.cos(a) * 9, Math.sin(a) * 8 - 4, 4.5, 2.6, a, 0, 7);
+        g.ellipse(Math.cos(a) * 9, Math.sin(a) * 8 - 4, 4.5, 2.4, a, 0, 7);
         g.fill();
       }
       g.globalAlpha = 1;
@@ -751,7 +835,8 @@ const RENDER = (() => {
    */
   function drawSoldier(g, p, radius, opts) {
     const o = opts || {};
-    const r = radius * 1.45;
+    // Atmen: der Koerper hebt und senkt sich minimal, wenn man stillsteht
+    const r = radius * 1.45 * (1 + (o.breath || 0) * 0.012);
     const LW = Math.max(0.9, r * 0.032);
     const uni = p.color;
     const uniD = shade(uni, -26);      // Helm
@@ -987,9 +1072,12 @@ const RENDER = (() => {
        eigene Team, und dort als Schemen. */
     if (p.cloaked) g.globalAlpha *= 0.34;
 
-    // Schatten
-    g.fillStyle = 'rgba(0,0,0,.4)';
-    g.beginPath(); g.ellipse(2, 4, r * 1.02, r * .82, 0, 0, 7); g.fill();
+    /* Schatten in derselben Richtung wie bei Waenden und Bueschen, dazu ein
+       weicher Halbschatten. Ohne den klebt die Figur flach auf dem Boden. */
+    g.fillStyle = 'rgba(0,0,0,.22)';
+    g.beginPath(); g.ellipse(EX * .6, EY * .6, r * 1.35, r * 1.05, 0, 0, 7); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.44)';
+    g.beginPath(); g.ellipse(EX * .4, EY * .45, r * .98, r * .78, 0, 0, 7); g.fill();
 
     // Dash-Nachzieher
     if (p.dash) {
@@ -1015,9 +1103,25 @@ const RENDER = (() => {
     drawSoldier(g, p, r, {
       walk: moving ? Math.sin(phase) : 0,
       spin: p.spinAngle || 0,
-      swing: p.swingT || 0
+      swing: p.swingT || 0,
+      // Atmen im Stand, damit niemand wie eine Figur auf dem Brett wirkt
+      breath: moving ? 0 : Math.sin(time * 2.2 + (p.id || 0)) * .5 + .5
     });
     g.restore();
+
+    /* Lichtkante oben links. Der letzte Schritt, der die Figur vom Boden
+       abhebt - dieselbe Lichtrichtung wie ueberall sonst. */
+    if (q().blur > 0 && !p.cloaked) {
+      g.save();
+      g.translate(x, y);
+      g.globalCompositeOperation = 'lighter';
+      const rim = g.createRadialGradient(-r * .5, -r * .55, r * .1, -r * .3, -r * .35, r * 1.25);
+      rim.addColorStop(0, 'rgba(255,248,225,.20)');
+      rim.addColorStop(1, 'rgba(255,248,225,0)');
+      g.fillStyle = rim;
+      g.beginPath(); g.arc(0, 0, r * 1.25, 0, 7); g.fill();
+      g.restore();
+    }
 
     // Unverwundbarkeits-Schild
     if (p.invul) {
@@ -1549,6 +1653,301 @@ const RENDER = (() => {
     }
   }
 
+  /* =============== Soldat von vorn ===============
+     Fuer den Skinlocker: dort will man sehen, wie die Figur aussieht, und
+     nicht auf einen Helm von oben schauen. Gezeichnet wird in lokalen
+     Koordinaten, der Boden liegt bei y = 0, die Figur waechst nach oben.
+
+     Alle Masse in u = 1 % der Gesamthoehe. Licht faellt von links oben ein -
+     jede Rundung bekommt denselben hellen Rand und dieselbe dunkle
+     Gegenseite, sonst wirkt nichts plastisch. */
+
+  /** Form mit Lichtverlauf fuellen: hell nach links oben, dunkel nach rechts unten. */
+  function shaded(g, path, x0, y0, x1, y1, hell, mitte, dunkel, lw) {
+    path();
+    const grad = g.createLinearGradient(x0, y0, x1, y1);
+    grad.addColorStop(0, hell);
+    grad.addColorStop(0.45, mitte);
+    grad.addColorStop(1, dunkel);
+    g.fillStyle = grad;
+    g.fill();
+    if (lw) ink(g, lw);
+  }
+
+  /* Glied als durchgehender Strich: Umriss als breiterer Strich darunter,
+     Fuellung darueber. Aus einzelnen Kapseln zusammengesetzt gab es an jedem
+     Gelenk einen dunklen Ring, wo sich zwei Umrisse ueberlagerten. */
+  function limbF(g, punkte, w, hell, mitte, dunkel, lw) {
+    const zeichne = () => {
+      g.beginPath();
+      g.moveTo(punkte[0], punkte[1]);
+      for (let i = 2; i < punkte.length; i += 2) g.lineTo(punkte[i], punkte[i + 1]);
+    };
+    g.save();
+    g.lineCap = 'round'; g.lineJoin = 'round';
+    g.strokeStyle = INK;
+    g.lineWidth = w * 2 + lw * 1.8;
+    zeichne(); g.stroke();
+
+    const links = Math.min(punkte[0], punkte[punkte.length - 2]) - w;
+    const grad = g.createLinearGradient(links, 0, links + w * 2.6, 0);
+    grad.addColorStop(0, hell);
+    grad.addColorStop(.45, mitte);
+    grad.addColorStop(1, dunkel);
+    g.strokeStyle = grad;
+    g.lineWidth = w * 2;
+    zeichne(); g.stroke();
+
+    // Lichtkante an der linken Seite
+    g.globalAlpha = .32;
+    g.strokeStyle = hell;
+    g.lineWidth = w * .5;
+    g.save();
+    g.translate(-w * .55, 0);
+    zeichne(); g.stroke();
+    g.restore();
+    g.globalAlpha = 1;
+    g.restore();
+  }
+
+  function drawSoldierFront(g, skin, hoehe, t) {
+    const u = hoehe / 100;
+    const LW = Math.max(1, u * 0.85);
+    const uni = skin.color || '#4ade80';
+    const uniL = shade(uni, 34);
+    const uniD = shade(uni, -34);
+    const uniDD = shade(uni, -60);
+    const helm = shade(uni, -8);
+
+    /* Ruhige Leerlaufbewegung: Atmen, Gewichtsverlagerung, Wippen. Drei
+       verschiedene Takte, damit es nicht mechanisch wirkt. */
+    const atem = Math.sin(t * 1.9);
+    const wiegen = Math.sin(t * 0.85);
+    const bob = (atem * 0.5 + 0.5) * u * 0.9;
+    const hueft = wiegen * u * 1.4;
+
+    g.save();
+
+    // ---------- Bodenschatten ----------
+    g.fillStyle = 'rgba(0,0,0,.40)';
+    g.beginPath(); g.ellipse(u * 1, 0, u * 17, u * 4.6, 0, 0, 7); g.fill();
+    g.fillStyle = 'rgba(0,0,0,.20)';
+    g.beginPath(); g.ellipse(u * 2, 0, u * 27, u * 7, 0, 0, 7); g.fill();
+
+    g.translate(0, -bob);
+
+    /* ---------- Beine ----------
+       Standbein und Spielbein wechseln mit der Gewichtsverlagerung. */
+    [-1, 1].forEach(seite => {
+      const entlastet = wiegen * seite < 0;
+      const hx = seite * u * 5.5 + hueft * .3;
+      const kx = seite * u * 6.6 + hueft * .15;
+      const fx = seite * u * 7.2;
+      const knie = -u * 24 + (entlastet ? u * 1.4 : 0);
+
+      limbF(g, [hx, -u * 45, kx, knie, fx, -u * 9], u * 5.2, uniD, uniDD, shade(uni, -74), LW);
+
+      // Stiefel
+      g.save();
+      g.translate(fx, -u * 7.5);
+      const stiefel = () => { roundRect(g, -u * 5.2, -u * 4, u * 10.4, u * 8, u * 2.2); };
+      shaded(g, stiefel, -u * 5, -u * 4, u * 5, u * 4,
+        shade(BOOT, 26), BOOT, shade(BOOT, -34), LW);
+      g.fillStyle = shade(BOOT, -46);
+      roundRect(g, -u * 5.6, u * 2.2, u * 11.2, u * 2.4, u * 1.1); g.fill();
+      g.strokeStyle = 'rgba(20,14,8,.45)'; g.lineWidth = LW * .7;
+      g.beginPath();
+      for (let i = 0; i < 3; i++) { g.moveTo(-u * 3, -u * 3 + i * u * 1.9); g.lineTo(u * 3, -u * 2.4 + i * u * 1.9); }
+      g.stroke();
+      g.fillStyle = 'rgba(255,255,255,.16)';
+      roundRect(g, -u * 4.2, -u * 3.4, u * 7, u * 1.6, u * .8); g.fill();
+      g.restore();
+    });
+
+    // ---------- Arme (hinter den Schulterpolstern) ----------
+    const schwung = wiegen * u * 1.1;
+    [-1, 1].forEach(seite => {
+      const sx = seite * u * 11 + hueft * .5;
+      const ex = seite * u * 14.5 + schwung * seite * .4;
+      const hx = seite * u * 14 + schwung * seite;
+      limbF(g, [sx, -u * 68, ex, -u * 56, hx, -u * 46], u * 4.3, uniD, uniDD, shade(uni, -74), LW);
+      // Handschuh
+      const hand = () => { g.beginPath(); g.ellipse(hx, -u * 44, u * 3.4, u * 3.9, seite * .12, 0, 7); g.closePath(); };
+      shaded(g, hand, hx - u * 3.4, -u * 47, hx + u * 3.4, -u * 41,
+        shade(FLESH, 18), FLESH_SH, shade(FLESH_SH, -34), LW * .9);
+      g.strokeStyle = 'rgba(40,25,10,.35)'; g.lineWidth = LW * .7;
+      g.beginPath(); g.moveTo(hx - u * 2.2, -u * 44); g.lineTo(hx + u * 2.2, -u * 44.5); g.stroke();
+    });
+
+    // ---------- Rumpf ----------
+    g.save();
+    g.translate(hueft * .5, 0);
+    g.scale(1 + atem * 0.018, 1);
+
+    const torso = () => {
+      g.beginPath();
+      g.moveTo(-u * 12.5, -u * 70);
+      g.quadraticCurveTo(-u * 14.5, -u * 60, -u * 10.5, -u * 47);
+      g.quadraticCurveTo(0, -u * 44.5, u * 10.5, -u * 47);
+      g.quadraticCurveTo(u * 14.5, -u * 60, u * 12.5, -u * 70);
+      g.quadraticCurveTo(0, -u * 73.5, -u * 12.5, -u * 70);
+      g.closePath();
+    };
+    shaded(g, torso, -u * 13, -u * 72, u * 13, -u * 46, uniL, uni, uniDD, LW * 1.2);
+
+    // Muster
+    if (skin.pattern && skin.pattern !== 'solid') {
+      g.save();
+      torso(); g.clip();
+      g.globalAlpha = .45;
+      const dark = shade(uni, -50), light = shade(uni, 46);
+      switch (skin.pattern) {
+        case 'stripe':
+          g.fillStyle = dark;
+          for (let x = -u * 16; x < u * 16; x += u * 5) g.fillRect(x, -u * 75, u * 2.2, u * 34);
+          break;
+        case 'dots':
+          g.fillStyle = dark;
+          for (let y = -u * 72; y < -u * 44; y += u * 5) {
+            for (let x = -u * 16; x < u * 16; x += u * 5) {
+              const o = ((((x * 7 + y * 13) % 5) + 5) % 5) / 5;
+              g.beginPath(); g.ellipse(x + o * u * 2.6, y, u * 2, u * 1.4, o * 3, 0, 7); g.fill();
+            }
+          }
+          break;
+        case 'ring':
+          g.fillStyle = light;
+          g.fillRect(-u * 16, -u * 64, u * 32, u * 2.2);
+          g.fillRect(-u * 16, -u * 53, u * 32, u * 2.2);
+          break;
+        case 'shard':
+          g.fillStyle = dark;
+          g.beginPath();
+          g.moveTo(-u * 16, -u * 72); g.lineTo(u * 3, -u * 58); g.lineTo(-u * 16, -u * 44);
+          g.closePath(); g.fill();
+          break;
+      }
+      g.globalAlpha = 1;
+      g.restore();
+    }
+
+    // Schutzweste mit Taschen
+    g.save();
+    torso(); g.clip();
+    // Etwas schmaler als der Rumpf, damit das Muster an den Seiten sichtbar bleibt
+    const weste = () => { roundRect(g, -u * 8.6, -u * 69, u * 17.2, u * 22, u * 2.6); };
+    shaded(g, weste, -u * 8.6, -u * 69, u * 8.6, -u * 47,
+      shade(uni, -20), shade(uni, -38), shade(uni, -56), 0);
+    g.fillStyle = shade(uni, -58);
+    [-1, 1].forEach(s => { roundRect(g, s * u * 5 - u * 3.4, -u * 65, u * 6.8, u * 6, u * 1.2); g.fill(); });
+    [-1, 0, 1].forEach(s => { roundRect(g, s * u * 5.6 - u * 2.2, -u * 56, u * 4.4, u * 6, u * .9); g.fill(); });
+    // Reissverschluss
+    g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = LW * .9;
+    g.beginPath(); g.moveTo(0, -u * 69); g.lineTo(0, -u * 47); g.stroke();
+    // Stofffalten
+    g.strokeStyle = 'rgba(0,0,0,.16)'; g.lineWidth = LW;
+    g.beginPath();
+    g.moveTo(-u * 9, -u * 50); g.quadraticCurveTo(-u * 5, -u * 47.5, -u * 2, -u * 49);
+    g.moveTo(u * 9, -u * 50); g.quadraticCurveTo(u * 5, -u * 47.5, u * 2, -u * 49);
+    g.stroke();
+    g.restore();
+
+    // Guertel
+    const guertel = () => { roundRect(g, -u * 11.5, -u * 48, u * 23, u * 4.6, u * 1.1); };
+    shaded(g, guertel, -u * 11, -u * 48, u * 11, -u * 43.4,
+      shade(STOCK_D, 26), STOCK_D, shade(STOCK_D, -30), LW * .9);
+    g.fillStyle = '#e8bb3d';
+    roundRect(g, -u * 2.6, -u * 47.6, u * 5.2, u * 3.8, u * .9); g.fill();
+    g.fillStyle = 'rgba(255,255,255,.35)';
+    roundRect(g, -u * 2.2, -u * 47.2, u * 4.4, u * 1.2, u * .5); g.fill();
+
+    // Schulterpolster ueber dem Armansatz
+    [-1, 1].forEach(s => {
+      const pad = () => { g.beginPath(); g.ellipse(s * u * 11.5, -u * 68, u * 6, u * 4.6, s * .28, 0, 7); g.closePath(); };
+      shaded(g, pad, s * u * 11.5 - u * 5, -u * 71, s * u * 11.5 + u * 5, -u * 64,
+        shade(uni, 52), uniL, uniD, LW);
+    });
+    g.restore();
+
+    // ---------- Hals ----------
+    g.save();
+    g.translate(hueft * .6, 0);
+    const hals = () => { roundRect(g, -u * 3.6, -u * 76, u * 7.2, u * 7, u * 1.8); };
+    shaded(g, hals, -u * 3.6, -u * 76, u * 3.6, -u * 69, shade(FLESH, 10), FLESH_SH, shade(FLESH_SH, -40), 0);
+    g.fillStyle = 'rgba(0,0,0,.30)';
+    roundRect(g, -u * 3.6, -u * 76, u * 7.2, u * 2.6, u * 1.3); g.fill();
+
+    // ---------- Kopf ----------
+    const kopfN = Math.sin(t * 1.25) * u * .45;
+    g.translate(kopfN, 0);
+
+    const gesicht = () => { g.beginPath(); g.ellipse(0, -u * 82.5, u * 7.2, u * 8.2, 0, 0, 7); g.closePath(); };
+    shaded(g, gesicht, -u * 6, -u * 89, u * 6, -u * 76, shade(FLESH, 22), FLESH, shade(FLESH, -34), LW);
+
+    // Ohren
+    [-1, 1].forEach(s => {
+      g.fillStyle = shade(FLESH, -16);
+      g.beginPath(); g.ellipse(s * u * 7, -u * 82, u * 1.5, u * 2.2, 0, 0, 7); g.fill();
+      ink(g, LW * .7);
+    });
+
+    // Augen
+    [-1, 1].forEach(s => {
+      g.fillStyle = '#fdfdfd';
+      g.beginPath(); g.ellipse(s * u * 2.9, -u * 83.5, u * 2.0, u * 1.6, 0, 0, 7); g.fill();
+      g.strokeStyle = 'rgba(40,26,10,.55)'; g.lineWidth = LW * .6; g.stroke();
+      const blick = Math.sin(t * .6) * u * .45;
+      g.fillStyle = '#3d2b15';
+      g.beginPath(); g.arc(s * u * 2.9 + blick, -u * 83.5, u * .95, 0, 7); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.85)';
+      g.beginPath(); g.arc(s * u * 2.9 + blick - u * .35, -u * 84, u * .35, 0, 7); g.fill();
+    });
+    // Brauen
+    g.strokeStyle = shade(FLESH, -74); g.lineWidth = LW * 1.15; g.lineCap = 'round';
+    g.beginPath();
+    g.moveTo(-u * 4.8, -u * 86.4); g.lineTo(-u * 1.4, -u * 85.8);
+    g.moveTo(u * 1.4, -u * 85.8); g.lineTo(u * 4.8, -u * 86.4);
+    g.stroke();
+    // Nase
+    g.strokeStyle = 'rgba(120,72,26,.45)'; g.lineWidth = LW * .9;
+    g.beginPath(); g.moveTo(0, -u * 83); g.lineTo(u * .7, -u * 80.4); g.stroke();
+    // Mund
+    g.strokeStyle = 'rgba(92,44,26,.65)'; g.lineWidth = LW;
+    g.beginPath(); g.arc(0, -u * 79.8, u * 2.1, .3, Math.PI - .3); g.stroke();
+
+    // ---------- Helm ----------
+    const helmPfad = () => {
+      g.beginPath();
+      g.moveTo(-u * 9, -u * 86);
+      g.quadraticCurveTo(-u * 9.6, -u * 95.5, 0, -u * 96);
+      g.quadraticCurveTo(u * 9.6, -u * 95.5, u * 9, -u * 86);
+      g.quadraticCurveTo(u * 4, -u * 88.2, 0, -u * 88);
+      g.quadraticCurveTo(-u * 4, -u * 88.2, -u * 9, -u * 86);
+      g.closePath();
+    };
+    shaded(g, helmPfad, -u * 8, -u * 95, u * 8, -u * 86,
+      shade(uni, 40), helm, shade(uni, -52), LW * 1.15);
+    g.save();
+    helmPfad(); g.clip();
+    g.fillStyle = 'rgba(0,0,0,.18)';
+    g.fillRect(-u * 11, -u * 89.5, u * 22, u * 1.8);
+    g.fillStyle = 'rgba(255,255,255,.24)';
+    g.beginPath(); g.ellipse(-u * 3.2, -u * 93, u * 4, u * 1.9, -.35, 0, 7); g.fill();
+    g.restore();
+
+    // Kinnriemen
+    g.strokeStyle = shade(uni, -52); g.lineWidth = LW * 1.5;
+    g.beginPath();
+    g.moveTo(-u * 8.4, -u * 86.5); g.quadraticCurveTo(-u * 8.2, -u * 77.5, -u * 2.6, -u * 76.5);
+    g.moveTo(u * 8.4, -u * 86.5); g.quadraticCurveTo(u * 8.2, -u * 77.5, u * 2.6, -u * 76.5);
+    g.stroke();
+    g.fillStyle = shade(uni, -62);
+    roundRect(g, -u * 3, -u * 77.6, u * 6, u * 2.2, u * .9); g.fill();
+
+    g.restore();
+    g.restore();
+  }
+
   /** Avatar fuer Skinlocker / Lobby-Vorschau */
   function drawAvatar(g, x, y, r, skin, ang, t, weapon) {
     const p = { color: skin.color, pattern: skin.pattern, trail: skin.trail, weapon: weapon || 'pistol' };
@@ -1561,8 +1960,17 @@ const RENDER = (() => {
     g.restore();
   }
 
+  /** Ganzkoerper-Vorschau von vorn. y ist der Boden, unter dem die Figur steht. */
+  function drawAvatarFront(g, x, y, hoehe, skin, t) {
+    g.save();
+    g.translate(x, y);
+    drawSoldierFront(g, skin, hoehe, t);
+    g.restore();
+  }
+
   return {
-    resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld, drawAvatar, shade,
+    resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld,
+    drawAvatar, drawAvatarFront, shade,
     setQuality,
     get quality() {
       return { level: qLevel, name: q().name, avgMs: Math.round(drawAvg * 100) / 100, pinned: qPinned >= 0 };
