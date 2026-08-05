@@ -80,7 +80,6 @@ button{cursor:pointer;border:0;background:none}
   96%{opacity:.4;transform:translate(3px,-2px)}
   97%,100%{opacity:0}
 }
-.tagline{color:var(--dim);letter-spacing:.5em;font-size:12px;margin-top:10px;padding-left:.5em}
 
 .card,.panel{
   background:var(--panel);
@@ -142,7 +141,6 @@ button{cursor:pointer;border:0;background:none}
 .btn.big small{font-size:11px;font-weight:500;opacity:.65;letter-spacing:.04em}
 .btn.small{padding:7px 13px;font-size:12px;border-radius:9px}
 .wide-btn{width:100%;padding:14px;font-size:16px;letter-spacing:.14em;margin-top:16px}
-.foot{text-align:center;color:var(--dim);font-size:11.5px;letter-spacing:.06em;opacity:.75}
 
 /* ---------- Login ---------- */
 .login-wrap{max-width:460px}
