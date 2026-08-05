@@ -85,52 +85,87 @@ const RENDER = (() => {
     }
   }
 
-  /* Hoehe der Mauern. Die Deckflaeche bleibt genau auf der Kachel - dort ist
-     auch die Kollision -, die Seitenflaechen wachsen nach unten rechts aus
-     ihr heraus. So wirken die Waende wie Bloecke, ohne dass Bild und
-     Trefferabfrage auseinanderlaufen. */
-  const EX = Math.round(C.TILE * 0.20);
-  const EY = Math.round(C.TILE * 0.46);
+  /* Mauern sind echte Bloecke, keine flachen Kacheln mit Lippe.
 
-  /** Sichtbare Seitenflaechen einer Wandkachel. */
+     Der Fussabdruck bleibt genau die Kachel - dort sitzt die Kollision. Von
+     dort wachsen die Waende auf dem Bild nach oben, so wie die Spielfigur aus
+     ihrem Standpunkt nach oben waechst. Wuerden Waende flach bleiben und nur
+     die Figur stehen, saehe die Szene aus zwei verschiedenen Blickwinkeln
+     gleichzeitig aus.
+
+     WALL_H ist die Bauhoehe in Welteinheiten; auf dem Schirm erscheint sie um
+     die Kameraneigung gestaucht. EX versetzt die Deckflaeche leicht zur
+     Seite, damit auch eine Schmalseite sichtbar wird - ohne diesen Versatz
+     stuende man exakt frontal davor und saehe nur Front und Deckel. */
+  const WALL_H = Math.round(C.TILE * 1.05);
+  const EX = Math.round(C.TILE * 0.12);
+  const EY = WALL_H;                       // fuer Schattenversatz weiterverwendet
+
+  /** Alle sichtbaren Seitenflaechen eines Wandblocks. */
   function paintWallSides(g, tx, ty, b) {
     const T = C.TILE, x = tx * T, y = ty * T;
-    const unten = !isWallAt(tx, ty + 1);
-    const rechts = !isWallAt(tx + 1, ty);
-    if (!unten && !rechts) return;
+    const dx = EX, dy = -WALL_H;           // Deckflaeche liegt um dies versetzt
 
-    if (unten) {
-      const grad = g.createLinearGradient(0, y + T, 0, y + T + EY);
-      grad.addColorStop(0, shade(b.wall, -10));
-      grad.addColorStop(1, shade(b.wall, -62));
+    // Vorderseite: nur wenn dahinter keine Wand steht
+    if (!isWallAt(tx, ty + 1)) {
+      const grad = g.createLinearGradient(0, y + T + dy, 0, y + T);
+      grad.addColorStop(0, shade(b.wall, -6));
+      grad.addColorStop(.55, shade(b.wall, -34));
+      grad.addColorStop(1, shade(b.wall, -66));
       g.fillStyle = grad;
       g.beginPath();
       g.moveTo(x, y + T); g.lineTo(x + T, y + T);
-      g.lineTo(x + T + EX, y + T + EY); g.lineTo(x + EX, y + T + EY);
+      g.lineTo(x + T + dx, y + T + dy); g.lineTo(x + dx, y + T + dy);
       g.closePath(); g.fill();
+
+      // Fugen, damit die Front nicht wie eine glatte Flaeche wirkt
+      g.strokeStyle = 'rgba(0,0,0,.16)';
+      g.lineWidth = 1.4;
+      g.beginPath();
+      for (let i = 1; i <= 2; i++) {
+        const f = i / 3;
+        g.moveTo(x + dx * f, y + T + dy * f);
+        g.lineTo(x + T + dx * f, y + T + dy * f);
+      }
+      g.stroke();
+      // Lichtkante an der Oberkante der Front
+      g.strokeStyle = 'rgba(255,255,255,.10)';
+      g.lineWidth = 1.6;
+      g.beginPath();
+      g.moveTo(x + dx, y + T + dy); g.lineTo(x + T + dx, y + T + dy);
+      g.stroke();
     }
-    if (rechts) {
-      const grad = g.createLinearGradient(x + T, 0, x + T + EX, 0);
-      grad.addColorStop(0, shade(b.wall, -26));
-      grad.addColorStop(1, shade(b.wall, -70));
+
+    // Schmalseite rechts
+    if (!isWallAt(tx + 1, ty)) {
+      const grad = g.createLinearGradient(x + T, 0, x + T + dx, 0);
+      grad.addColorStop(0, shade(b.wall, -44));
+      grad.addColorStop(1, shade(b.wall, -72));
       g.fillStyle = grad;
       g.beginPath();
       g.moveTo(x + T, y); g.lineTo(x + T, y + T);
-      g.lineTo(x + T + EX, y + T + EY); g.lineTo(x + T + EX, y + EY);
+      g.lineTo(x + T + dx, y + T + dy); g.lineTo(x + T + dx, y + dy);
+      g.closePath(); g.fill();
+    }
+    // Schmalseite links - nur sichtbar, weil der Versatz nach rechts geht
+    if (!isWallAt(tx - 1, ty)) {
+      g.fillStyle = shade(b.wall, -30);
+      g.beginPath();
+      g.moveTo(x, y); g.lineTo(x, y + T);
+      g.lineTo(x + dx, y + T + dy); g.lineTo(x + dx, y + dy);
       g.closePath(); g.fill();
     }
   }
 
-  /** Deckflaeche der Wand mit Fase - hell nach oben links, dunkel nach unten rechts. */
+  /** Deckflaeche des Blocks - liegt um die Bauhoehe nach oben versetzt. */
   function paintWall(g, tx, ty, b) {
-    const T = C.TILE, x = tx * T, y = ty * T;
+    const T = C.TILE, x = tx * T + EX, y = ty * T - WALL_H;
     const grad = g.createLinearGradient(x, y, x + T * .6, y + T);
-    grad.addColorStop(0, shade(b.wallTop, 12));
-    grad.addColorStop(1, b.wall);
+    grad.addColorStop(0, shade(b.wallTop, 16));
+    grad.addColorStop(1, shade(b.wallTop, -14));
     g.fillStyle = grad;
     g.fillRect(x, y, T, T);
 
-    // Fase: Lichtkante oben/links, Schattenkante unten/rechts
     const frei = {
       o: !isWallAt(tx, ty - 1), u: !isWallAt(tx, ty + 1),
       l: !isWallAt(tx - 1, ty), r: !isWallAt(tx + 1, ty)
@@ -141,7 +176,7 @@ const RENDER = (() => {
     if (frei.o) { g.moveTo(x, y + 1); g.lineTo(x + T, y + 1); }
     if (frei.l) { g.moveTo(x + 1, y); g.lineTo(x + 1, y + T); }
     g.stroke();
-    g.strokeStyle = shade(b.wall, -46);
+    g.strokeStyle = shade(b.wallTop, -40);
     g.beginPath();
     if (frei.u) { g.moveTo(x, y + T - 1); g.lineTo(x + T, y + T - 1); }
     if (frei.r) { g.moveTo(x + T - 1, y); g.lineTo(x + T - 1, y + T); }
@@ -149,7 +184,7 @@ const RENDER = (() => {
 
     if (frei.o) {
       g.fillStyle = b.accent;
-      g.globalAlpha = .18;
+      g.globalAlpha = .16;
       g.fillRect(x, y, T, 3);
       g.globalAlpha = 1;
     }
@@ -158,42 +193,45 @@ const RENDER = (() => {
   /** Kachelbereich neu malen - beim Aufbau und nach jeder Sprengung. */
   function repaintRegion(tx0, ty0, tx1, ty1) {
     const T = C.TILE, n = curMap.n, b = biome(), g = mapCtx;
-    tx0 = Math.max(0, tx0); ty0 = Math.max(0, ty0);
-    tx1 = Math.min(n - 1, tx1); ty1 = Math.min(n - 1, ty1);
+    /* Bloecke ragen ueber ihre Kachel hinaus: nach oben um die Bauhoehe, nach
+       unten reichen Schatten hinein. Der neu zu malende Bereich muss das
+       umfassen, sonst bleiben nach einer Sprengung Reste stehen. */
+    const hoch = Math.ceil(WALL_H / T) + 1;
+    const gx0 = Math.max(0, tx0 - 2), gy0 = Math.max(0, ty0 - 2);
+    const gx1 = Math.min(n - 1, tx1 + 2), gy1 = Math.min(n - 1, ty1 + hoch + 1);
+
     g.save();
     g.beginPath();
-    g.rect(tx0 * T, ty0 * T, (tx1 - tx0 + 1) * T, (ty1 - ty0 + 1) * T);
+    g.rect(gx0 * T, gy0 * T - WALL_H, (gx1 - gx0 + 1) * T + EX, (gy1 - gy0 + 1) * T + WALL_H);
     g.clip();
-    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) paintGround(g, tx, ty, b);
+    for (let ty = gy0; ty <= gy1; ty++) for (let tx = gx0; tx <= gx1; tx++) paintGround(g, tx, ty, b);
 
-    /* Reihenfolge macht die Tiefe: erst der weiche Schlagschatten auf dem
-       Boden, dann die Seitenflaechen aller Bloecke, zuletzt die Deckflaechen.
-       Wuerde man je Kachel alles zusammen malen, schnitte die naechste
-       Deckflaeche die vorige Seitenflaeche ab. */
-    const schattenAus = EX + 5, schattenRunter = EY + 6;
-    g.fillStyle = 'rgba(0,0,0,.42)';
-    for (let ty = ty0 - 2; ty <= ty1; ty++) {
-      for (let tx = tx0 - 2; tx <= tx1; tx++) {
-        if (isWallAt(tx, ty)) g.fillRect(tx * T + schattenAus, ty * T + schattenRunter, T, T);
+    // Schlagschatten der Bloecke auf den Boden
+    g.fillStyle = 'rgba(0,0,0,.40)';
+    for (let ty = gy0; ty <= gy1; ty++) {
+      for (let tx = gx0; tx <= gx1; tx++) {
+        if (isWallAt(tx, ty)) g.fillRect(tx * T + EX + 6, ty * T + 7, T, T);
       }
     }
-    // Kontaktschatten direkt am Fuss der Wand - laesst die Bloecke aufsitzen
-    for (let ty = ty0 - 2; ty <= ty1; ty++) {
-      for (let tx = tx0 - 2; tx <= tx1; tx++) {
+    // Kontaktschatten am Fuss der Vorderseite
+    for (let ty = gy0; ty <= gy1; ty++) {
+      for (let tx = gx0; tx <= gx1; tx++) {
         if (!isWallAt(tx, ty) || isWallAt(tx, ty + 1)) continue;
-        const gy = ty * T + T + EY;
-        const ao = g.createLinearGradient(0, gy, 0, gy + T * .5);
-        ao.addColorStop(0, 'rgba(0,0,0,.5)');
+        const gy = ty * T + T;
+        const ao = g.createLinearGradient(0, gy, 0, gy + T * .45);
+        ao.addColorStop(0, 'rgba(0,0,0,.48)');
         ao.addColorStop(1, 'rgba(0,0,0,0)');
         g.fillStyle = ao;
-        g.fillRect(tx * T + EX, gy, T, T * .5);
+        g.fillRect(tx * T, gy, T + EX, T * .45);
       }
     }
-    for (let ty = ty0 - 2; ty <= ty1; ty++) for (let tx = tx0 - 2; tx <= tx1; tx++) {
-      if (isWallAt(tx, ty)) paintWallSides(g, tx, ty, b);
-    }
-    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
-      if (isWallAt(tx, ty)) paintWall(g, tx, ty, b);
+
+    /* Zeilenweise von hinten nach vorn: erst die Seitenflaechen einer Zeile,
+       dann ihre Deckflaechen. Eine weiter vorn stehende Zeile ueberdeckt so
+       die Zeile dahinter - genau wie es die Tiefe verlangt. */
+    for (let ty = gy0; ty <= gy1; ty++) {
+      for (let tx = gx0; tx <= gx1; tx++) if (isWallAt(tx, ty)) paintWallSides(g, tx, ty, b);
+      for (let tx = gx0; tx <= gx1; tx++) if (isWallAt(tx, ty)) paintWall(g, tx, ty, b);
     }
     g.restore();
   }
@@ -235,7 +273,7 @@ const RENDER = (() => {
      mitgestaucht. Alles, was steht (Spieler, Buesche, Kisten), rechnet die
      Stauchung fuer sich wieder heraus und wird zusaetzlich um seine Hoehe
      nach oben versetzt - so steht es auf dem Boden statt darauf zu kleben. */
-  const TILT = 0.8;
+  const TILT = 0.66;
   const PLAYER_H = 0.55;      // Augenhoehe der Figur in Spielerradien
   const cam = { x: 0, y: 0, scale: 1, shakeX: 0, shakeY: 0 };
 
@@ -1127,20 +1165,24 @@ const RENDER = (() => {
     const fx = Math.cos(aim), fy = Math.sin(aim) * TILT;
     const fLen = Math.hypot(fx, fy) || 1;
 
-    const H = r * 2.7;
-    const LW = Math.max(0.8, r * 0.075);
+    /* Gedrungene Proportionen mit grossem Kopf: knapp drei Kopflaengen hoch.
+       Eine realistisch geteilte Figur wird bei dieser Groesse auf dem Schirm
+       zu einem Strich - kraeftige Formen bleiben auch klein erkennbar. */
+    const H = r * 3.0;
+    const LW = Math.max(0.9, r * 0.085);
     const uni = p.color || '#4ade80';
     const uniL = shade(uni, 32);
     const uniD = shade(uni, -32);
     const uniDD = shade(uni, -58);
 
     const atem = (o.breath || 0) * r * 0.05;
-    const schulterY = -H * 0.72 - atem;
-    const hueftY = -H * 0.42;
-    const kopfY = -H * 0.88 - atem;
-    const kopfR = r * 0.46;
+    const schulterY = -H * 0.56 - atem;
+    const hueftY = -H * 0.32;
+    const kopfR = H * 0.205;
+    const kopfY = -H * 0.75 - atem;
 
-    const schulter = r * 0.92, tiefe = r * 0.52;
+    // Je groesser der Unterschied, desto deutlicher die Drehung
+    const schulter = r * 0.9, tiefe = r * 0.40;
     const breite = Math.hypot(schulter * zurKamera, tiefe * zurSeite);
     const hueftB = breite * 0.82;
 
@@ -1236,8 +1278,11 @@ const RENDER = (() => {
       : { hx: fx * r * 0.62, hy: schulterY + r * 0.28 + fy * r * 0.62 };
     [-1, 1].forEach(seite => {
       const sx = seite * breite * 0.92;
-      const zielX = seite > 0 ? hx : hx * .55 - seite * breite * .2;
-      const zielY = seite > 0 ? hy : schulterY + r * .55;
+      /* Nur der Waffenarm greift nach vorn. Der freie Arm haengt am Koerper -
+         vorher zog er zur Seite weg und machte die Figur je nach Blickrichtung
+         unterschiedlich breit. */
+      const zielX = seite > 0 ? hx : seite * breite * 0.78;
+      const zielY = seite > 0 ? hy : hueftY - r * .1;
       g.save();
       g.lineCap = 'round';
       g.strokeStyle = INK; g.lineWidth = r * 0.34 + LW * 1.6;
@@ -2228,6 +2273,7 @@ const RENDER = (() => {
     resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld,
     drawAvatar, drawAvatarFront, shade,
     __battle: drawSoldierBattle,   // fuer Tests: Figur einzeln zeichnen
+    __mapCanvas: () => mapCv,      // fuer Tests: gebackene Karte auslesen
     setQuality,
     get quality() {
       return { level: qLevel, name: q().name, avgMs: Math.round(drawAvg * 100) / 100, pinned: qPinned >= 0 };
