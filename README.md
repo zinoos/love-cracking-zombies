@@ -64,13 +64,13 @@ oder Nachladezeit.
 
 | Waffe | Mag | Schaden | TTK | Reichweite | Tempo | Eigene Mechanik |
 |-------|-----|---------|-----|-----------|-------|-----------------|
-| Schwert | ∞ | 40 | 0,90 s | **68 px** | **222 px/s** | **Rundumschlag 360°**, 1,5 s unsichtbar nach jedem Kill |
-| MP | 35 | 10 | 0,67 s | 300 px | 196 px/s | zweitschnellste Bewegung |
-| Pistole | 15 | 18 | 1,25 s | 400 px | 185 px/s | volles Tempo, 15 Schuss, schnellstes Nachladen |
-| Revolver | 5 | 30 | 1,65 s | 420 px | 181 px/s | **letzte Patrone macht 60**, Rückstoß trägt dich |
-| Schrotflinte | 6 | 8×9 | 0,80 s | 210 px | 174 px/s | Schrotkegel auf Tuchfühlung |
+| Schwert | ∞ | 35 | 0,99 s | **68 px** | **222 px/s** | **Rundumschlag 360°**, 0,5 s unsichtbar nach jedem Kill |
+| MP | 35 | 15 | 0,45 s | 300 px | 196 px/s | zweitschnellste Bewegung, höchste Feuerrate |
+| Pistole | 15 | 25 | 0,75 s | 400 px | 185 px/s | volles Tempo, 15 Schuss, schnellstes Nachladen |
+| Revolver | 5 | 40 | 1,10 s | 420 px | 181 px/s | **letzte Patrone macht 80**, Rückstoß trägt dich |
+| Schrotflinte | 6 | 8×9 | 0,80 s | 210 px | 174 px/s | breitester Schrotkegel, nur auf Tuchfühlung |
 | Armbrust | 1 | 55 | 1,55 s | 580 px | 170 px/s | **lautlos** — verrät dich im Busch nicht |
-| AK-47 | 20 | 11 | 1,17 s | 460 px | 167 px/s | größte Reichweite der Automatikwaffen |
+| AK-47 | 20 | 18 | 0,65 s | 460 px | 167 px/s | größte Reichweite der Automatikwaffen |
 | Minenleger | 1 | **99** Splash | 1,60 s | 310 px | 159 px/s | **fliegt über Wände, unsichtbar, von Hand gezündet** |
 | Scharfschütze | 5 | 70 | 1,25 s | **780 px** | 155 px/s | Durchschlag, kein Schadensabfall |
 | Granatwerfer | 5 | 55 Splash | 0,90 s | 560 px | 148 px/s | prallt von Wänden ab, Zeitzünder |
@@ -78,8 +78,8 @@ oder Nachladezeit.
 | Minigun | 100 | 9 | 1,16 s | 400 px | 115 px/s | 0,55 s Anlaufzeit |
 | Bazooka | 4 | 75 Splash | 1,50 s | 900 px | **107 px/s** | sprengt Wände |
 
-Grundtempo **185 px/s**. Die Kugelwaffen sind bewusst zurückhaltend: Feuergefechte
-dauern länger, Deckung und Positionierung entscheiden mehr als der erste Treffer.
+Grundtempo **185 px/s**. Die Kugelwaffen treffen härter als früher — Gefechte
+sind kürzer, der erste saubere Treffer zählt.
 
 Reichweite ist die zentrale Stellschraube: `bulletLife = range / bulletSpeed`.
 Wer an einer Waffe dreht, ändert nur `range` — Tempo und Lebensdauer bleiben
@@ -89,16 +89,15 @@ konsistent.
 
 **Schwert** ist ein **Rundumschlag**: er trifft alles im Umkreis von 68 px,
 auch was hinter dem Träger steht. Kein Geschoss, keine Munition, Wände
-blockieren den Hieb. **40 Schaden**, also drei Treffer bis zum Kill — wer ihn
-führt, muss dranbleiben und kann nicht aus einem Hieb heraus töten. Der Soldat
-dreht sich dafür sichtbar einmal um sich selbst (0,26 s) und zieht dabei einen
-Lichtring.
+blockieren den Hieb. **35 Schaden** bei **0,495 s** zwischen zwei Hieben — drei
+Treffer bis zum Kill, knapp eine Sekunde am Gegner kleben. Der Soldat dreht sich
+dafür sichtbar einmal um sich selbst (0,26 s) und zieht dabei einen Lichtring.
 
-Nach **jedem Kill mit dem Schwert** ist der Träger **1,5 Sekunden unsichtbar**:
+Nach **jedem Kill mit dem Schwert** ist der Träger **0,5 Sekunden unsichtbar**:
 Gegner bekommen ihn nicht mehr geschickt — weder die Figur noch die Effekte
 seines Hiebs. Er selbst und seine Mitspieler sehen ihn als Schemen, das HUD
-zählt die Restzeit herunter. Genug, um aus einer Gruppe wieder herauszukommen.
-Beim Respawn verfällt die Tarnung.
+zählt die Restzeit herunter. Ein halber Atemzug, um aus der Schusslinie zu
+kommen — kein Verschwinden. Beim Respawn verfällt die Tarnung.
 
 **Minenleger**: erster Linksklick wirft die Mine — sie fliegt in gerader Linie
 **über Wände hinweg**, aber nur **310 px** weit. Nach der Landung ist sie scharf

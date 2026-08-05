@@ -162,7 +162,9 @@ const RENDER = (() => {
 
   function updateCamera(g, dt) {
     const target = g.viewTarget();
-    const lead = g.mouseWorld ? 0.14 : 0;
+    // Empfindlichkeit regelt, wie weit die Kamera zum Zeiger zieht
+    const sens = typeof SETTINGS !== 'undefined' ? SETTINGS.eff.sens : 1;
+    const lead = g.mouseWorld ? 0.14 * sens : 0;
     const tx = target.x + (g.mouseWorld ? (g.mouseWorld.x - target.x) * lead : 0);
     const ty = target.y + (g.mouseWorld ? (g.mouseWorld.y - target.y) * lead : 0);
     const k = 1 - Math.pow(0.0009, dt);

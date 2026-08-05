@@ -46,43 +46,49 @@
     WEAPONS: {
       pistol: {
         key: 'pistol', name: 'Pistole', short: 'PISTOLE', icon: '🔫', tier: 1,
-        mag: 15, dmg: 18, fireCd: 0.25, reload: 1.1, auto: false,
+        mag: 15, dmg: 25, fireCd: 0.25, reload: 1.1, auto: false,
         bulletSpeed: 900, range: 400, spread: 0.018, spreadGrow: 0.010, spreadMax: 0.06,
         speedMult: 1.00, falloffStart: 300, falloffMin: 0.55, recoil: 80,
-        pros: ['Einzige Waffe mit vollem Lauftempo', '15 Schuss', 'Schnellstes Nachladen (1,1 s)'],
-        cons: ['Wenig Schaden je Treffer', 'Mittlere Reichweite']
+        pros: ['Einzige Waffe mit vollem Lauftempo', '25 Schaden je Treffer', '15 Schuss',
+          'Schnellstes Nachladen (1,1 s)'],
+        cons: ['Mittlere Reichweite', 'Kein Dauerfeuer']
       },
       smg: {
         key: 'smg', name: 'MP', short: 'MP', icon: '💨', tier: 1,
-        mag: 35, dmg: 10, fireCd: 0.075, reload: 2.0, auto: true,
+        mag: 35, dmg: 15, fireCd: 0.075, reload: 2.0, auto: true,
         bulletSpeed: 820, range: 300, spread: 0.05, spreadGrow: 0.011, spreadMax: 0.15,
         speedMult: 1.06, falloffStart: 200, falloffMin: 0.4, recoil: 30,
-        pros: ['Schnellste Bewegung', 'Sehr hohe Feuerrate'], cons: ['Kurze Reichweite', 'Starke Streuung']
+        pros: ['Sehr hohe Feuerrate', '35 Schuss im Magazin', 'Schnelle Bewegung'],
+        cons: ['Kurze Reichweite', 'Starke Streuung']
       },
       revolver: {
         key: 'revolver', name: 'Revolver', short: 'REVOLVER', icon: '🎰', tier: 2,
-        mag: 5, dmg: 30, fireCd: 0.55, reload: 2.2, auto: false,
+        mag: 5, dmg: 40, fireCd: 0.55, reload: 2.2, auto: false,
         bulletSpeed: 1100, range: 420, spread: 0.012, spreadGrow: 0.03, spreadMax: 0.1,
         speedMult: 0.98, falloffStart: 400, falloffMin: 0.7, recoil: 430,
         kick: true,          // Rueckstoss traegt dich - als Fluchtmittel nutzbar
         lastShotMult: 2,     // die letzte Patrone der Trommel schlaegt doppelt zu
-        pros: ['Letzte Patrone macht doppelten Schaden (60)', 'Rückstoß schleudert dich zurück — nutzbar zum Ausweichen'],
+        pros: ['40 Schaden je Treffer', 'Letzte Patrone macht doppelten Schaden (80)',
+          'Rückstoß schleudert dich zurück — nutzbar zum Ausweichen'],
         cons: ['Träge Schussfolge', 'Nur 5 Schuss']
       },
       ak47: {
         key: 'ak47', name: 'AK-47', short: 'AK-47', icon: '🎯', tier: 2,
-        mag: 20, dmg: 11, fireCd: 0.13, reload: 2.4, auto: true,
+        mag: 20, dmg: 18, fireCd: 0.13, reload: 2.4, auto: true,
         bulletSpeed: 1000, range: 460, spread: 0.028, spreadGrow: 0.016, spreadMax: 0.13,
         speedMult: 0.90, falloffStart: 420, falloffMin: 0.55, recoil: 40,
-        pros: ['Größte Reichweite der Automatikwaffen'],
-        cons: ['Nur 20 Schuss', 'Wenig Schaden je Treffer', 'Streuung im Dauerfeuer']
+        pros: ['Größte Reichweite der Automatikwaffen', '18 Schaden je Treffer'],
+        cons: ['Nur 20 Schuss', 'Streuung im Dauerfeuer', 'Langsameres Lauftempo']
       },
       shotgun: {
         key: 'shotgun', name: 'Schrotflinte', short: 'SCHROT', icon: '💥', tier: 2,
         mag: 6, dmg: 9, pellets: 8, fireCd: 0.8, reload: 2.6, auto: false,
-        bulletSpeed: 780, range: 210, spread: 0.15, spreadGrow: 0, spreadMax: 0.15,
+        // Streuung 15 Prozent weiter als zuvor (0,15) - breiterer Kegel,
+        // dafuer sitzen auf Distanz noch weniger Kugeln
+        bulletSpeed: 780, range: 210, spread: 0.1725, spreadGrow: 0, spreadMax: 0.1725,
         speedMult: 0.94, falloffStart: 130, falloffMin: 0.2, recoil: 210,
-        pros: ['Tödlich auf Tuchfühlung'], cons: ['Kaum Reichweite', 'Langsame Schussfolge']
+        pros: ['Tödlich auf Tuchfühlung', 'Breiter Schrotkegel - trifft auch bei grobem Zielen'],
+        cons: ['Kaum Reichweite', 'Langsame Schussfolge', 'Streut stark']
       },
       flamer: {
         key: 'flamer', name: 'Flammenwerfer', short: 'FLAMMEN', icon: '🔥', tier: 2,
@@ -99,13 +105,14 @@
         key: 'sword', name: 'Schwert', short: 'SCHWERT', icon: '⚔️', tier: 2,
         melee: true, arc: Math.PI * 2,  // Rundumschlag - trifft in alle Richtungen
         swingTime: 0.26,                // Dauer der sichtbaren Drehung
-        cloakTime: 1.5,                 // nach einem Kill so lange unsichtbar
-        mag: 0, dmg: 40, fireCd: 0.45, reload: 0, auto: true,
+        cloakTime: 0.5,                 // nach einem Kill so lange unsichtbar
+        mag: 0, dmg: 35, fireCd: 0.495, reload: 0, auto: true,
         range: 68, bulletSpeed: 1, spread: 0, spreadGrow: 0, spreadMax: 0,
         speedMult: 1.20, falloffStart: 9999, falloffMin: 1, recoil: 0,
-        pros: ['Trifft rundum - 360 Grad, auch im Ruecken', 'Schnellste Waffe im Spiel',
-          '1,5 s unsichtbar nach jedem Kill', 'Keine Munition'],
-        cons: ['Nur Nahkampf (68 px)', 'Drei Treffer noetig', 'Chancenlos auf Distanz']
+        pros: ['Trifft rundum - 360 Grad, auch im Ruecken', 'Schnellste Bewegung im Spiel',
+          '0,5 s unsichtbar nach jedem Kill', 'Keine Munition'],
+        cons: ['Nur Nahkampf (68 px)', 'Drei Treffer noetig', 'Traege Schlagfolge',
+          'Chancenlos auf Distanz']
       },
       mine: {
         key: 'mine', name: 'Minenleger', short: 'MINEN', icon: '🧨', tier: 3,

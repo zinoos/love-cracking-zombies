@@ -50,6 +50,7 @@
 
 <!-- ============ MENU ============ -->
 <section class="screen" id="scr-menu">
+  <button class="gear" id="btn-settings" title="Einstellungen">⚙</button>
   <div class="menu-wrap">
     <div class="logo">
       <h1 class="title" data-text="NEON STRIKE">Ayri Shooter</h1>
@@ -233,6 +234,78 @@
   </div>
 </section>
 
+<!-- ============ EINSTELLUNGEN ============ -->
+<section class="screen" id="scr-settings">
+  <div class="panel wide">
+    <header class="phead">
+      <button class="back" data-back="scr-menu">‹ Zurück</button>
+      <h2>EINSTELLUNGEN</h2>
+      <span class="pspacer"></span>
+    </header>
+
+    <div class="set-grid">
+      <div class="set-col">
+        <h3>Leistung</h3>
+
+        <label class="set-row toggle" for="set-perf">
+          <span class="set-lbl">
+            <b>Leistungsmodus</b>
+            <small>Weniger Grafik, mehr Bilder pro Sekunde. Überschreibt die Einstellungen darunter.</small>
+          </span>
+          <input type="checkbox" id="set-perf" />
+          <i class="switch"></i>
+        </label>
+
+        <div class="set-row">
+          <span class="set-lbl"><b>Grafikstufe</b><small>Automatisch passt sich der Bildrate an</small></span>
+          <div class="seg" id="set-quality">
+            <button data-q="-1">Auto</button>
+            <button data-q="0">Hoch</button>
+            <button data-q="1">Mittel</button>
+            <button data-q="2">Niedrig</button>
+          </div>
+        </div>
+
+        <label class="set-row toggle" for="set-particles">
+          <span class="set-lbl"><b>Partikel &amp; Spuren</b><small>Funken, Rauch, Einschusslöcher</small></span>
+          <input type="checkbox" id="set-particles" />
+          <i class="switch"></i>
+        </label>
+
+        <div class="set-row">
+          <span class="set-lbl"><b>Bildschirmwackeln</b><small><span id="set-shake-val">100</span> %</small></span>
+          <input type="range" id="set-shake" min="0" max="150" step="10" />
+        </div>
+
+        <div class="set-row">
+          <span class="set-lbl"><b>Zeigerempfindlichkeit</b><small>Wie weit die Kamera zum Mauszeiger zieht — <span id="set-sens-val">100</span> %</small></span>
+          <input type="range" id="set-sens" min="0" max="200" step="10" />
+        </div>
+
+        <div class="perf-live" id="perf-live">Bildrate wird im Spiel gemessen</div>
+      </div>
+
+      <div class="set-col">
+        <h3>Steuerung</h3>
+        <p class="hint">Auf eine Taste klicken und die neue Taste drücken. Escape bricht ab.</p>
+        <div class="keybinds" id="keybinds"></div>
+
+        <div class="set-row static">
+          <span class="set-lbl"><b>Schießen</b><small>Linke Maustaste</small></span>
+        </div>
+        <div class="set-row static">
+          <span class="set-lbl"><b>Granate</b><small>Rechte Maustaste</small></span>
+        </div>
+
+        <div class="set-actions">
+          <button class="btn small ghost" id="btn-keys-reset">Tasten zurücksetzen</button>
+          <button class="btn small ghost" id="btn-settings-reset">Alles zurücksetzen</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
 <!-- ============ HELP ============ -->
 <section class="screen" id="scr-help">
   <div class="panel wide">
@@ -261,7 +334,7 @@
         <ul class="rules">
           <li><b>Sichtfeld:</b> du siehst nur nach vorn (106°), der Kegel dreht sich mit dir. Nur direkt um dich herum merkst du alles.</li>
           <li><b>Waffe:</b> vor jedem Match aus 3 von 13 wählen — mehr Schaden oder Reichweite kostet Tempo.</li>
-          <li><b>Schwert:</b> Rundumschlag 360°, 40 Schaden, keine Munition, schnellste Bewegung. Nach jedem Kill 1,5 s unsichtbar.</li>
+          <li><b>Schwert:</b> Rundumschlag 360°, 35 Schaden, keine Munition, schnellste Bewegung. Nach jedem Kill 0,5 s unsichtbar.</li>
           <li><b>Minen:</b> Linksklick wirft sie bis 310 px über Wände, zweiter Linksklick zündet — 99 Schaden im Radius. Gegner sehen sie nicht.</li>
           <li><b>Schwere Waffen:</b> doppelter Dash-Cooldown (4,8 s).</li>
           <li><b>Sterne:</b> obere Tabellenhälfte gewinnt, untere verliert. Nie unter 0.</li>
@@ -372,6 +445,7 @@
 <script src="js/net.js"></script>
 <script src="js/auth.js"></script>
 <script src="js/fx.js"></script>
+<script src="js/settings.js"></script>
 <script src="js/render.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/main.js"></script>

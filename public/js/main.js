@@ -73,6 +73,10 @@
   const errOff = { x: 0, y: 0 };
   const weapon = () => G.myWeapon || C.WEAPONS.pistol;
 
+  /* Tastenzustand nach Aktion, nicht nach Zeichen. Die Zuordnung kommt aus
+     den Einstellungen, damit sich jeder die Belegung umlegen kann. */
+  const held = {};
+
   addEventListener('keydown', e => {
     const tag = (e.target && e.target.tagName) || '';
     if (tag === 'INPUT' || tag === 'TEXTAREA') {
@@ -80,18 +84,31 @@
       return;
     }
     keys[e.key.toLowerCase()] = true;
-    if (e.key === 'Tab') { e.preventDefault(); if (G.inMatch) UI.showScoreboard(true, buildBoard(), C.MODES[G.mode].teams, G.myId); }
-    if (e.key.toLowerCase() === 'r') wantReload = true;
-    if (e.key === 'Shift') wantDash = true;
-    if (e.key.toLowerCase() === 'm') UI.toast(SFX.toggle() ? 'Sound aus' : 'Sound an');
+    for (const a of SETTINGS.ACTIONS) if (SETTINGS.matches(a.id, e)) held[a.id] = true;
+
+    if (SETTINGS.matches('score', e)) {
+      e.preventDefault();
+      if (G.inMatch) UI.showScoreboard(true, buildBoard(), C.MODES[G.mode].teams, G.myId);
+    }
+    if (SETTINGS.matches('reload', e)) wantReload = true;
+    if (SETTINGS.matches('dash', e)) wantDash = true;
+    if (SETTINGS.matches('mute', e)) UI.toast(SFX.toggle() ? 'Sound aus' : 'Sound an');
+    if (SETTINGS.matches('chat', e) && G.inMatch) {
+      const inp = document.getElementById('chat-inp');
+      if (inp) { e.preventDefault(); inp.focus(); }
+    }
     if (e.key === 'Escape' && G.inMatch) leaveMatch();
   });
   addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
-    if (e.key === 'Tab') UI.showScoreboard(false);
-    if (e.key === 'Shift') keys['shift'] = false;
+    for (const a of SETTINGS.ACTIONS) if (SETTINGS.matches(a.id, e)) held[a.id] = false;
+    if (SETTINGS.matches('score', e)) UI.showScoreboard(false);
   });
-  addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouseDown = false; });
+  addEventListener('blur', () => {
+    for (const k in keys) keys[k] = false;
+    for (const k in held) held[k] = false;
+    mouseDown = false;
+  });
 
   const cv = RENDER.canvas;
   cv.addEventListener('mousemove', e => {
@@ -108,10 +125,10 @@
 
   function currentInput() {
     return {
-      u: !!(keys['w'] || keys['arrowup']),
-      d: !!(keys['s'] || keys['arrowdown']),
-      l: !!(keys['a'] || keys['arrowleft']),
-      r: !!(keys['d'] || keys['arrowright']),
+      u: !!held.up,
+      d: !!held.down,
+      l: !!held.left,
+      r: !!held.right,
       f: mouseDown,
       rl: wantReload,
       ds: wantDash,
@@ -199,7 +216,13 @@
       if (localReload <= 0) localAmmo = w.mag;
       return;
     }
-    if ((inp.rl && localAmmo < w.mag) || (inp.f && localAmmo <= 0)) {
+    /* Schwert und Minenleger haben kein Magazin (mag 0 bzw. Nachschub nur
+       ueber die Explosion). Ohne diese Sperre war "feuern mit leerer Waffe"
+       beim Schwert dauerhaft wahr: die Funktion sprang hier heraus, der
+       Nahkampfzweig weiter unten wurde nie erreicht - und damit sah man den
+       eigenen Hieb nie, nur den der Gegner. Dazu lief bei gehaltener Taste
+       das Nachladegeraeusch in jedem Bild. */
+    if (!w.melee && !w.mine && ((inp.rl && localAmmo < w.mag) || (inp.f && localAmmo <= 0))) {
       localReload = w.reload;
       SFX.reload();
       return;
@@ -907,6 +930,8 @@
 
   /* ================= Start ================= */
   bindUI();
+  UI.wireSettings();
+  SETTINGS.apply();          // gespeicherte Grafikstufe sofort setzen
   UI.buildSkinUI();
   RENDER.resize();
   AUTH.init();

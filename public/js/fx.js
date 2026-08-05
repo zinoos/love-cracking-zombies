@@ -13,12 +13,25 @@ const FX = (() => {
 
   const rnd = (a, b) => a + Math.random() * (b - a);
 
+  /* Einstellungen koennen Partikel ganz abschalten und das Wackeln daempfen.
+     SETTINGS wird vor fx.js geladen; die Abfrage bleibt trotzdem defensiv,
+     damit fx.js auch allein lauffaehig ist (Tests laden es einzeln). */
+  const magPartikel = () => (typeof SETTINGS === 'undefined' ? true : SETTINGS.eff.particles);
+  const wackelFaktor = () => (typeof SETTINGS === 'undefined' ? 1 : SETTINGS.eff.shake);
+
   function part(o) {
+    if (!magPartikel()) return;
     if (parts.length > 1400) parts.shift();
-    parts.push(Object.assign({
+    const p = Object.assign({
       x: 0, y: 0, vx: 0, vy: 0, life: .5, max: .5, r: 2, color: '#fff',
       grav: 0, drag: 2.2, glow: 1, shape: 'dot', spin: 0, ang: 0, fade: 1
-    }, o));
+    }, o);
+    /* max gehoert zur Lebensdauer und wird hier gesetzt. Frueher griff burst()
+       dafuer nachtraeglich auf das zuletzt eingefuegte Partikel zu - sobald
+       part() nichts mehr einfuegt (Partikel aus), war das ein Zugriff ins
+       Leere und der Effekt stuerzte ab. */
+    if (o && o.max === undefined) p.max = p.life;
+    parts.push(p);
   }
 
   function burst(x, y, n, opts) {
@@ -30,9 +43,9 @@ const FX = (() => {
         vx: Math.cos(a) * s, vy: Math.sin(a) * s,
         ang: a, spin: rnd(-8, 8),
         life: rnd(opts.lifeMin || .25, opts.lifeMax || .6),
-        r: rnd(opts.rMin || 1.2, opts.rMax || 3.4)
+        r: rnd(opts.rMin || 1.2, opts.rMax || 3.4),
+        max: undefined
       }));
-      parts[parts.length - 1].max = parts[parts.length - 1].life;
     }
   }
 
@@ -52,14 +65,14 @@ const FX = (() => {
       burst(x, y, 10, { ang: ang + Math.PI, spread: 1.0, spdMin: 60, spdMax: 260, color: '#ffe6a8', rMin: .8, rMax: 2.2, lifeMin: .12, lifeMax: .35, drag: 4 });
       burst(x, y, 4, { ang: ang + Math.PI, spread: 1.4, spdMin: 10, spdMax: 60, color: 'rgba(200,200,210,.35)', rMin: 2, rMax: 5, lifeMin: .3, lifeMax: .6, shape: 'smoke', drag: 1 });
       rings.push({ x, y, r: 1, max: 12, life: .16, t: .16, color: '#ffe6a8', w: 2 });
-      decals.push({ x, y, r: rnd(2, 3.4), a: .5, kind: 'hole' });
+      if (magPartikel()) decals.push({ x, y, r: rnd(2, 3.4), a: .5, kind: 'hole' });
       if (decals.length > 160) decals.shift();
     },
 
     blood(x, y, ang, color) {
       burst(x, y, 14, { ang, spread: .9, spdMin: 60, spdMax: 320, color: color || '#ff3b57', rMin: 1.2, rMax: 3.6, lifeMin: .2, lifeMax: .55, drag: 3, grav: 120 });
       rings.push({ x, y, r: 2, max: 26, life: .2, t: .2, color: color || '#ff3b57', w: 2.5 });
-      decals.push({ x, y, r: rnd(4, 9), a: .34, kind: 'blood', color: color || '#8b1024' });
+      if (magPartikel()) decals.push({ x, y, r: rnd(4, 9), a: .34, kind: 'blood', color: color || '#8b1024' });
       if (decals.length > 160) decals.shift();
     },
 
@@ -74,7 +87,7 @@ const FX = (() => {
       burst(x, y, 12, { ang, spread: .7, spdMin: 120, spdMax: 380, color: '#ff3b57', rMin: 1.5, rMax: 3.5, lifeMin: .3, lifeMax: .7, grav: 200, drag: 2 });
       rings.push({ x, y, r: 4, max: 120, life: .5, t: .5, color, w: 5 });
       rings.push({ x, y, r: 2, max: 70, life: .34, t: .34, color: '#fff', w: 2.5 });
-      decals.push({ x, y, r: 16, a: .4, kind: 'blood', color: '#7d0f20' });
+      if (magPartikel()) decals.push({ x, y, r: 16, a: .4, kind: 'blood', color: '#7d0f20' });
     },
 
     corpse(p, ang) {
@@ -108,7 +121,7 @@ const FX = (() => {
       });
       rings.push({ x, y, r: 4, max: radius * 1.15, life: .34, t: .34, color: '#ffd27a', w: 7 });
       rings.push({ x, y, r: 2, max: radius * 1.6, life: .5, t: .5, color: 'rgba(255,255,255,.8)', w: 3 });
-      decals.push({ x, y, r: radius * 0.42, a: .5, kind: 'scorch' });
+      if (magPartikel()) decals.push({ x, y, r: radius * 0.42, a: .5, kind: 'scorch' });
       if (decals.length > 160) decals.shift();
       void kind;
     },
@@ -160,11 +173,17 @@ const FX = (() => {
     },
 
     trail(x0, y0, x1, y1, color) {
+      if (!magPartikel()) return;
       trails.push({ x0, y0, x1, y1, color: color || '#ffd166', life: .16, max: .16 });
       if (trails.length > 90) trails.shift();
     },
 
-    shake(mag, time) { shakeMag = Math.max(shakeMag, mag); shakeT = Math.max(shakeT, time || .25); },
+    shake(mag, time) {
+      const f = wackelFaktor();
+      if (f <= 0) return;
+      shakeMag = Math.max(shakeMag, mag * f);
+      shakeT = Math.max(shakeT, time || .25);
+    },
     flash(color, a) { flashColor = color; flashA = Math.max(flashA, a); },
     slow(t) { slowmo = Math.max(slowmo, t); },
     get slowmo() { return slowmo; },

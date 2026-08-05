@@ -411,6 +411,97 @@ const UI = (() => {
     }
   }
 
+  /* ---------- Einstellungen ---------- */
+
+  let lauscht = null;      // Aktion, die gerade auf eine neue Taste wartet
+
+  function renderSettings() {
+    const s = SETTINGS.all;
+    $('set-perf').checked = !!s.perf;
+    $('set-particles').checked = !!s.particles;
+    $('set-shake').value = Math.round(s.shake * 100);
+    $('set-shake-val').textContent = Math.round(s.shake * 100);
+    $('set-sens').value = Math.round(s.sens * 100);
+    $('set-sens-val').textContent = Math.round(s.sens * 100);
+    [...$('set-quality').children].forEach(b => b.classList.toggle('on', Number(b.dataset.q) === s.quality));
+
+    /* Im Leistungsmodus sind die Einzelregler wirkungslos - das muss man
+       sehen, sonst dreht man daran und wundert sich. */
+    for (const id of ['set-quality', 'set-particles', 'set-shake']) {
+      const el = $(id);
+      const row = el.closest('.set-row');
+      if (row) row.style.opacity = s.perf ? 0.4 : 1;
+      if (el.tagName === 'INPUT') el.disabled = !!s.perf;
+      else [...el.children].forEach(b => { b.disabled = !!s.perf; });
+    }
+
+    const host = $('keybinds');
+    host.innerHTML = '';
+    for (const a of SETTINGS.ACTIONS) {
+      const row = document.createElement('div');
+      row.className = 'kb-row';
+      const name = document.createElement('span');
+      name.className = 'kb-name';
+      name.textContent = a.name;
+      const key = document.createElement('button');
+      key.className = 'kb-key';
+      key.dataset.action = a.id;
+      key.textContent = SETTINGS.keysFor(a.id).map(SETTINGS.label).join(' / ') || '—';
+      key.onclick = () => starteBelegung(a.id, key);
+      row.append(name, key);
+      host.appendChild(row);
+    }
+  }
+
+  function starteBelegung(action, btn) {
+    if (lauscht) return;
+    lauscht = action;
+    btn.classList.add('listening');
+    btn.textContent = 'Taste drücken …';
+
+    const fertig = () => {
+      lauscht = null;
+      removeEventListener('keydown', onKey, true);
+      renderSettings();
+    };
+    const onKey = ev => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (ev.code === 'Escape') { fertig(); return; }
+      const ersetzt = SETTINGS.bind(action, ev.code);
+      fertig();
+      if (ersetzt) toast(`${SETTINGS.label(ev.code)} war auf „${ersetzt.name}“ — dort jetzt frei`, 'err');
+    };
+    addEventListener('keydown', onKey, true);
+  }
+
+  function wireSettings() {
+    $('btn-settings').onclick = () => { renderSettings(); show('scr-settings'); };
+    $('set-perf').onchange = e => { SETTINGS.set('perf', e.target.checked); renderSettings(); };
+    $('set-particles').onchange = e => SETTINGS.set('particles', e.target.checked);
+    $('set-shake').oninput = e => {
+      SETTINGS.set('shake', Number(e.target.value) / 100);
+      $('set-shake-val').textContent = e.target.value;
+    };
+    $('set-sens').oninput = e => {
+      SETTINGS.set('sens', Number(e.target.value) / 100);
+      $('set-sens-val').textContent = e.target.value;
+    };
+    [...$('set-quality').children].forEach(b => {
+      b.onclick = () => { SETTINGS.set('quality', Number(b.dataset.q)); renderSettings(); };
+    });
+    $('btn-keys-reset').onclick = () => { SETTINGS.resetKeys(); renderSettings(); toast('Tastenbelegung zurückgesetzt', 'ok'); };
+    $('btn-settings-reset').onclick = () => { SETTINGS.reset(); renderSettings(); toast('Einstellungen zurückgesetzt', 'ok'); };
+  }
+
+  /** Laufende Messwerte im Einstellungsfenster. */
+  function settingsLive() {
+    if (current !== 'scr-settings') return;
+    const q = RENDER.quality;
+    $('perf-live').textContent =
+      `Stufe: ${q.name}${q.pinned ? ' (fest)' : ' (automatisch)'} · Zeichenzeit ${q.avgMs} ms/Bild`;
+  }
+
   /* Sichtbares Zeichen, dass die Verbindung weg ist. Ohne das blieb im Match
      einfach das letzte Bild stehen - man haelt es fuer einen Absturz. */
   function reconnecting(on) {
@@ -707,10 +798,12 @@ const UI = (() => {
   function tick(dt) {
     if (current !== 'scr-game') drawBg(dt);
     if (current === 'scr-skins') drawSkinPreview(dt);
+    if (current === 'scr-settings') settingsLive();
   }
 
   return {
     $, show, currentScreen, toast, skin, buildSkinUI, saveSkin,
+    wireSettings, renderSettings,
     get name() { return profileName; },
     set name(v) { profileName = v; },
     renderRoom, addChat, updateHUD, setScorePlate, killfeed, centerMsg, reconnecting,
