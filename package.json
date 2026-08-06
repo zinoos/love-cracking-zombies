@@ -1,5 +1,5 @@
 {
-  "name": "neon-strike",
+  "name": "love-cracking-zombies",
   "version": "1.0.0",
   "description": "2D Online Arena Shooter - Lobbys, Codes, FFA/1v1/2v2/3v3, 8 Maps",
   "main": "server.js",
@@ -9,12 +9,11 @@
     "dev": "node server.js",
     "build:hosting": "node scripts/build-hosting.js",
     "watchdog": "node scripts/watchdog.js",
-    "docker:build": "docker build -t neon-strike .",
-    "docker:run": "docker run --rm -p 3000:8080 neon-strike"
+    "docker:build": "docker build -t love-cracking-zombies .",
+    "docker:run": "docker run --rm -p 3000:8080 love-cracking-zombies"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "firebase": "^12.17.0",
     "ws": "^8.18.0"
   },
   "engines": {

@@ -1,4 +1,4 @@
-/* NEON STRIKE - Server: statisches Hosting, WebSocket-Lobbys, Match-Loop. */
+/* LOVE CRACKING ZOMBIES - Server. */
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
@@ -9,17 +9,12 @@ const C = require('./shared/constants.js');
 const MAPS = require('./shared/maps.js');
 const { Match } = require('./server/match.js');
 const { botName } = require('./server/bots.js');
-const { verifyIdToken } = require('./server/auth.js');
 const STARS = require('./server/stars.js');
 
 const PORT = process.env.PORT || 3000;
-// Projekt, dessen ID-Tokens akzeptiert werden (muss zur Client-Config passen)
-const AUTH_PROJECT = process.env.AUTH_PROJECT || 'nosershooter';
 const app = express();
 app.use(express.static(path.join(__dirname, 'public'), { maxAge: 0 }));
 app.use('/shared', express.static(path.join(__dirname, 'shared'), { maxAge: 0 }));
-// Firebase-SDK lokal ausliefern - kein CDN noetig, Spiel bleibt LAN-tauglich
-app.use('/vendor/firebase', express.static(path.join(__dirname, 'node_modules', 'firebase'), { maxAge: '1h' }));
 app.get('/health', (_req, res) => res.json({ ok: true, rooms: rooms.size, players: clients.size }));
 
 const server = http.createServer(app);
@@ -200,7 +195,7 @@ class Room {
       mapId: this.mapId,
       mapName: MAPS.generate(this.mapId).name,
       mode: this.mode,
-      countdown: resumed ? 0 : C.COUNTDOWN,
+      countdown: 0,
       resumed: !!resumed,
       you: member.id,
       /* Keine Auswahl mehr im Match: gewaehlt wird in der Vorbereitung,
@@ -214,9 +209,7 @@ class Room {
         return {
           id: m.id, name: m.name, color: m.skin.color, trail: m.skin.trail,
           pattern: m.skin.pattern, team: m.team, bot: !!m.bot,
-          weapon: s ? s.weaponKey : 'pistol',
-          // Gekaufter Skin mit eigener Bewegung, falls angelegt
-          fx: m.uid ? (STARS.get(m.uid).skin || '') : ''
+          weapon: s ? s.weaponKey : 'pistol'
         };
       })
     };
@@ -236,7 +229,6 @@ class Room {
   /** Phase 1: drei Karten zur Wahl. */
   beginVote() {
     this.state = 'prematch';
-    friendsRaum(this);        // ab jetzt kann niemand mehr dazustossen
     this.phase = 'vote';
     this.phaseT = C.PREMATCH.VOTE_TIME * PHASE_SCALE;
     this.mapVotes.clear();
@@ -399,8 +391,7 @@ class Room {
       const a = member && member.uid ? awards.get(member.uid) : null;
       return {
         ...p, rank: i + 1,
-        stars: a ? a.delta : null, total: a ? a.after : null, capped: a ? a.capped : false,
-        gold: a ? a.gold : null, goldTotal: a ? a.goldTotal : null
+        stars: a ? a.delta : null, total: a ? a.after : null, capped: a ? a.capped : false
       };
     });
 
@@ -421,7 +412,6 @@ class Room {
       this.state = 'lobby';
       this.match = null;
       this.broadcastRoom();
-      friendsRaum(this);      // Lobby steht Freunden wieder offen
     }, 2200);
   }
 
@@ -437,10 +427,6 @@ class Room {
       members: [...this.members.values()].map(m => ({
         id: m.id, name: m.name, skin: m.skin, team: m.team, bot: !!m.bot, host: m.id === this.hostId,
         stars: m.uid ? STARS.get(m.uid).stars : null, guest: !m.bot && !m.uid,
-        /* Die Kennung geht nur an Mitspieler desselben Raums. Sie ist kein
-           Geheimnis - anmelden kann man sich damit nicht -, aber sie ist die
-           Adresse fuer eine Freundschaftsanfrage, und die soll man nur an
-           Leute schicken koennen, mit denen man gerade zusammen ist. */
         uid: m.uid || null
       }))
     };
@@ -474,6 +460,188 @@ class Room {
   }
 }
 
+/* ---------------- Solo Game ---------------- */
+const soloGames = new Map();
+
+class SoloGame {
+  constructor(client) {
+    this.client = client;
+    this.state = 'prematch';
+    this.match = null;
+    this.mapId = null;
+    this.phase = null;
+    this.phaseT = 0;
+    this.mapChoices = [];
+    this.banned = [];
+    this.picked = null;
+    this.lastResult = null;
+    this.prematchSnap = 0;
+  }
+
+  beginVote() {
+    this.mapId = Math.floor(Math.random() * MAPS.count);
+    this.banned = [];
+    this.picked = 'ak47';
+    this.startMatch();
+  }
+
+  beginWheel() {
+    this.mapId = this.mapChoices[Math.floor(Math.random() * this.mapChoices.length)];
+
+    const topf = C.WEAPON_ORDER.slice();
+    const anzahl = Math.min(C.PREMATCH.BANS, Math.max(0, topf.length - 3));
+    this.banned = [];
+    for (let i = 0; i < anzahl; i++) {
+      this.banned.push(topf.splice(Math.floor(Math.random() * topf.length), 1)[0]);
+    }
+
+    this.phase = 'wheel';
+    this.phaseT = C.PREMATCH.WHEEL_TIME;
+    this.snd(this.phasePayload());
+  }
+
+  beginPick() {
+    this.phase = 'pick';
+    this.phaseT = C.PREMATCH.PICK_TIME;
+    this.snd(this.phasePayload());
+  }
+
+  phasePayload() {
+    const p = {
+      t: C.MSG.PHASE,
+      phase: this.phase,
+      time: Math.max(0, Math.round(this.phaseT * 10) / 10),
+      mode: 'solo',
+      solo: true,
+      players: [{ id: this.client.id, name: this.client.name, bot: false }]
+    };
+    if (this.phase === 'vote') {
+      p.maps = this.mapChoices.map(id => ({ id, name: MAPS.generate(id).name }));
+      p.votes = this.mapChoices.map(() => 0);
+      p.gesamt = 1;
+    } else if (this.phase === 'wheel') {
+      p.mapId = this.mapId;
+      p.mapName = MAPS.generate(this.mapId).name;
+      p.weapons = C.WEAPON_ORDER;
+      p.banned = this.banned;
+      p.dauer = C.PREMATCH.WHEEL_TIME;
+    } else if (this.phase === 'pick') {
+      p.mapId = this.mapId;
+      p.mapName = MAPS.generate(this.mapId).name;
+      p.banned = this.banned;
+      p.you = this.picked;
+      p.taken = [];
+    }
+    return p;
+  }
+
+  vote(wahl) {
+    if (this.state !== 'prematch') return;
+    if (this.phase === 'vote') {
+      const id = Number(wahl);
+      if (!this.mapChoices.includes(id)) return;
+      this.mapId = id;
+      this.phaseT = Math.min(this.phaseT, 0.6);
+    } else if (this.phase === 'pick') {
+      if (!C.WEAPON_ORDER.includes(wahl) || this.banned.includes(wahl)) return;
+      this.picked = wahl;
+      this.phaseT = Math.min(this.phaseT, 0.6);
+    }
+  }
+
+  startMatch() {
+    this.match = new Match(this, 'solo', this.mapId);
+    this.match.addPlayer(this.client);
+    const w = this.picked || this.zufallsWaffe();
+    this.match.forceWeapon(this.client.id, w);
+    this.phase = null;
+    this.state = 'match';
+    this.snd(this.matchInfo(false));
+  }
+
+  zufallsWaffe() {
+    const erlaubt = C.WEAPON_ORDER.filter(w => !this.banned.includes(w));
+    return erlaubt[Math.floor(Math.random() * erlaubt.length)];
+  }
+
+  matchInfo(resumed) {
+    const sim = this.match.players.get(this.client.id);
+    return {
+      t: C.MSG.MATCH,
+      mapId: this.mapId,
+      mapName: MAPS.generate(this.mapId).name,
+      mode: 'solo',
+      countdown: 0,
+      resumed: !!resumed,
+      you: this.client.id,
+      choices: [],
+      banned: this.banned,
+      tiles: resumed ? this.tileDiff() : undefined,
+      players: [{
+        id: this.client.id, name: this.client.name,
+        color: this.client.skin.color, trail: this.client.skin.trail,
+        pattern: this.client.skin.pattern, team: 0, bot: false,
+        weapon: sim ? sim.weaponKey : 'pistol'
+      }]
+    };
+  }
+
+  tileDiff() {
+    const frisch = MAPS.generate(this.mapId).tiles;
+    const jetzt = this.match.map.tiles;
+    const out = [];
+    for (let i = 0; i < jetzt.length; i++) if (jetzt[i] !== frisch[i]) out.push(i, jetzt[i]);
+    return out;
+  }
+
+  stepPhase(dt) {
+    if (this.state !== 'prematch') return;
+    this.phaseT -= dt;
+    if (this.phaseT > 0) return;
+    if (this.phase === 'vote') this.beginWheel();
+    else if (this.phase === 'wheel') this.beginPick();
+    else this.startMatch();
+  }
+
+  onMatchEnd(match) {
+    this.lastResult = {
+      t: C.MSG.END,
+      winner: null,
+      mode: 'solo',
+      teams: 1,
+      teamScore: [0, 0],
+      board: match.scoreboard(),
+      mapName: match.map.name,
+      wave: match.currentWave || 0,
+      kills: match.totalKills || 0
+    };
+    setTimeout(() => {
+      send(this.client.ws, this.lastResult);
+      if (this.client.uid) send(this.client.ws, { t: C.MSG.ME, profile: STARS.publicProfile(this.client.uid) });
+      this.state = 'over';
+      soloGames.delete(this.client.id);
+    }, 2200);
+  }
+
+  update(dt) {
+    if (this.state === 'prematch') { this.stepPhase(dt); return; }
+    if (!this.match) return;
+    this.match.step(dt);
+    this.prematchSnap += dt;
+    const interval = 1 / C.SNAP_RATE;
+    if (this.prematchSnap >= interval) {
+      this.prematchSnap -= interval;
+      const snap = this.match.snapshotFor(this.client.id);
+      if (snap) this.snd(snap);
+      this.match.clearEvents();
+    }
+  }
+
+  snd(obj) {
+    if (this.client && this.client.ws) send(this.client.ws, obj);
+  }
+}
+
 /* ---------------- WebSocket ---------------- */
 
 wss.on('connection', (ws, req) => {
@@ -487,7 +655,7 @@ wss.on('connection', (ws, req) => {
   clients.set(client.id, client);
   sessions.set(client.session, client);
   void req;
-  send(ws, { t: C.MSG.HELLO, id: client.id, session: client.session, maxPlayers: C.MAX_PLAYERS, modes: C.MODES, authProject: AUTH_PROJECT });
+  send(ws, { t: C.MSG.HELLO, id: client.id, session: client.session, maxPlayers: C.MAX_PLAYERS, modes: C.MODES });
 
   /* Die Verbindung kann waehrend des Spiels auf einen anderen Datensatz
      umgehaengt werden (Wiederaufnahme). Deshalb immer ueber wsOwner gehen und
@@ -538,7 +706,7 @@ function resume(session, ws, temp) {
 
   send(ws, {
     t: C.MSG.HELLO, id: old.id, session: old.session,
-    maxPlayers: C.MAX_PLAYERS, modes: C.MODES, authProject: AUTH_PROJECT, resumed: true
+    maxPlayers: C.MAX_PLAYERS, modes: C.MODES, resumed: true
   });
 
   const room = rooms.get(old.roomCode);
@@ -546,72 +714,17 @@ function resume(session, ws, temp) {
     send(ws, room.roomPayload());
     if (room.state === 'match' && room.match) send(ws, room.matchInfo(old, true));
     else if (room.lastResult) send(ws, room.lastResult);
+  } else {
+    const sg = soloGames.get(old.id);
+    if (sg) {
+      sg.client = old;
+      if (sg.state === 'match' && sg.match) send(ws, sg.matchInfo(true));
+      else if (sg.lastResult) send(ws, sg.lastResult);
+    }
   }
   if (old.uid) send(ws, { t: C.MSG.ME, profile: STARS.publicProfile(old.uid) });
   console.log(`  Spieler ${old.id} (${old.name}) wieder verbunden`);
   return old;
-}
-
-/* ---------------- Freunde ----------------
-
-   Die Liste selbst liegt bei STARS, hier kommt nur dazu, was der Server
-   gerade weiss: wer online ist und wessen Lobby offen steht. */
-
-/** Angemeldeter Client zu einer Kennung, falls gerade verbunden. */
-function clientByUid(uid) {
-  for (const c of clients.values()) if (c.uid === uid) return c;
-  return null;
-}
-
-/** Kann man dieser Lobby gerade beitreten? */
-function offeneLobby(code) {
-  const r = rooms.get(code);
-  if (!r) return null;
-  if (r.state !== 'lobby') return { code, state: r.state, joinable: false };
-  return { code, state: r.state, joinable: r.members.size < C.MAX_PLAYERS };
-}
-
-function friendPayload(uid) {
-  const st = STARS.friendState(uid);
-  for (const f of st.friends) {
-    const c = clientByUid(f.uid);
-    /* Nicht "steht noch im Verzeichnis", sondern "hat eine offene Leitung".
-       Nach einem Abriss bleibt der Platz eine Minute reserviert - in der Zeit
-       stand sonst "online" bei jemandem, der gar nicht mehr da ist. Der Raum
-       zaehlt weiter, denn dorthin kann ein Freund sehr wohl noch. */
-    f.online = !!(c && !c.goneAt && c.ws && c.ws.readyState === 1);
-    const lob = c && c.roomCode ? offeneLobby(c.roomCode) : null;
-    f.room = lob ? lob.code : null;
-    f.state = lob ? lob.state : null;
-    f.joinable = !!(lob && lob.joinable);
-  }
-  // Online zuerst, davon die mit offener Lobby - danach nach Namen
-  st.friends.sort((a, b) =>
-    (b.joinable - a.joinable) || (b.online - a.online) || a.name.localeCompare(b.name));
-  return { t: C.MSG.FRIENDS, ...st };
-}
-
-/** Beiden Seiten den neuen Stand schicken, soweit sie online sind. */
-function pushFriends(uids) {
-  for (const uid of uids) {
-    const c = clientByUid(uid);
-    if (c) send(c.ws, friendPayload(uid));
-  }
-}
-
-/** Jemand ist gekommen, gegangen oder hat die Lobby gewechselt: er selbst und
-    alle seine Freunde bekommen den neuen Stand. Ohne das stuende auf der
-    Freundesliste noch "Join" fuer eine Lobby, die es nicht mehr gibt. */
-function friendsUmfeld(uid) {
-  if (!uid) return;
-  const freunde = STARS.friendState(uid).friends.map(f => f.uid);
-  pushFriends([uid, ...freunde]);
-}
-
-/** Dasselbe fuer einen ganzen Raum - bei Zustandswechseln des Raums. */
-function friendsRaum(r) {
-  if (!r) return;
-  for (const m of r.members.values()) if (m.uid) friendsUmfeld(m.uid);
 }
 
 function handle(client, msg) {
@@ -630,40 +743,14 @@ function handle(client, msg) {
       break;
 
     case M.AUTH: {
-      // Abmelden
-      if (!msg.idToken) {
-        const vorher = client.uid;
-        client.uid = null; client.authName = '';
-        send(client.ws, { t: M.ME, profile: null });
-        if (room) room.broadcastRoom();
-        friendsUmfeld(vorher);
-        break;
+      if (!client.uid) {
+        client.uid = 'guest_' + crypto.randomBytes(12).toString('hex');
+        client.authName = client.name;
+        STARS.touch(client.uid, client.name, '');
+        send(client.ws, { t: M.ME, profile: STARS.publicProfile(client.uid), name: client.name });
       }
-      verifyIdToken(msg.idToken, AUTH_PROJECT).then(u => {
-        client.uid = u.uid;
-        client.authName = u.name;
-        if (u.name) client.name = sanitizeName(u.name);
-        STARS.touch(u.uid, u.name, u.picture);
-        send(client.ws, { t: M.ME, profile: STARS.publicProfile(u.uid), name: client.name });
-        const r = rooms.get(client.roomCode);
-        if (r) r.broadcastRoom();
-        send(client.ws, friendPayload(u.uid));
-        friendsUmfeld(u.uid);
-      }).catch(e => {
-        client.uid = null;
-        send(client.ws, { t: M.ERROR, msg: 'Sign-in rejected: ' + e.message });
-        send(client.ws, { t: M.ME, profile: null });
-      });
       break;
     }
-
-    case M.BOARDREQ:
-      send(client.ws, {
-        t: M.BOARD,
-        list: STARS.leaderboard(C.STARS.LEADERBOARD_SIZE),
-        you: client.uid ? STARS.publicProfile(client.uid) : null
-      });
-      break;
 
     case M.CREATE: {
       if (room) room.remove(client.id);
@@ -672,7 +759,6 @@ function handle(client, msg) {
       const r = new Room(client);
       if (msg.mode && C.MODES[msg.mode]) r.mode = msg.mode;
       r.broadcastRoom();
-      friendsUmfeld(client.uid);
       break;
     }
 
@@ -687,13 +773,12 @@ function handle(client, msg) {
       client.skin = sanitizeSkin(msg.skin || client.skin);
       target.add(client);
       target.broadcastRoom();
-      friendsUmfeld(client.uid);
       break;
     }
 
     case M.LEAVE:
       if (room) { room.remove(client.id); client.roomCode = null; }
-      friendsUmfeld(client.uid);
+      else { const sg = soloGames.get(client.id); if (sg) { sg.match = null; soloGames.delete(client.id); } }
       break;
 
     case M.CHAT:
@@ -732,8 +817,23 @@ function handle(client, msg) {
       break;
     }
 
+    case M.PLAY: {
+      if (room) room.remove(client.id);
+      client.name = sanitizeName(msg.name || client.name);
+      client.skin = sanitizeSkin(msg.skin || client.skin);
+      const sg = new SoloGame(client);
+      soloGames.set(client.id, sg);
+      client.roomCode = null;
+      sg.beginVote();
+      break;
+    }
+
     case M.INPUT:
       if (room && room.match) room.match.setInput(client.id, msg);
+      else {
+        const sg = soloGames.get(client.id);
+        if (sg && sg.match) sg.match.setInput(client.id, msg);
+      }
       break;
 
     case M.PICK:
@@ -743,106 +843,11 @@ function handle(client, msg) {
     // Stimme in der Vorbereitung: Karte, Waffensperre oder Waffenwahl
     case M.VOTE:
       if (room) room.vote(client, msg.v);
-      break;
-
-    case M.SHOP:
-      send(client.ws, {
-        t: M.SHOP,
-        skins: C.SHOP_SKINS,
-        profile: client.uid ? STARS.publicProfile(client.uid) : null
-      });
-      break;
-
-    case M.BUY: {
-      if (!client.uid) {
-        send(client.ws, { t: M.ERROR, msg: 'You have to be signed in to buy' });
-        break;
-      }
-      const r = STARS.buySkin(client.uid, String(msg.id || ''));
-      if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
       else {
-        send(client.ws, { t: M.ME, profile: r.profil });
-        send(client.ws, { t: M.SHOP, skins: C.SHOP_SKINS, profile: r.profil });
+        const sg = soloGames.get(client.id);
+        if (sg) sg.vote(msg.v);
       }
       break;
-    }
-
-    case M.EQUIP: {
-      if (!client.uid) break;
-      const r = STARS.equipSkin(client.uid, String(msg.id || ''));
-      if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
-      else {
-        send(client.ws, { t: M.ME, profile: r.profil });
-        /* Auch der Shop muss es erfahren, sonst steht auf der Karte weiter
-           "Equip", obwohl die Farbe laengst anliegt. */
-        send(client.ws, { t: M.SHOP, skins: C.SHOP_SKINS, profile: r.profil });
-        const rr = rooms.get(client.roomCode);
-        if (rr) rr.broadcastRoom();
-      }
-      break;
-    }
-
-    /* ---- Freunde ---- */
-
-    case M.FRIENDS:
-      if (client.uid) send(client.ws, friendPayload(client.uid));
-      else send(client.ws, { t: M.FRIENDS, friends: [], incoming: [], outgoing: [], guest: true });
-      break;
-
-    case M.FRIENDREQ: {
-      if (!client.uid) return send(client.ws, { t: M.ERROR, msg: 'Sign in to add friends' });
-      const ziel = String(msg.uid || '');
-      /* Anfragen nur an Leute aus dem eigenen Raum - oder an jemanden, der
-         selbst schon angefragt hat. Ohne diese Schranke koennte man mit einer
-         erratenen Kennung wildfremde Konten zuschuetten. */
-      const imRaum = room && [...room.members.values()].some(m => m.uid === ziel);
-      const hatGefragt = STARS.friendState(client.uid).incoming.some(x => x.uid === ziel);
-      if (!imRaum && !hatGefragt) {
-        return send(client.ws, { t: M.ERROR, msg: 'You can only add players from your group' });
-      }
-      const r = STARS.request(client.uid, ziel);
-      if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
-      else pushFriends(r.beide);
-      break;
-    }
-
-    case M.FRIENDACT: {
-      if (!client.uid) break;
-      const anderer = String(msg.uid || '');
-      if (!anderer || anderer === client.uid) break;
-      let r;
-      switch (msg.do) {
-        case 'accept': r = STARS.accept(client.uid, anderer); break;
-        case 'decline': r = STARS.decline(client.uid, anderer); break;
-        case 'cancel': r = STARS.cancel(client.uid, anderer); break;
-        case 'remove': r = STARS.removeFriend(client.uid, anderer); break;
-        default: return;
-      }
-      if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
-      else pushFriends(r.beide);
-      break;
-    }
-
-    case M.FRIENDJOIN: {
-      if (!client.uid) break;
-      const freund = String(msg.uid || '');
-      if (!STARS.areFriends(client.uid, freund)) {
-        return send(client.ws, { t: M.ERROR, msg: 'Not on your friend list' });
-      }
-      const c = clientByUid(freund);
-      const ziel = c && rooms.get(c.roomCode);
-      if (!ziel) return send(client.ws, { t: M.ERROR, msg: 'Friend is not in a group' });
-      if (ziel.state !== 'lobby') return send(client.ws, { t: M.ERROR, msg: 'Their match is already running' });
-      if (ziel.members.size >= C.MAX_PLAYERS) return send(client.ws, { t: M.ERROR, msg: 'Their group is full' });
-      if (ziel.code === client.roomCode) return send(client.ws, { t: M.ERROR, msg: 'You are already in that group' });
-      if (room) room.remove(client.id);
-      if (msg.name) client.name = sanitizeName(msg.name);
-      if (msg.skin) client.skin = sanitizeSkin(msg.skin);
-      ziel.add(client);
-      ziel.broadcastRoom();
-      friendsUmfeld(client.uid);
-      break;
-    }
   }
 }
 
@@ -856,6 +861,9 @@ setInterval(() => {
   if (dt > 0.25) dt = 0.25;
   for (const room of rooms.values()) {
     try { room.update(dt); } catch (e) { console.error('room update', e); }
+  }
+  for (const sg of soloGames.values()) {
+    try { sg.update(dt); } catch (e) { console.error('solo update', e); }
   }
 }, 1000 / C.TICK_RATE);
 
@@ -886,8 +894,6 @@ setInterval(() => {
       if (room) room.remove(c.id);
       sessions.delete(c.session);
       clients.delete(c.id);
-      // Erst nach dem Loeschen melden, sonst gilt er noch als online
-      friendsUmfeld(c.uid);
       console.log(`  Spieler ${c.id} (${c.name}) endgueltig entfernt`);
     }
   }
@@ -898,7 +904,7 @@ setInterval(() => {
    werden. */
 STARS.init().catch(e => console.warn('  Bestenliste:', e.message)).then(() => {
   server.listen(PORT, () => {
-    console.log(`\n  NEON STRIKE laeuft`);
+    console.log(`\n  LOVE CRACKING ZOMBIES laeuft`);
     console.log(`  Lokal:  http://localhost:${PORT}`);
     const nets = require('os').networkInterfaces();
     for (const name of Object.keys(nets)) {

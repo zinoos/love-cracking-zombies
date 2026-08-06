@@ -5,6 +5,14 @@ const RENDER = (() => {
   const mm = document.getElementById('minimap');
   const mctx = mm.getContext('2d');
 
+  const playerImg = new Image();
+  playerImg.src = 'img/player.png';
+  const PLAYER_ANGLE = Math.PI / 2;
+
+  const zombieImg = new Image();
+  zombieImg.src = 'img/zombie.png';
+  const ZOMBIE_ANGLE = -Math.PI / 2;
+
   let W = 0, H = 0, DPR = 1;
   let mapCv = null, mapCtx = null;
   let curMap = null;
@@ -172,7 +180,7 @@ const RENDER = (() => {
     cam.y += (ty - cam.y) * k;
 
     const worldSize = curMap ? curMap.n * C.TILE : 1280;
-    cam.scale = Math.max(0.7, Math.min(1.9, Math.min(W / 1000, H / 620)));
+    cam.scale = Math.max(1.0, Math.min(2.6, Math.min(W / 1000, H / 620) * 1.4));
     const halfW = W / 2 / cam.scale, halfH = H / 2 / cam.scale;
     cam.x = worldSize <= halfW * 2 ? worldSize / 2 : Math.max(halfW, Math.min(worldSize - halfW, cam.x));
     cam.y = worldSize <= halfH * 2 ? worldSize / 2 : Math.max(halfH, Math.min(worldSize - halfH, cam.y));
@@ -1035,29 +1043,33 @@ const RENDER = (() => {
     }
 
     // Team-/Eigenmarkierung als Bodenring (Cartoon-Figur bleibt frei von Umrissen)
-    g.lineWidth = 2.6;
+    g.lineWidth = 2;
     g.strokeStyle = isMe ? '#ffffff' : (p.teamColor || 'rgba(255,255,255,.75)');
-    g.beginPath(); g.ellipse(0, r * .5, r * 1.45, r * .72, 0, 0, 7); g.stroke();
+    g.beginPath(); g.arc(0, 0, r * 1.1, 0, Math.PI * 2); g.stroke();
     if (isMe) {
       g.strokeStyle = 'rgba(255,255,255,.28)';
       g.lineWidth = 1.2;
-      g.beginPath(); g.ellipse(0, r * .5, r * 1.68, r * .88, 0, 0, 7); g.stroke();
-    }
-
-    /* Gekaufter Shop-Skin: seine Bewegung liegt unter der Figur, damit sie
-       nicht das Gesicht verdeckt. Der Versatz aus der Spielerkennung sorgt
-       dafuer, dass zwei Traeger desselben Skins nicht im Gleichtakt laufen. */
-    if (p.fx) {
-      const s = C.SHOP_SKINS.find(x => x.id === p.fx);
-      if (s) skinEffekt(g, s.anim, r, time + (p.id || 0) * 0.37, s.color, s.trail);
+      g.beginPath(); g.arc(0, 0, r * 1.3, 0, Math.PI * 2); g.stroke();
     }
 
     g.rotate(a);
-    drawSoldier(g, p, r, {
-      walk: moving ? Math.sin(phase) : 0,
-      spin: p.spinAngle || 0,
-      swing: p.swingT || 0
-    });
+    if (p.zombie && zombieImg.complete && zombieImg.naturalWidth) {
+      g.rotate(ZOMBIE_ANGLE);
+      const zh = r * 3;
+      const zw = zh * zombieImg.naturalWidth / zombieImg.naturalHeight;
+      g.drawImage(zombieImg, -zw / 2, -zh / 2, zw, zh);
+    } else if (playerImg.complete && playerImg.naturalWidth) {
+      g.rotate(PLAYER_ANGLE);
+      const zh = r * 4;
+      const zw = zh * playerImg.naturalWidth / playerImg.naturalHeight;
+      g.drawImage(playerImg, -zw / 2, -zh / 2, zw, zh);
+    } else {
+      drawSoldier(g, p, r, {
+        walk: moving ? Math.sin(phase) : 0,
+        spin: p.spinAngle || 0,
+        swing: p.swingT || 0
+      });
+    }
     g.restore();
 
     // Unverwundbarkeits-Schild
@@ -1074,21 +1086,31 @@ const RENDER = (() => {
     // Namensschild + HP
     if (!isMe) {
       const nameY = y - r - 16;
-      g.font = '600 12px Rajdhani, Segoe UI, sans-serif';
-      g.textAlign = 'center';
-      g.lineWidth = 3;
-      g.strokeStyle = 'rgba(0,0,0,.75)';
-      g.strokeText(p.name, x, nameY);
-      g.fillStyle = p.teamColor || '#dbe7f7';
-      g.fillText(p.name, x, nameY);
+      if (p.zombie) {
+        const bw = 22, bh = 3;
+        const hpMax = p.hpMax || 100;
+        g.fillStyle = 'rgba(0,0,0,.5)';
+        roundRect(g, x - bw / 2, nameY, bw, bh, 2); g.fill();
+        const hp = Math.max(0, Math.min(1, (p.hp || 0) / hpMax));
+        g.fillStyle = '#5c9a3a';
+        roundRect(g, x - bw / 2, nameY, bw * hp, bh, 2); g.fill();
+      } else {
+        g.font = '600 12px Rajdhani, Segoe UI, sans-serif';
+        g.textAlign = 'center';
+        g.lineWidth = 3;
+        g.strokeStyle = 'rgba(0,0,0,.75)';
+        g.strokeText(p.name, x, nameY);
+        g.fillStyle = p.teamColor || '#dbe7f7';
+        g.fillText(p.name, x, nameY);
 
-      const bw = 34, bh = 4;
-      g.fillStyle = 'rgba(0,0,0,.6)';
-      roundRect(g, x - bw / 2, nameY + 4, bw, bh, 2); g.fill();
-      const hp = Math.max(0, Math.min(1, (p.hp || 0) / C.HP_MAX));
-      g.fillStyle = hp > .5 ? '#4ade80' : hp > .25 ? '#ffd166' : '#ff5c7a';
-      roundRect(g, x - bw / 2, nameY + 4, bw * hp, bh, 2); g.fill();
-      g.textAlign = 'left';
+        const bw = 34, bh = 4;
+        g.fillStyle = 'rgba(0,0,0,.6)';
+        roundRect(g, x - bw / 2, nameY + 4, bw, bh, 2); g.fill();
+        const hp = Math.max(0, Math.min(1, (p.hp || 0) / C.HP_MAX));
+        g.fillStyle = hp > .5 ? '#4ade80' : hp > .25 ? '#ffd166' : '#ff5c7a';
+        roundRect(g, x - bw / 2, nameY + 4, bw * hp, bh, 2); g.fill();
+        g.textAlign = 'left';
+      }
     }
     void g_;
   }
@@ -1103,7 +1125,19 @@ const RENDER = (() => {
     g.scale(scale, scale * (0.62 + 0.38 * k));
     g.fillStyle = 'rgba(0,0,0,.35)';
     g.beginPath(); g.ellipse(2, 3, C.PLAYER_R, C.PLAYER_R * .8, 0, 0, 7); g.fill();
-    drawSoldier(g, c, C.PLAYER_R, { walk: 0, dead: true });
+    if (c.zombie && zombieImg.complete && zombieImg.naturalWidth) {
+      g.rotate(ZOMBIE_ANGLE);
+      const zh = C.PLAYER_R * 3;
+      const zw = zh * zombieImg.naturalWidth / zombieImg.naturalHeight;
+      g.drawImage(zombieImg, -zw / 2, -zh / 2, zw, zh);
+    } else if (playerImg.complete && playerImg.naturalWidth) {
+      g.rotate(PLAYER_ANGLE);
+      const zh = C.PLAYER_R * 4;
+      const zw = zh * playerImg.naturalWidth / playerImg.naturalHeight;
+      g.drawImage(playerImg, -zw / 2, -zh / 2, zw, zh);
+    } else {
+      drawSoldier(g, c, C.PLAYER_R, { walk: 0, dead: true });
+    }
     g.restore();
   }
 
@@ -1950,243 +1984,9 @@ const RENDER = (() => {
     g.restore();
   }
 
-  /* =============== Shop-Skins ===============
-     Jeder gekaufte Skin hat eine eigene Bewegung. Gezeichnet wird sie um die
-     Figur herum, damit sie im Spiel auch dann zu sehen ist, wenn die Figur
-     selbst klein ist. Die Bewegung haengt nur an der Zeit und an der
-     Spielerkennung - so laufen zwei Spieler mit demselben Skin nicht im
-     Gleichschritt. */
-  function skinEffekt(g, art, r, t, farbe, spur) {
-    switch (art) {
-      case 'pulse': {
-        for (let i = 0; i < 3; i++) {
-          const k = ((t * 0.9 + i / 3) % 1);
-          g.globalAlpha = (1 - k) * .5;
-          g.strokeStyle = farbe;
-          g.lineWidth = 2.4;
-          g.beginPath(); g.arc(0, 0, r * (0.9 + k * 1.5), 0, 7); g.stroke();
-        }
-        break;
-      }
-      case 'flame': {
-        for (let i = 0; i < 7; i++) {
-          const a = t * 2.2 + i * 0.9;
-          const h = ((t * 1.6 + i / 7) % 1);
-          const x = Math.sin(a) * r * .5;
-          const y = -h * r * 2.1 + r * .4;
-          g.globalAlpha = (1 - h) * .8;
-          g.fillStyle = h < .45 ? spur : farbe;
-          g.beginPath();
-          g.ellipse(x, y, r * .3 * (1 - h * .55), r * .5 * (1 - h * .4), 0, 0, 7);
-          g.fill();
-        }
-        break;
-      }
-      case 'bubble': {
-        for (let i = 0; i < 8; i++) {
-          const h = ((t * 0.8 + i / 8) % 1);
-          const x = Math.sin(t * 1.3 + i * 2.1) * r * .8;
-          g.globalAlpha = (1 - h) * .65;
-          g.fillStyle = i % 2 ? farbe : spur;
-          g.beginPath(); g.arc(x, -h * r * 2, r * .13 * (1 - h * .4), 0, 7); g.fill();
-        }
-        break;
-      }
-      case 'frost': {
-        for (let i = 0; i < 6; i++) {
-          const a = t * 1.1 + i * (Math.PI * 2 / 6);
-          const rr = r * (1.1 + Math.sin(t * 2 + i) * .16);
-          const x = Math.cos(a) * rr, y = Math.sin(a) * rr * .6;
-          g.globalAlpha = .7;
-          g.strokeStyle = i % 2 ? spur : farbe;
-          g.lineWidth = 1.8; g.lineCap = 'round';
-          for (let k = 0; k < 3; k++) {
-            const b = a * 2 + k * (Math.PI / 3);
-            g.beginPath();
-            g.moveTo(x - Math.cos(b) * r * .13, y - Math.sin(b) * r * .13);
-            g.lineTo(x + Math.cos(b) * r * .13, y + Math.sin(b) * r * .13);
-            g.stroke();
-          }
-        }
-        break;
-      }
-      case 'void': {
-        for (let i = 0; i < 5; i++) {
-          const k = ((t * 0.7 + i / 5) % 1);
-          g.globalAlpha = (1 - k) * .55;
-          const grd = g.createRadialGradient(0, 0, r * .2, 0, 0, r * (0.8 + k * 1.4));
-          grd.addColorStop(0, farbe + '00');
-          grd.addColorStop(.6, farbe + 'aa');
-          grd.addColorStop(1, farbe + '00');
-          g.fillStyle = grd;
-          g.beginPath(); g.arc(0, 0, r * (0.8 + k * 1.4), 0, 7); g.fill();
-        }
-        break;
-      }
-      case 'sparkle': {
-        for (let i = 0; i < 10; i++) {
-          const a = t * 1.7 + i * (Math.PI * 2 / 10);
-          const k = ((t * 1.1 + i / 10) % 1);
-          const rr = r * (0.6 + k * 1.1);
-          const x = Math.cos(a) * rr, y = Math.sin(a) * rr * .55 - k * r * .5;
-          g.globalAlpha = (1 - k) * .9;
-          g.fillStyle = i % 3 ? farbe : spur;
-          const s = r * .1 * (1 - k * .5);
-          g.beginPath();
-          g.moveTo(x, y - s); g.lineTo(x + s * .5, y); g.lineTo(x, y + s); g.lineTo(x - s * .5, y);
-          g.closePath(); g.fill();
-        }
-        break;
-      }
-      case 'storm': {
-        // Blitze zucken in Schueben, nicht gleichmaessig
-        for (let i = 0; i < 3; i++) {
-          const takt = Math.sin(t * 7 + i * 2.1);
-          if (takt < .55) continue;
-          const a = t * 1.3 + i * 2.3;
-          g.globalAlpha = (takt - .55) / .45;
-          g.strokeStyle = i % 2 ? spur : farbe;
-          g.lineWidth = r * .09; g.lineCap = 'round';
-          g.beginPath();
-          let x = Math.cos(a) * r * .35, y = Math.sin(a) * r * .3;
-          g.moveTo(x, y);
-          for (let k = 0; k < 3; k++) {
-            x += Math.cos(a + (k % 2 ? .9 : -.9)) * r * .38;
-            y += Math.sin(a + (k % 2 ? .9 : -.9)) * r * .38;
-            g.lineTo(x, y);
-          }
-          g.stroke();
-        }
-        break;
-      }
-      case 'petals': {
-        for (let i = 0; i < 9; i++) {
-          const k = ((t * 0.5 + i / 9) % 1);
-          const x = Math.sin(t * 0.9 + i * 1.7) * r * 1.1;
-          const y = -r * 1.6 + k * r * 2.4;
-          g.globalAlpha = Math.min(1, (1 - k) * 1.6) * .85;
-          g.fillStyle = i % 3 ? farbe : spur;
-          g.save();
-          g.translate(x, y);
-          g.rotate(t * 2 + i);
-          g.beginPath(); g.ellipse(0, 0, r * .13, r * .07, 0, 0, 7); g.fill();
-          g.restore();
-        }
-        break;
-      }
-      case 'magma': {
-        for (let i = 0; i < 7; i++) {
-          const k = ((t * 1.2 + i / 7) % 1);
-          const x = Math.sin(i * 2.3) * r * .7;
-          const y = -r * .3 + k * r * 1.1;
-          g.globalAlpha = (1 - k) * .9;
-          g.fillStyle = k < .5 ? spur : farbe;
-          g.beginPath();
-          g.ellipse(x, y, r * .09 * (1 - k * .4), r * .16 * (1 - k * .3), 0, 0, 7);
-          g.fill();
-        }
-        // Gluehende Pfuetze am Boden
-        g.globalAlpha = .35 + .15 * Math.sin(t * 3);
-        const gl = g.createRadialGradient(0, r * .7, 1, 0, r * .7, r * .9);
-        gl.addColorStop(0, farbe);
-        gl.addColorStop(1, farbe + '00');
-        g.fillStyle = gl;
-        g.beginPath(); g.ellipse(0, r * .7, r * .9, r * .3, 0, 0, 7); g.fill();
-        break;
-      }
-      case 'ghost': {
-        for (let i = 1; i <= 4; i++) {
-          const k = i / 4;
-          g.globalAlpha = (1 - k) * .35;
-          g.fillStyle = farbe;
-          g.beginPath();
-          g.ellipse(Math.sin(t * 1.6 - k * 1.2) * r * .5 * k, k * r * .3,
-            r * (.75 - k * .12), r * (.8 - k * .12), 0, 0, 7);
-          g.fill();
-        }
-        break;
-      }
-      case 'prism': {
-        // Farbkreis, der staendig weiterwandert
-        for (let i = 0; i < 6; i++) {
-          const ton = (t * 60 + i * 60) % 360;
-          const a0 = t * 1.4 + i * (Math.PI * 2 / 6);
-          g.globalAlpha = .55;
-          g.strokeStyle = `hsl(${ton},95%,62%)`;
-          g.lineWidth = r * .16; g.lineCap = 'round';
-          g.beginPath(); g.arc(0, 0, r * 1.05, a0, a0 + .7); g.stroke();
-        }
-        break;
-      }
-      case 'disco': {
-        // Vier Scheinwerferkegel, die um die Figur kreisen
-        for (let i = 0; i < 4; i++) {
-          const a = t * 1.9 + i * (Math.PI / 2);
-          const ton = (t * 90 + i * 90) % 360;
-          g.globalAlpha = .3;
-          const kegel = g.createLinearGradient(0, 0, Math.cos(a) * r * 2.2, Math.sin(a) * r * 1.3);
-          kegel.addColorStop(0, `hsla(${ton},95%,65%,.85)`);
-          kegel.addColorStop(1, `hsla(${ton},95%,65%,0)`);
-          g.fillStyle = kegel;
-          g.beginPath();
-          g.moveTo(0, 0);
-          g.lineTo(Math.cos(a - .2) * r * 2.2, Math.sin(a - .2) * r * 1.3);
-          g.lineTo(Math.cos(a + .2) * r * 2.2, Math.sin(a + .2) * r * 1.3);
-          g.closePath(); g.fill();
-        }
-        break;
-      }
-      case 'mist': {
-        for (let i = 0; i < 5; i++) {
-          const a = t * 0.5 + i * (Math.PI * 2 / 5);
-          const rr = r * (.9 + Math.sin(t * 1.1 + i) * .2);
-          g.globalAlpha = .22;
-          g.fillStyle = i % 2 ? farbe : spur;
-          g.beginPath();
-          g.ellipse(Math.cos(a) * rr * .6, r * .55 + Math.sin(a) * rr * .18,
-            r * .55, r * .2, 0, 0, 7);
-          g.fill();
-        }
-        break;
-      }
-      case 'runes': {
-        for (let i = 0; i < 5; i++) {
-          const a = t * 1.2 + i * (Math.PI * 2 / 5);
-          const x = Math.cos(a) * r * 1.15, y = Math.sin(a) * r * .7;
-          g.globalAlpha = .55 + .35 * Math.sin(t * 3 + i);
-          g.strokeStyle = i % 2 ? spur : farbe;
-          g.lineWidth = r * .07; g.lineCap = 'round';
-          g.save();
-          g.translate(x, y);
-          g.rotate(-a);
-          const s = r * .16;
-          g.beginPath();
-          g.moveTo(-s, -s); g.lineTo(s, -s * .2); g.lineTo(-s * .4, s);
-          g.moveTo(-s * .6, 0); g.lineTo(s * .6, 0);
-          g.stroke();
-          g.restore();
-        }
-        break;
-      }
-    }
-    g.globalAlpha = 1;
-  }
-
-  /** Vorschau im Shop: Figur von vorn mit ihrer Bewegung. */
-  function drawShopPreview(g, x, y, hoehe, skin, t) {
-    g.save();
-    g.translate(x, y);
-    g.save();
-    g.translate(0, -hoehe * 0.45);
-    skinEffekt(g, skin.anim, hoehe * 0.34, t, skin.color, skin.trail);
-    g.restore();
-    drawSoldierFront(g, { color: skin.color, pattern: 'solid', trail: skin.trail }, hoehe, t);
-    g.restore();
-  }
-
   return {
     resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld,
-    drawAvatar, drawAvatarFront, drawShopPreview, skinEffekt, shade,
+    drawAvatar, drawAvatarFront, shade,
     setQuality,
     get quality() {
       return { level: qLevel, name: q().name, avgMs: Math.round(drawAvg * 100) / 100, pinned: qPinned >= 0 };

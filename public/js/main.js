@@ -42,6 +42,10 @@
     mouseWorld: null,
     recoil: 0,
     myTeam: 0,
+    currentWave: 0,
+    wavePrep: 0,
+    waveAlive: 0,
+    isSolo: false,
 
     playerList() { return [...G.players.values()].filter(p => p.visible); },
     bulletList() { return [...G.bullets.values()]; },
@@ -282,10 +286,6 @@
   NET.on('open', () => {
     UI.setConn(true);
     NET.send({ t: C.MSG.HELLO, name: UI.name, skin: UI.skin, session: NET.session });
-    /* Gleich holen, nicht erst beim Oeffnen des Schirms: die Zahl offener
-       Anfragen steht am Knopf, und die Lobby muss wissen, wen man schon
-       kennt, um den Namen nicht erneut anklickbar zu machen. */
-    NET.send({ t: C.MSG.FRIENDS });
   });
   let connectFails = 0, everConnected = false;
   NET.on('open', () => { connectFails = 0; everConnected = true; UI.serverNotice(false); });
@@ -325,38 +325,14 @@
 
   NET.on(C.MSG.ME, m => {
     AUTH.setProfile(m.profile);
-    // Gold und angelegte Farbe stehen im Profil - Locker mitziehen
-    UI.renderLocker();
     if (m.name) {
       UI.name = m.name;
-      const inp = $('inp-name');
-      if (inp && !inp.value) inp.value = m.name;
     }
   });
-
-  NET.on(C.MSG.BOARD, m => UI.renderBoard(m));
 
   // Vorbereitung: Karte waehlen, Waffe sperren, Waffe waehlen
   NET.on(C.MSG.PHASE, m => UI.renderPhase(m));
   UI.onPhaseVote(v => NET.send({ t: C.MSG.VOTE, v }));
-
-  NET.on(C.MSG.SHOP, m => { UI.renderShop(m); UI.renderLocker(); });
-
-  /* ---- Freunde ---- */
-  NET.on(C.MSG.FRIENDS, m => UI.setFriends(m));
-  UI.onFriends(
-    (aktion, uid) => NET.send({ t: C.MSG.FRIENDACT, do: aktion, uid }),
-    uid => NET.send({ t: C.MSG.FRIENDJOIN, uid, name: UI.name, skin: UI.skin }),
-    (uid, name) => {
-      if (!AUTH.profile) return UI.toast('Sign in to add friends', 'err');
-      NET.send({ t: C.MSG.FRIENDREQ, uid });
-      UI.toast('Friend request sent to ' + name);
-    }
-  );
-  UI.onShop(
-    id => NET.send({ t: C.MSG.BUY, id }),
-    id => NET.send({ t: C.MSG.EQUIP, id })
-  );
 
   NET.on(C.MSG.ERROR, m => {
     UI.toast(m.msg, 'err');
@@ -368,9 +344,7 @@
     UI.renderRoom(m, G.myId);
     // Nur aus Menue/Join heraus in die Lobby springen - Skinlocker/Hilfe nicht unterbrechen
     const from = UI.currentScreen();
-    // scr-friends ist dabei: von dort tritt man der Gruppe eines Freundes bei
-    if (!G.inMatch && (from === 'scr-menu' || from === 'scr-join' || from === 'scr-game'
-      || from === 'scr-friends')) UI.show('scr-lobby');
+    if (!G.inMatch && (from === 'scr-menu' || from === 'scr-join' || from === 'scr-game')) UI.show('scr-lobby');
     const me = m.members.find(x => x.id === G.myId);
     if (me) G.myTeam = me.team;
   });
@@ -383,14 +357,6 @@
     G.inMatch = false;
     UI.showScoreboard(false);
     UI.respawnUI(false);
-    const mine = (m.board || []).find(p => p.id === G.myId);
-    FB.log('match_end', {
-      mode: m.mode, map: m.mapName,
-      won: (m.teams > 1 ? m.winner === G.myTeam : m.winner === G.myId) ? 1 : 0,
-      kills: mine ? mine.kills : 0,
-      deaths: mine ? mine.deaths : 0,
-      duration_s: G.matchStartedAt ? Math.round((performance.now() - G.matchStartedAt) / 1000) : 0
-    });
     UI.showResult(m, G.myId, G.myTeam);
   });
 
@@ -401,8 +367,8 @@
     G.myId = m.you;
     G.mode = m.mode;
     G.mapName = m.mapName;
-    G.map = MAPS.instance(m.mapId);      // eigene Kopie - Sprengungen bleiben im Match
-    // Bei Wiederaufnahme die schon gesprengten Felder nachziehen
+    G.isSolo = m.mode === 'solo';
+    G.map = MAPS.instance(m.mapId);
     if (m.tiles) for (let i = 0; i < m.tiles.length; i += 2) G.map.tiles[m.tiles[i]] = m.tiles[i + 1];
     RENDER.buildMap(G.map);
     RENDER.resize();
@@ -418,6 +384,7 @@
     G.teamScore = [0, 0];
     G.scoreboard = [];
     G.spinAngle = 0;
+    G.currentWave = 0; G.wavePrep = 0; G.waveAlive = 0;
     lastSnapAt = 0; snapJitter = 0; snapGapAvg = 1000 / C.SNAP_RATE; INTERP_MS = 110;
 
     const teams = C.MODES[m.mode].teams;
@@ -425,11 +392,12 @@
       const wKey = C.WEAPONS[p.weapon] ? p.weapon : 'pistol';
       G.players.set(p.id, {
         id: p.id, name: p.name, color: p.color, trail: p.trail, pattern: p.pattern,
-        team: p.team, bot: p.bot, weapon: wKey, fx: p.fx || '',
+        team: p.team, bot: p.bot, weapon: wKey,
         teamColor: teams > 1 ? C.TEAM_COLORS[p.team] : (p.id === m.you ? '#ffffff' : '#ff9d6b'),
         buf: [], rx: C.WORLD / 2, ry: C.WORLD / 2, ra: 0,
         hp: C.HP_MAX, alive: true, visible: false, mv: 0, bush: false,
-        walkPhase: Math.random() * 6, dash: false, invul: false, spinAngle: 0
+        walkPhase: Math.random() * 6, dash: false, invul: false, spinAngle: 0,
+        zombie: false, hpMax: C.HP_MAX
       });
       if (p.id === m.you) {
         G.myTeam = p.team;
@@ -448,25 +416,28 @@
       UI.weaponPicker(m.choices, (m.countdown || C.COUNTDOWN) - 1.2, key => {
         NET.send({ t: C.MSG.PICK, w: key });
         applyMyWeapon(key);
-        FB.log('weapon_picked', { weapon: key, mode: m.mode, map: m.mapName });
       });
     } else {
       UI.pickerOpen(false);
     }
 
-    $('mapname').textContent = m.mapName.toUpperCase() + ' · ' + C.MODES[m.mode].name.toUpperCase();
+    $('mapname').textContent = m.mapName.toUpperCase() + (G.isSolo ? ' · SURVIVAL' : ' · ' + C.MODES[m.mode].name.toUpperCase());
     G.inMatch = true;
     G.matchState = m.resumed ? 'live' : 'countdown';
     G.matchStartedAt = performance.now();
     UI.reconnecting(false);
-    FB.log('match_start', {
-      mode: m.mode, map: m.mapName,
-      players: m.players.length,
-      bots: m.players.filter(p => p.bot).length
-    });
     UI.show('scr-game');
     SFX.resume();
-    UI.toast(m.resumed ? 'Wieder im Spiel' : `Map: ${m.mapName}`, 'ok');
+    UI.toast(m.resumed ? 'Back in the fight' : `Map: ${m.mapName}`, 'ok');
+    if (G.isSolo) { 
+      $('wave-display').style.display = 'block';
+      $('score-plate').style.display = 'none';
+      $('timer').style.display = 'none';
+    } else {
+      $('wave-display').style.display = 'none';
+      $('score-plate').style.display = '';
+      $('timer').style.display = '';
+    }
   }
 
   /** Eigene Waffe uebernehmen (nach Wahl oder Serverzuteilung). */
@@ -506,6 +477,11 @@
     G.timeLeft = s.tl;
     G.teamScore = s.ts;
     G.scoreboard = s.sb || [];
+    G.currentWave = s.wv || 0;
+    G.wavePrep = s.wp || 0;
+    G.waveAlive = s.wz || 0;
+
+    if (G.isSolo) UI.updateWave(G.currentWave, G.wavePrep, G.waveAlive);
 
     if (s.st === 'countdown') {
       const sec = Math.ceil(s.cd);
@@ -519,8 +495,23 @@
 
     const seen = new Set();
     for (const ps of s.ps) {
-      const p = G.players.get(ps.i);
-      if (!p) continue;
+      let p = G.players.get(ps.i);
+      if (!p) {
+        if (G.isSolo && ps.zb) {
+          p = {
+            id: ps.i, name: 'ZOMBIE', color: '#5c9a3a', trail: '#8bff4a', pattern: 'solid',
+            team: 0, bot: true, weapon: 'sword',
+            teamColor: '#8bff4a',
+            buf: [], rx: ps.x, ry: ps.y, ra: ps.a,
+            hp: ps.h, hpMax: ps.hm || 100, alive: true, visible: true, mv: 0, bush: false,
+            walkPhase: Math.random() * 6, dash: false, invul: false, spinAngle: 0,
+            zombie: true, burning: false, cloaked: false
+          };
+          G.players.set(ps.i, p);
+        } else {
+          continue;
+        }
+      }
       seen.add(ps.i);
       p.buf.push({ t: now, x: ps.x, y: ps.y, a: ps.a });
       while (p.buf.length > 24) p.buf.shift();
@@ -528,6 +519,8 @@
       p.invul = !!ps.iv; p.dash = !!ps.ds; p.spin = ps.sp || 0;
       p.burning = !!ps.bu2;
       p.cloaked = !!ps.ck;
+      p.zombie = !!ps.zb;
+      p.hpMax = ps.hm || C.HP_MAX;
       if (ps.w >= 0 && C.WEAPON_ORDER[ps.w]) p.weapon = C.WEAPON_ORDER[ps.w];
       p.visible = true;
     }
@@ -575,7 +568,7 @@
     }
 
     (s.ev || []).forEach(handleEvent);
-    updateScorePlate();
+    if (!G.isSolo) updateScorePlate();
     if ($('scoreboard').classList.contains('show')) {
       UI.showScoreboard(true, buildBoard(), C.MODES[G.mode].teams, G.myId);
     }
@@ -675,7 +668,7 @@
         const killer = ev.by ? G.players.get(ev.by) : null;
         if (victim) {
           FX.death(ev.x, ev.y, victim.color, ev.a);
-          FX.corpse({ x: ev.x, y: ev.y, a: victim.ra, color: victim.color, pattern: victim.pattern, name: victim.name }, ev.a);
+          FX.corpse({ x: ev.x, y: ev.y, a: victim.ra, color: victim.color, pattern: victim.pattern, name: victim.name, zombie: victim.zombie }, ev.a);
           victim.alive = false;
         }
         SFX.death(dist2me(ev.x, ev.y));
@@ -751,9 +744,18 @@
         SFX.countdown(0);
         break;
       case 'over':
-        UI.centerMsg('MATCH VORBEI', '#ffd166');
+        UI.centerMsg(G.isSolo ? 'DEFEATED' : 'MATCH OVER', G.isSolo ? '#ff5c7a' : '#ffd166');
         FX.slow(1.2);
         break;
+      case 'wave': {
+        UI.centerMsg('WAVE ' + ev.n + '!', '#ff5c7a');
+        SFX.countdown(0);
+        break;
+      }
+      case 'waveprep': {
+        UI.centerMsg('NEXT WAVE INCOMING', '#ffd166');
+        break;
+      }
     }
     void me;
   }
@@ -835,123 +837,26 @@
 
   /* ================= Menue-Verdrahtung ================= */
   function bindUI() {
-    const nameInp = $('inp-name');
-    nameInp.value = UI.name;
-    nameInp.addEventListener('input', () => {
-      UI.name = nameInp.value.slice(0, 14);
-      UI.saveSkin();
-      NET.send({ t: C.MSG.HELLO, name: UI.name, skin: UI.skin });
-    });
-
     document.querySelectorAll('[data-back]').forEach(b => {
       b.onclick = () => UI.show(b.dataset.back);
     });
 
     $('btn-create').onclick = () => {
       SFX.resume();
-      FB.log('lobby_create');
-      NET.send({ t: C.MSG.CREATE, name: UI.name, skin: UI.skin });
+      NET.send({ t: C.MSG.PLAY, name: UI.name, skin: UI.skin });
     };
-    $('btn-join').onclick = () => {
+    const btnJoin = $('btn-join');
+    if (btnJoin) btnJoin.onclick = () => {
       SFX.resume();
       $('join-err').textContent = '';
       UI.show('scr-join');
       setTimeout(() => digits[0].focus(), 120);
     };
-    $('btn-skins').onclick = () => { UI.buildSkinUI(); UI.renderLocker(); UI.show('scr-skins'); };
     $('btn-help').onclick = () => UI.show('scr-help');
-    $('btn-board').onclick = () => {
-      NET.send({ t: C.MSG.BOARDREQ });
-      UI.show('scr-board');
-      FB.log('leaderboard_open');
-    };
-    $('btn-shop').onclick = () => {
-      NET.send({ t: C.MSG.SHOP });
-      UI.show('scr-shop');
-      FB.log('shop_open');
-    };
-    UI.wireFriends();
-    $('btn-friends').onclick = () => {
-      NET.send({ t: C.MSG.FRIENDS });
-      UI.renderFriends();
-      UI.show('scr-friends');
-      FB.log('friends_open');
-    };
-
-    /* ---- Anmeldung ----
-       Wird die Anmeldung vom Geraet abgefangen, darf niemand vor einem toten
-       Knopf sitzen: der Hinweis erklaert die Lage und der Gastweg wird zum
-       Hauptknopf. Gespielt werden kann immer. */
-    function anmeldungBlockiert(text) {
-      $('login-blocked').classList.add('show');
-      if (text) $('login-err').textContent = text;
-      $('btn-google').disabled = true;
-      $('btn-google').style.opacity = .45;
-      $('btn-guest').classList.add('primary-fallback');
-      $('btn-guest').textContent = 'Play without signing in';
-    }
-
-    // SDK gar nicht geladen -> Filter hat es schon vorher geblockt
-    if (AUTH.blocked()) anmeldungBlockiert('');
-
-    $('btn-google').onclick = async () => {
-      $('login-err').textContent = '';
-      const btn = $('btn-google');
-      btn.disabled = true;
-      const alt = btn.querySelector('b').textContent;
-      btn.querySelector('b').textContent = 'SIGN-IN WINDOW OPEN …';
-      try {
-        await AUTH.signIn();
-        FB.log('login', { method: 'google' });
-      } catch (e) {
-        switch (e.grund) {
-          case 'blockiert':
-          case 'popup':
-            anmeldungBlockiert('');
-            break;
-          case 'abgebrochen':
-            $('login-err').textContent = 'Sign-in cancelled.';
-            break;
-          case 'domain':
-            $('login-err').textContent = 'This address is not authorized in Firebase '
-              + '(Authentication → Settings → Authorized domains).';
-            break;
-          case 'projekt':
-            $('login-err').textContent = 'Google sign-in is not enabled in the Firebase project.';
-            break;
-          default:
-            $('login-err').textContent = e.message;
-        }
-        FB.log('login_failed', { reason: e.grund || 'unknown' });
-      } finally {
-        btn.querySelector('b').textContent = alt;
-        if (!AUTH.blocked()) btn.disabled = false;
-      }
-    };
-    $('btn-guest').onclick = () => { AUTH.playAsGuest(); FB.log('login', { method: 'guest' }); };
-    $('btn-signout').onclick = async () => {
-      // Angemeldet -> abmelden. Als Gast -> zurueck zum Anmeldebildschirm.
-      await AUTH.signOut();
-      UI.show('scr-login');
-      $('login-err').textContent = '';
-      FB.log('logout');
-    };
-
-    // Login-Screen verlassen, sobald angemeldet oder Gastmodus gewaehlt
-    AUTH.onChange(st => {
-      UI.renderAccount(st);
-      if ((st.signedIn || st.guest) && UI.currentScreen() === 'scr-login') UI.show('scr-menu');
-      if (!st.signedIn && !st.guest && UI.currentScreen() === 'scr-menu') UI.show('scr-login');
-    });
-    $('btn-skin-save').onclick = () => {
-      UI.saveSkin();
-      NET.send({ t: C.MSG.HELLO, name: UI.name, skin: UI.skin });
-      UI.toast('Skin gespeichert', 'ok');
-      UI.show('scr-menu');
-    };
 
     // Code-Eingabe
     const digits = [...document.querySelectorAll('#code-input .digit')];
+    if (digits.length) {
     digits.forEach((d, i) => {
       d.addEventListener('input', () => {
         d.value = d.value.replace(/\D/g, '').slice(0, 1);
@@ -972,48 +877,54 @@
       });
     });
     window.digits = digits;
+    }
 
     function doJoin() {
       const code = digits.map(d => d.value).join('');
       if (code.length !== 6) { $('join-err').textContent = 'Please enter 6 digits'; return; }
-      FB.log('lobby_join');
       NET.send({ t: C.MSG.JOIN, code, name: UI.name, skin: UI.skin });
     }
-    $('btn-do-join').onclick = doJoin;
+    const btnDoJoin = $('btn-do-join');
+    if (btnDoJoin) btnDoJoin.onclick = doJoin;
 
     // Lobby
-    $('room-code').onclick = () => {
-      const code = $('room-code').textContent;
+    const roomCode = $('room-code');
+    if (roomCode) roomCode.onclick = () => {
+      const code = roomCode.textContent;
       navigator.clipboard?.writeText(code).then(
         () => { $('copy-hint').textContent = 'copied!'; setTimeout(() => $('copy-hint').textContent = 'click to copy', 1600); },
         () => UI.toast('Could not copy: ' + code)
       );
     };
-    $('btn-leave').onclick = () => { NET.send({ t: C.MSG.LEAVE }); UI.show('scr-menu'); };
-    /* Tab zu = bewusst weg. Ohne diese Meldung bliebe der Platz die volle
-       Schonfrist reserviert und die anderen warteten auf eine Karteileiche. */
+    const btnLeave = $('btn-leave');
+    if (btnLeave) btnLeave.onclick = () => { NET.send({ t: C.MSG.LEAVE }); UI.show('scr-menu'); };
     addEventListener('pagehide', () => { try { NET.send({ t: C.MSG.LEAVE }); } catch (_) { /* egal */ } });
-    $('btn-addbot').onclick = () => NET.send({ t: C.MSG.ADDBOT });
-    $('btn-shuffle').onclick = () => {
+    const btnAddbot = $('btn-addbot');
+    if (btnAddbot) btnAddbot.onclick = () => NET.send({ t: C.MSG.ADDBOT });
+    const btnShuffle = $('btn-shuffle');
+    if (btnShuffle) btnShuffle.onclick = () => {
       const r = UI.room;
       if (!r) return;
       const ids = r.members.map(m => m.id).sort(() => Math.random() - 0.5);
       ids.forEach((id, i) => NET.send({ t: C.MSG.TEAM, id, team: i % 2 }));
     };
-    $('btn-start').onclick = () => { SFX.resume(); NET.send({ t: C.MSG.START }); };
+    const btnStart = $('btn-start');
+    if (btnStart) btnStart.onclick = () => { SFX.resume(); NET.send({ t: C.MSG.START }); };
 
     const chatInp = $('chat-inp');
     const sendChat = () => {
+      if (!chatInp) return;
       const v = chatInp.value.trim();
       if (!v) return;
       NET.send({ t: C.MSG.CHAT, text: v });
       chatInp.value = '';
     };
-    $('chat-send').onclick = sendChat;
-    chatInp.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+    const chatSend = $('chat-send');
+    if (chatSend) chatSend.onclick = sendChat;
+    if (chatInp) chatInp.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
 
     $('btn-result-back').onclick = () => {
-      UI.show(NET.connected && UI.room ? 'scr-lobby' : 'scr-menu');
+      UI.show('scr-menu');
     };
   }
 
@@ -1021,9 +932,9 @@
   bindUI();
   UI.wireSettings();
   SETTINGS.apply();          // gespeicherte Grafikstufe sofort setzen
-  UI.buildSkinUI();
   RENDER.resize();
-  AUTH.init();
+  AUTH.playAsGuest();
+  UI.show('scr-menu');
   NET.connect();
   requestAnimationFrame(frame);
 

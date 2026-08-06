@@ -77,8 +77,6 @@ const UI = (() => {
   }
 
   /* ---------- Skin ---------- */
-  // Uniformfarben - militaerisch, aber klar unterscheidbar
-  const PALETTE = ['#5c7a2e', '#2f5d3a', '#a08b4f', '#c2a05a', '#2f4a7a', '#3f7d8c', '#a8322f', '#6b4a9c', '#4a5560', '#cfd8e3'];
   const skin = loadSkin();
   let profileName = localStorage.getItem('ns_name') || '';
 
@@ -96,108 +94,6 @@ const UI = (() => {
     localStorage.setItem('ns_skin', JSON.stringify(skin));
     localStorage.setItem('ns_name', profileName);
   }
-  function hsl2hex(h) {
-    const f = n => {
-      const k = (n + h / 30) % 12, a = .55 * Math.min(.62, 1 - .62);
-      const c = .62 - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1)));
-      return Math.round(255 * c).toString(16).padStart(2, '0');
-    };
-    return '#' + f(0) + f(8) + f(4);
-  }
-
-  function buildSkinUI() {
-    const mkSwatches = (host, key, slider) => {
-      host.innerHTML = '';
-      PALETTE.forEach(col => {
-        const b = document.createElement('button');
-        b.className = 'sw' + (skin[key] === col ? ' sel' : '');
-        b.style.background = col; b.style.color = col;
-        b.onclick = () => {
-          skin[key] = col;
-          [...host.children].forEach(c => c.classList.remove('sel'));
-          b.classList.add('sel');
-          SFX.ui(true);
-        };
-        host.appendChild(b);
-      });
-      slider.oninput = () => {
-        skin[key] = hsl2hex(+slider.value);
-        [...host.children].forEach(c => c.classList.remove('sel'));
-      };
-    };
-    mkSwatches($('sw-body'), 'color', $('hue-body'));
-    mkSwatches($('sw-trail'), 'trail', $('hue-trail'));
-
-    const prow = $('pattern-row');
-    prow.innerHTML = '';
-    const labels = { solid: 'SOLID', stripe: 'STRIPES', dots: 'SPECKLE', ring: 'RANK BAND', shard: 'SPLINTER' };
-    C.SKIN_PATTERNS.forEach(p => {
-      const b = document.createElement('button');
-      b.className = 'pat' + (skin.pattern === p ? ' sel' : '');
-      b.textContent = labels[p] || p;
-      b.onclick = () => {
-        skin.pattern = p;
-        [...prow.children].forEach(c => c.classList.remove('sel'));
-        b.classList.add('sel');
-        SFX.ui(true);
-      };
-      prow.appendChild(b);
-    });
-  }
-
-  const skinCv = $('skin-cv');
-  const skinCtx = skinCv.getContext('2d');
-  let skinT = 0;
-  function drawSkinPreview(dt) {
-    skinT += dt;
-    const w = skinCv.width, h = skinCv.height;
-    skinCtx.clearRect(0, 0, w, h);
-    // Plattform
-    skinCtx.save();
-    skinCtx.translate(w / 2, h / 2 + 22);
-    skinCtx.strokeStyle = 'rgba(63,208,255,.22)';
-    skinCtx.lineWidth = 2;
-    for (let i = 0; i < 3; i++) {
-      skinCtx.globalAlpha = .5 - i * .13;
-      skinCtx.beginPath();
-      skinCtx.ellipse(0, 30, 78 + i * 22 + Math.sin(skinT * 1.4 + i) * 4, 26 + i * 8, 0, 0, 7);
-      skinCtx.stroke();
-    }
-    skinCtx.globalAlpha = 1;
-    skinCtx.restore();
-
-    // Spur-Partikel
-    for (let i = 0; i < 26; i++) {
-      const a = skinT * .8 + i * (Math.PI * 2 / 26);
-      const rr = 92 + Math.sin(skinT * 1.7 + i) * 10;
-      const x = w / 2 + Math.cos(a) * rr, y = h / 2 + 20 + Math.sin(a) * rr * .34;
-      skinCtx.globalAlpha = .25 + .35 * Math.abs(Math.sin(a * 2 + skinT));
-      skinCtx.fillStyle = skin.trail;
-      skinCtx.beginPath(); skinCtx.arc(x, y, 2.4, 0, 7); skinCtx.fill();
-    }
-    skinCtx.globalAlpha = 1;
-
-    /* Angelegte Sonderfarbe mitzeichnen, sonst muesste man ins Match, um zu
-       sehen, was man da gerade angelegt hat. */
-    const fx = fxAktiv();
-    if (fx) {
-      skinCtx.save();
-      skinCtx.translate(w / 2, h - 62 - h * 0.74 * 0.32);
-      RENDER.skinEffekt(skinCtx, fx.anim, h * 0.2, skinT, fx.color, fx.trail);
-      skinCtx.restore();
-    }
-
-    /* Frontansicht statt Draufsicht: beim Farbwaehlen will man das Gesicht
-       sehen, nicht den Helm von oben. */
-    RENDER.drawAvatarFront(skinCtx, w / 2, h - 62, h * 0.74, skin, skinT);
-
-    skinCtx.font = '600 12px Rajdhani, sans-serif';
-    skinCtx.fillStyle = 'rgba(160,190,225,.7)';
-    skinCtx.textAlign = 'center';
-    skinCtx.fillText((profileName || 'Player').toUpperCase(), w / 2, h - 26);
-    skinCtx.textAlign = 'left';
-  }
-
   /* ---------- Lobby ---------- */
   let roomState = null;
   function renderRoom(r, myId) {
@@ -240,13 +136,6 @@ const UI = (() => {
       nm.className = 'nm';
       nm.textContent = m.name;
       if (teams > 1) nm.style.color = C.TEAM_COLORS[m.team];
-      /* Name anklickbar, wenn eine Anfrage ueberhaupt Sinn ergibt: beide
-         angemeldet, nicht man selbst, kein Bot und noch nicht befreundet. */
-      if (palAnfrage && m.uid && m.id !== myId && !m.bot && !palKennt(m.uid)) {
-        nm.classList.add('addable');
-        nm.title = 'Send friend request';
-        nm.onclick = () => palAnfrage(m.uid, m.name);
-      }
       row.appendChild(nm);
 
       if (m.host) { const t = document.createElement('span'); t.className = 'tag host'; t.textContent = 'HOST'; row.appendChild(t); }
@@ -489,7 +378,7 @@ const UI = (() => {
 
   function phaseVote(m) {
     $('prep-title').textContent = 'PICK A MAP';
-    $('prep-sub').textContent = 'The map with the most votes gets played.';
+    $('prep-sub').textContent = m.mode === 'solo' ? 'Choose where to survive.' : 'The map with the most votes gets played.';
     $('prep-note').textContent = m.you === undefined
       ? 'No vote means you do not count.' : '';
     const host = $('map-choices');
@@ -630,284 +519,6 @@ const UI = (() => {
       const wer = (m.taken || []).filter(x => x.w === key).length;
       card.querySelector('.wtaken').textContent = wer ? `${wer}× picked` : '';
     });
-  }
-
-  /* ---------- Skinshop ---------- */
-
-  let shopBuy = null, shopEquip = null;
-  const shopAnim = [];      // laufende Vorschauen
-
-  function onShop(kaufen, anlegen) { shopBuy = kaufen; shopEquip = anlegen; }
-
-  function renderShop(m) {
-    const p = m.profile;
-    $('shop-gold').textContent = (p ? p.gold : 0) + ' Gold';
-    $('shop-hint').textContent = p
-      ? 'You earn gold after every match — most for 1st place, but last place never leaves empty-handed.'
-      : 'You have to be signed in to buy. Signed-in players earn gold in every match.';
-    const host = $('shop-grid');
-    host.innerHTML = '';
-    shopAnim.length = 0;
-    for (const s of m.skins) {
-      const hat = p && p.owned.includes(s.id);
-      const an = p && p.skin === s.id;
-      const card = document.createElement('div');
-      card.className = 'shop-card' + (hat ? ' owned' : '') + (an ? ' active' : '');
-      const cv = document.createElement('canvas');
-      cv.width = 240; cv.height = 240;
-      card.appendChild(cv);
-      shopAnim.push({ cv, skin: s });
-      const b = document.createElement('b');
-      b.textContent = s.name;
-      const d = document.createElement('div');
-      d.className = 'sdesc';
-      d.textContent = s.desc;
-      const pr = document.createElement('div');
-      pr.className = 'sprice';
-      pr.textContent = hat ? 'owned' : s.price + ' Gold';
-      const btn = document.createElement('button');
-      btn.className = 'btn small' + (hat ? ' ghost' : ' primary');
-      btn.textContent = an ? 'Equipped' : hat ? 'Equip' : 'Buy';
-      btn.disabled = !p || an;
-      btn.onclick = () => {
-        if (!p) return;
-        if (hat) { if (shopEquip) shopEquip(s.id); }
-        else if (shopBuy) shopBuy(s.id);
-      };
-      card.append(b, d, pr, btn);
-      host.appendChild(card);
-    }
-  }
-
-  /** Vorschauen im Shop weiterlaufen lassen. */
-  let shopT = 0;
-  function shopTick(dt) {
-    if (current !== 'scr-shop' || !shopAnim.length) return;
-    shopT += dt;
-    for (const a of shopAnim) {
-      const g = a.cv.getContext('2d');
-      g.clearRect(0, 0, a.cv.width, a.cv.height);
-      RENDER.drawShopPreview(g, a.cv.width / 2, a.cv.height - 30, a.cv.height * 0.62, a.skin, shopT);
-    }
-  }
-
-  /* ---------- Sonderfarben im Skinlocker ---------- */
-
-  /* Gekaufte Farben gehoeren dorthin, wo man seinen Skin einstellt - im Shop
-     nachschauen zu muessen, was gerade anliegt, ergibt keinen Sinn. Die Daten
-     kommen aus dem Serverprofil, nicht aus der lokalen Skinkonfiguration. */
-  const lockerAnim = [];
-
-  /** Gerade angelegte Sonderfarbe, oder null. */
-  function fxAktiv() {
-    const p = AUTH.profile;
-    if (!p || !p.skin) return null;
-    return C.SHOP_SKINS.find(s => s.id === p.skin) || null;
-  }
-
-  function renderLocker() {
-    const row = $('fx-row'), hint = $('fx-hint');
-    if (!row) return;
-    row.innerHTML = '';
-    lockerAnim.length = 0;
-
-    const p = AUTH.profile;
-    if (!p) {
-      hint.textContent = 'Sign in to buy and equip special colors.';
-      return;
-    }
-    const meine = C.SHOP_SKINS.filter(s => p.owned.includes(s.id));
-    if (!meine.length) {
-      hint.textContent = 'No special colors yet — buy them in the skin shop with gold.';
-      return;
-    }
-    hint.textContent = 'Tap a color to equip it. It shows on your player in every match.';
-
-    // "Keine" zuerst, damit man immer wieder zum eigenen Farbschema zurueckkann
-    const keine = document.createElement('div');
-    keine.className = 'fx-tile none' + (p.skin ? '' : ' on');
-    keine.innerHTML = '<div class="fxnone">✕</div><div class="fxn">None</div>';
-    const ks = document.createElement('div');
-    ks.className = 'fxs';
-    ks.textContent = p.skin ? '' : 'EQUIPPED';
-    keine.appendChild(ks);
-    keine.onclick = () => { if (p.skin && shopEquip) { SFX.ui(true); shopEquip(''); } };
-    row.appendChild(keine);
-
-    for (const s of meine) {
-      const an = p.skin === s.id;
-      const tile = document.createElement('div');
-      tile.className = 'fx-tile' + (an ? ' on' : '');
-      const cv = document.createElement('canvas');
-      cv.width = 152; cv.height = 152;
-      tile.appendChild(cv);
-      lockerAnim.push({ cv, skin: s });
-      const n = document.createElement('div');
-      n.className = 'fxn'; n.textContent = s.name;
-      const st = document.createElement('div');
-      st.className = 'fxs'; st.textContent = an ? 'EQUIPPED' : '';
-      tile.append(n, st);
-      tile.onclick = () => { if (!an && shopEquip) { SFX.ui(true); shopEquip(s.id); } };
-      row.appendChild(tile);
-    }
-  }
-
-  /* ---------- Freunde ---------- */
-
-  /* Der Server schickt immer den ganzen Stand, nie Teiländerungen - die
-     Listen sind klein und koennen so nicht auseinanderlaufen. */
-  let palData = { friends: [], incoming: [], outgoing: [], guest: false };
-  let palTab = 'friends';
-  let palAct = null;      // (aktion, uid) -> an den Server
-  let palJoin = null;     // (uid) -> Lobby des Freundes betreten
-
-  let palAnfrage = null;  // (uid, name) -> Anfrage aus der Lobby heraus
-
-  function onFriends(aktion, beitreten, anfragen) {
-    palAct = aktion; palJoin = beitreten; palAnfrage = anfragen;
-  }
-
-  /** Steht der schon in einer der drei Listen? Dann kein zweiter Klick. */
-  function palKennt(uid) {
-    return palData.friends.some(f => f.uid === uid)
-      || palData.outgoing.some(f => f.uid === uid)
-      || palData.incoming.some(f => f.uid === uid);
-  }
-
-  /** Zahlen am Knopf und an den Reitern - laeuft auch bei zugeklapptem Schirm,
-      sonst stehen dort alte Werte, sobald man ihn wieder aufmacht. */
-  function palBadge() {
-    const b = $('btn-friends');
-    if (!b) return;
-    const n = palData.incoming.length;
-    b.classList.toggle('has', n > 0);
-    $('pal-badge').textContent = n > 9 ? '9+' : String(n);
-    for (const k of ['friends', 'incoming', 'outgoing']) $('pal-n-' + k).textContent = palData[k].length;
-  }
-
-  function setFriends(m) {
-    palData = {
-      friends: m.friends || [], incoming: m.incoming || [],
-      outgoing: m.outgoing || [], guest: !!m.guest
-    };
-    palBadge();
-    if (current === 'scr-friends') renderFriends();
-    /* Die Lobby zeigt Namen nur dann anklickbar, wenn noch keine Anfrage
-       laeuft - nach einer Aenderung muss sie also neu gezeichnet werden. */
-    if (current === 'scr-lobby' && roomState) renderRoom(roomState, NET.id);
-  }
-
-  function wireFriends() {
-    [...$('pal-tabs').children].forEach(b => {
-      b.onclick = () => { SFX.ui(true); palTabWahl(b.dataset.tab); };
-    });
-  }
-
-  function palTabWahl(tab) {
-    palTab = tab;
-    [...$('pal-tabs').children].forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-    renderFriends();
-  }
-
-  /** Eine Zeile: Bild, Name, Zustand, Knoepfe. */
-  function palZeile(f, art) {
-    const row = document.createElement('div');
-    row.className = 'pal' + (f.online ? ' on' : '');
-
-    if (f.photo) {
-      const img = document.createElement('img');
-      img.src = f.photo; img.alt = '';
-      img.onerror = () => { img.remove(); };
-      row.appendChild(img);
-    } else {
-      const av = document.createElement('div');
-      av.className = 'av';
-      row.appendChild(av);
-    }
-
-    if (art === 'friends') {
-      const d = document.createElement('i');
-      d.className = 'dot';
-      row.appendChild(d);
-    }
-
-    const who = document.createElement('div');
-    who.className = 'who';
-    const nb = document.createElement('b');
-    nb.textContent = f.name;
-    const sub = document.createElement('span');
-    if (art !== 'friends') sub.textContent = '★ ' + f.stars;
-    else if (f.joinable) sub.textContent = 'In a group · ★ ' + f.stars;
-    else if (f.room) sub.textContent = (f.state === 'lobby' ? 'Group is full' : 'In a match') + ' · ★ ' + f.stars;
-    else sub.textContent = (f.online ? 'Online' : 'Offline') + ' · ★ ' + f.stars;
-    who.append(nb, sub);
-    row.appendChild(who);
-
-    const knopf = (text, klasse, fn) => {
-      const b = document.createElement('button');
-      b.className = 'btn small ' + klasse;
-      b.textContent = text;
-      b.onclick = fn;
-      row.appendChild(b);
-      return b;
-    };
-
-    if (art === 'friends') {
-      if (f.joinable) knopf('Join', 'primary', () => palJoin && palJoin(f.uid));
-      knopf('Remove', 'ghost', () => palAct && palAct('remove', f.uid));
-    } else if (art === 'incoming') {
-      knopf('Accept', 'primary', () => palAct && palAct('accept', f.uid));
-      knopf('Decline', 'ghost', () => palAct && palAct('decline', f.uid));
-    } else {
-      knopf('Cancel', 'ghost', () => palAct && palAct('cancel', f.uid));
-    }
-    return row;
-  }
-
-  const PAL_LEER = {
-    friends: 'No friends yet. Open a group, click a player\'s name and send them a request.',
-    incoming: 'No open requests.',
-    outgoing: 'You have not sent any requests.'
-  };
-
-  function renderFriends() {
-    palBadge();
-    const host = $('pal-list');
-    host.innerHTML = '';
-    const hint = $('pal-hint');
-
-    if (palData.guest) {
-      hint.textContent = 'Sign in to add friends and join their groups.';
-      const p = document.createElement('div');
-      p.className = 'pal-empty';
-      p.textContent = 'Friends are tied to your account, so guests cannot have any.';
-      host.appendChild(p);
-      return;
-    }
-
-    const liste = palData[palTab];
-    if (!liste.length) {
-      const p = document.createElement('div');
-      p.className = 'pal-empty';
-      p.textContent = PAL_LEER[palTab];
-      host.appendChild(p);
-    } else {
-      for (const f of liste) host.appendChild(palZeile(f, palTab));
-    }
-    hint.textContent = palTab === 'friends' && liste.length
-      ? 'Join is only there while their group is open — not during a match.'
-      : '';
-  }
-
-  let lockerT = 0;
-  function lockerTick(dt) {
-    if (current !== 'scr-skins' || !lockerAnim.length) return;
-    lockerT += dt;
-    for (const a of lockerAnim) {
-      const g = a.cv.getContext('2d');
-      g.clearRect(0, 0, a.cv.width, a.cv.height);
-      RENDER.drawShopPreview(g, a.cv.width / 2, a.cv.height - 18, a.cv.height * 0.6, a.skin, lockerT);
-    }
   }
 
   /* ---------- Einstellungen ---------- */
@@ -1064,12 +675,26 @@ const UI = (() => {
     el.classList.add(kill ? 'killhit' : 'hit');
   }
 
+  function updateWave(wave, prep, alive) {
+    const el = $('wave-display');
+    if (!el) return;
+    if (prep > 0) {
+      el.textContent = 'WAVE ' + (wave + 1) + ' IN ' + Math.ceil(prep);
+      el.className = 'wave-display prep';
+    } else {
+      el.textContent = 'WAVE ' + wave + ' · ' + alive + ' LEFT';
+      el.className = 'wave-display live';
+    }
+  }
+
   function boardHTML(board, teams, myId, withStars) {
     const cls = withStars ? 'brow starcol' : 'brow';
-    const rows = (list) => list.map(p => `
+    const rows = (list) => list.map(p => {
+      const extra = p.wave !== undefined ? ` · Wave ${p.wave} · ${p.totalKills || 0} kills` : '';
+      return `
       <div class="${cls} ${p.id === myId ? 'me' : ''}">
         <div class="av" style="background:${p.color};color:${p.color}"></div>
-        <div>${esc(p.name)}${p.bot ? ' <span style="opacity:.5;font-size:10px">BOT</span>' : ''}</div>
+        <div>${esc(p.name)}${p.bot ? ' <span style="opacity:.5;font-size:10px">BOT</span>' : ''}${extra ? `<small style="opacity:.6">${extra}</small>` : ''}</div>
         <div class="num">${p.kills}</div>
         <div class="num">${p.deaths}</div>
         <div class="num">${p.damage}</div>
@@ -1077,7 +702,8 @@ const UI = (() => {
         ${withStars ? `<div class="num">${p.stars === null || p.stars === undefined
           ? '<span class="delta flat" title="Guest or bot">—</span>'
           : starBadge(p.stars) + (p.capped ? '<span class="capped" title="Nicht unter 0">⌊0⌋</span>' : '')}</div>` : ''}
-      </div>`).join('');
+      </div>`;
+    }).join('');
     const head = `<div class="${cls} head"><div></div><div>SPIELER</div><div class="num">K</div><div class="num">T</div><div class="num">DMG</div><div class="num">SERIE</div>${withStars ? '<div class="num">STERNE</div>' : ''}</div>`;
     if (teams > 1) {
       const t0 = board.filter(p => p.team === 0), t1 = board.filter(p => p.team === 1);
@@ -1100,16 +726,23 @@ const UI = (() => {
     if (payload.teams > 1) {
       if (payload.winner === null) draw = true;
       else won = payload.winner === myTeam;
+    } else if (payload.mode === 'solo') {
+      won = false;
     } else {
       won = payload.winner === myId;
     }
     title.className = 'result-title ' + (draw ? 'draw' : won ? 'win' : 'lose');
-    title.textContent = draw ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
-    const sub = payload.teams > 1
-      ? `${payload.mapName} · ${C.MODES[payload.mode].name} · ${payload.teamScore[0]} : ${payload.teamScore[1]}`
-      : `${payload.mapName} · ${C.MODES[payload.mode].name}`;
-    $('result-sub').textContent = sub;
-    $('result-board').innerHTML = boardHTML(payload.board, payload.teams, myId, true);
+    if (payload.mode === 'solo') {
+      title.textContent = 'DEFEATED';
+      $('result-sub').textContent = payload.mapName + ' · Wave ' + (payload.wave || 0) + ' · ' + (payload.kills || 0) + ' zombies killed';
+    } else {
+      title.textContent = draw ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
+      const sub = payload.teams > 1
+        ? `${payload.mapName} · ${C.MODES[payload.mode].name} · ${payload.teamScore[0]} : ${payload.teamScore[1]}`
+        : `${payload.mapName} · ${C.MODES[payload.mode].name}`;
+      $('result-sub').textContent = sub;
+    }
+    $('result-board').innerHTML = boardHTML(payload.board, payload.teams, myId, payload.mode === 'solo');
     show('scr-result');
     if (draw) SFX.ui(true); else won ? SFX.win() : SFX.lose();
   }
@@ -1195,32 +828,7 @@ const UI = (() => {
 
   /* ---------- Konto + Bestenliste ---------- */
   function renderAccount(st) {
-    const photo = $('acct-photo');
-    const name = $('acct-name');
-    const stars = $('acct-stars');
-    const out = $('btn-signout');
-    if (!name) return;
-    // Der Knopf ist immer da: angemeldet -> abmelden, als Gast -> anmelden
-    out.style.display = '';
-    if (st.signedIn) {
-      name.textContent = st.name;
-      photo.src = st.photo || '';
-      photo.style.display = st.photo ? 'block' : 'none';
-      stars.textContent = '★ ' + (st.profile ? st.profile.stars : 0);
-      stars.style.display = '';
-      out.textContent = 'Sign out';
-      out.dataset.action = 'signout';
-      $('chip-rank').textContent = st.profile && st.profile.rank
-        ? `Rank ${st.profile.rank} of ${st.profile.totalPlayers}`
-        : 'unranked';
-    } else {
-      name.textContent = 'Guest';
-      photo.style.display = 'none';
-      stars.style.display = 'none';
-      out.textContent = 'Sign in';
-      out.dataset.action = 'signin';
-      $('chip-rank').textContent = 'Guest — no stars';
-    }
+    void st;
   }
 
   function starBadge(n) {
@@ -1230,44 +838,7 @@ const UI = (() => {
   }
 
   function renderBoard(payload) {
-    const list = payload.list || [];
-    const host = $('lb-list');
-    host.innerHTML = list.map(p => `
-      <div class="brow lb-row ${payload.you && p.uid === payload.you.uid ? 'me' : ''}">
-        <div class="lb-rank r${p.rank <= 3 ? p.rank : ''}">${p.rank}</div>
-        <div>${p.photo ? `<img class="lb-photo" src="${esc(p.photo)}" alt="" />` : '<span class="lb-photo ph"></span>'}</div>
-        <div class="lb-name">${esc(p.name)}${p.matches === 0 ? '<span class="lb-demo">NOCH KEIN SPIEL</span>' : ''}</div>
-        <div class="num lb-stars">${p.stars}</div>
-        <div class="num">${p.wins}</div>
-        <div class="num">${p.matches}</div>
-        <div class="num">${p.deaths ? (p.kills / p.deaths).toFixed(2) : p.kills.toFixed(2)}</div>
-      </div>`).join('');
-    $('lb-empty').style.display = list.length ? 'none' : 'block';
-
-    const you = $('board-you');
-    if (payload.you) {
-      const y = payload.you;
-      you.style.display = 'flex';
-      you.innerHTML =
-        `<div class="you-rank">${y.rank ? '#' + y.rank : '—'}</div>` +
-        `<div class="you-main"><b>${esc(y.name || 'Du')}</b>` +
-        `<span>${y.matches} games · ${y.wins} wins · best ★ ${y.best}</span></div>` +
-        `<div class="you-stars">★ ${y.stars}</div>`;
-    } else {
-      you.style.display = 'flex';
-      you.innerHTML = '<div class="you-main"><b>Not signed in</b>' +
-        '<span>Guests do not collect stars.</span></div>';
-    }
-
-    // Beispielverteilung fuer die aktuelle Lobbygroesse zeigen
-    const ex = $('star-example');
-    if (ex) {
-      ex.innerHTML = [2, 4, 6].map(n => {
-        const row = [];
-        for (let r = 1; r <= n; r++) row.push(starBadge(C.starDelta(r, n, false)));
-        return `<div class="ex-row"><span class="ex-n">${n} players</span>${row.join('')}</div>`;
-      }).join('');
-    }
+    void payload;
   }
 
   /** Dauerhafter Hinweis, wenn kein Spielserver erreichbar ist. */
@@ -1289,16 +860,14 @@ const UI = (() => {
   }
   function setPing(ms, jitter) {
     const el = $('chip-ping');
-    // Schwankung mit anzeigen - sie ist fuer das Spielgefuehl wichtiger als der Ping
+    if (!el) return;
     el.textContent = jitter > 6 ? `${ms} ms ±${jitter}` : `${ms} ms`;
     el.classList.toggle('warn', ms > 120 || jitter > 25);
   }
 
   function tick(dt) {
     if (current !== 'scr-game') drawBg(dt);
-    if (current === 'scr-skins') { drawSkinPreview(dt); lockerTick(dt); }
     if (current === 'scr-settings') settingsLive();
-    if (current === 'scr-shop') shopTick(dt);
     if (current === 'scr-prematch') {
       // Uhr weiterlaufen lassen, auch zwischen zwei Nachrichten
       if (radDaten && phaseLast === 'wheel') radDaten.rest = Math.max(0, radDaten.rest - dt);
@@ -1307,15 +876,15 @@ const UI = (() => {
   }
 
   return {
-    $, show, currentScreen, toast, skin, buildSkinUI, saveSkin,
+    $, show, currentScreen, toast, skin, saveSkin,
     wireSettings, renderSettings,
-    renderPhase, onPhaseVote, renderShop, onShop, renderLocker,
-    onFriends, setFriends, renderFriends, wireFriends,
+    renderPhase, onPhaseVote,
     get name() { return profileName; },
     set name(v) { profileName = v; },
     renderRoom, addChat, updateHUD, setScorePlate, killfeed, centerMsg, reconnecting,
     setWeapon, setGrenades, reloadBar, weaponPicker, pickerAssigned, pickerOpen,
     respawnUI, hitmark, showScoreboard, showResult, setConn, setPing, serverNotice,
+    updateWave,
     renderAccount, renderBoard, starBadge, tick, esc,
     get room() { return roomState; }
   };

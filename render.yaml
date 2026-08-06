@@ -15,9 +15,6 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # Bestenliste liegt in Firestore, weil der freie Plan keine Festplatte
-      # hat und jeder Neustart lokale Dateien loescht.
-      - key: FIREBASE_PROJECT_ID
-        value: nosershooter
-      - key: GOOGLE_SERVICE_ACCOUNT
-        sync: false # Schluessel wird im Render-Dashboard gesetzt, nie im Repo
+      # Bestenliste liegt lokal - Render speichert Daten im DATA_DIR.
+      - key: DATA_DIR
+        value: /data

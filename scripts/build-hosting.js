@@ -1,7 +1,5 @@
-/* Baut dist/ fuer Firebase Hosting.
-   Hosting liefert nur statische Dateien aus - deshalb muessen shared/ und die
-   Firebase-Bundles, die sonst der Node-Server ausliefert, mit hineinkopiert
-   werden. Die Serveradresse fuer WebSockets wird in config.js eingetragen. */
+  /* Baut dist/ fuer statisches Hosting.
+   Kopiert public/ und shared/ in dist/ und traegt die Serveradresse ein. */
 const fs = require('fs');
 const path = require('path');
 
@@ -28,26 +26,9 @@ rimraf(DIST);
 copyDir(path.join(ROOT, 'public'), DIST);
 copyDir(path.join(ROOT, 'shared'), path.join(DIST, 'shared'));
 
-// Firebase-SDK: nur die zwei Bundles, die index.html laedt
-const fbSrc = path.join(ROOT, 'node_modules', 'firebase');
-const fbDst = path.join(DIST, 'vendor', 'firebase');
-fs.mkdirSync(fbDst, { recursive: true });
-let sdkFiles = 0;
-for (const f of ['firebase-app-compat.js', 'firebase-auth-compat.js', 'firebase-analytics-compat.js']) {
-  const s = path.join(fbSrc, f);
-  if (!fs.existsSync(s)) {
-    console.error(`FEHLT: ${s}\n  -> "npm install" ausfuehren`);
-    process.exit(1);
-  }
-  fs.copyFileSync(s, path.join(fbDst, f));
-  sdkFiles++;
-}
-
 // Serveradresse eintragen
 const cfgPath = path.join(DIST, 'js', 'config.js');
 let cfg = fs.readFileSync(cfgPath, 'utf8');
-// Zeilenanfang verankern - im Kommentar darueber steht ein Beispiel mit
-// derselben Zuweisung, das darf nicht getroffen werden.
 const re = /^window\.GAME_SERVER\s*=\s*'[^']*';/m;
 if (!re.test(cfg)) {
   console.error('config.js: Zuweisung "window.GAME_SERVER = ...;" am Zeilenanfang nicht gefunden');
@@ -64,8 +45,8 @@ function count(dir) {
   return n;
 }
 
-console.log(`dist/ gebaut: ${count(DIST)} Dateien, ${sdkFiles} Firebase-Bundles`);
+console.log(`dist/ gebaut: ${count(DIST)} Dateien`);
 console.log(GAME_SERVER
   ? `Spielserver: ${GAME_SERVER}`
-  : 'Spielserver: gleiche Domain (nur sinnvoll, wenn alles auf Cloud Run laeuft)\n' +
-    '  Fuer Hosting + Cloud Run:  npm run build:hosting -- --server=DEINE-CLOUDRUN-URL');
+  : 'Spielserver: gleiche Domain (nur sinnvoll, wenn alles auf einem Server laeuft)\n' +
+    '  Fuer getrenntes Hosting:  npm run build:hosting -- --server=DEINE-SERVER-URL');

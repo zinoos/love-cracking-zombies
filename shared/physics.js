@@ -67,12 +67,11 @@
 
   /** Bewegungsschritt eines Spielers. dt in Sekunden. */
   function stepPlayer(map, p, input, dt) {
-    let ix = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-    let iy = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+    let ix = input.dx !== undefined ? input.dx : ((input.right ? 1 : 0) - (input.left ? 1 : 0));
+    let iy = input.dy !== undefined ? input.dy : ((input.down ? 1 : 0) - (input.up ? 1 : 0));
     const len = Math.hypot(ix, iy);
     if (len > 0) { ix /= len; iy /= len; }
 
-    // Schwere Waffen bremsen den Traeger
     const mult = p.speedMult === undefined ? 1 : p.speedMult;
 
     if (p.dashT > 0) {
@@ -80,6 +79,9 @@
       const sp = C.DASH_SPEED * (0.6 + 0.4 * mult) * (0.55 + 0.45 * (p.dashT / C.DASH_TIME));
       p.vx = p.dashX * sp;
       p.vy = p.dashY * sp;
+    } else if (input.snap) {
+      p.vx = ix * C.SPEED * mult;
+      p.vy = iy * C.SPEED * mult;
     } else {
       const targetVx = ix * C.SPEED * mult, targetVy = iy * C.SPEED * mult;
       const ax = targetVx - p.vx, ay = targetVy - p.vy;

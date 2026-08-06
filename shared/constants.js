@@ -248,7 +248,21 @@
       ffa: { key: 'ffa', name: 'Free for all', short: 'FFA', teams: 1, perTeam: 6, min: 2, max: 6, scoreLimit: 12, time: 300 },
       '1v1': { key: '1v1', name: '1 vs 1', short: '1v1', teams: 2, perTeam: 1, min: 2, max: 2, scoreLimit: 8, time: 240 },
       '2v2': { key: '2v2', name: '2 vs 2', short: '2v2', teams: 2, perTeam: 2, min: 4, max: 4, scoreLimit: 15, time: 300 },
-      '3v3': { key: '3v3', name: '3 vs 3', short: '3v3', teams: 2, perTeam: 3, min: 6, max: 6, scoreLimit: 20, time: 300 }
+      '3v3': { key: '3v3', name: '3 vs 3', short: '3v3', teams: 2, perTeam: 3, min: 6, max: 6, scoreLimit: 20, time: 300 },
+      solo: { key: 'solo', name: 'Zombie Survival', short: 'SURVIVAL', teams: 1, perTeam: 1, min: 1, max: 1, time: 0 }
+    },
+
+    WAVE_PREP_TIME: 8.0,
+    WAVE_INTERVAL: 3.0,
+    WAVE_ZOMBIE_R: 16,
+
+    waveFor(n) {
+      return {
+        count: Math.min(40, 2 + Math.floor(n * 1.8)),
+        hp: Math.round(35 + n * 18),
+        speed: Math.min(195, 90 + n * 10),
+        damage: Math.round(7 + n * 3.2)
+      };
     },
 
     TEAM_COLORS: ['#3fb9ff', '#ff5c7a'],
@@ -274,18 +288,6 @@
       LEADERBOARD_SIZE: 100
     },
 
-    /* ---------------- Gold ----------------
-       Waehrung fuer den Skinshop. Anders als Sterne kann Gold nie verloren
-       gehen - auch der letzte Platz bekommt etwas, sonst lohnt sich ein
-       aussichtsloses Match nicht mehr. */
-    GOLD: {
-      BASE: 10,          // bekommt jeder, der das Match beendet
-      PER_RANK: 8,       // je Platz nach oben
-      WIN_BONUS: 15,     // zusaetzlich fuer Platz 1
-      PER_KILL: 2,
-      TEAM_WIN_BONUS: 10
-    },
-
     /* ---------------- Ablauf vor dem Match ----------------
        Erst waehlen alle gemeinsam die Karte. Dann drehen zwei Glücksräder
        je eine Waffe aus, die fuer diese Runde gesperrt ist - das entscheidet
@@ -305,13 +307,8 @@
       ADDBOT: 'addbot', KICK: 'kick', TEAM: 'team', READY: 'ready',
       ROOM: 'room', ERROR: 'err', MATCH: 'match', SNAP: 's', END: 'end', PONG: 'pong', PING: 'ping',
       AUTH: 'auth', ME: 'me', BOARD: 'board', BOARDREQ: 'boardreq', PICK: 'pick',
-      // Vorbereitung: Server meldet die Phase, Client schickt seine Stimme
+      PLAY: 'play',
       PHASE: 'phase', VOTE: 'vote',
-      // Skinshop
-      SHOP: 'shop', BUY: 'buy', EQUIP: 'equip',
-      /* Freunde. FRIENDS ist die komplette Liste vom Server - es gibt keine
-         Teilaktualisierung, die Listen sind klein und ein ganzer Stand kann
-         nicht auseinanderlaufen. */
       FRIENDS: 'friends', FRIENDREQ: 'friendreq', FRIENDACT: 'friendact',
       FRIENDJOIN: 'friendjoin'
     },
@@ -342,81 +339,9 @@
       return d;
     },
 
-    /** Gold fuer einen Platz. Nie negativ - der letzte Platz bekommt BASE. */
-    goldFor(rank, total, kills, wonTeam) {
-      const g = this.GOLD;
-      let v = g.BASE + Math.max(0, total - rank) * g.PER_RANK + (kills || 0) * g.PER_KILL;
-      if (rank === 1) v += g.WIN_BONUS;
-      if (wonTeam) v += g.TEAM_WIN_BONUS;
-      return Math.round(v);
-    },
-
-    /* ---------------- Skinshop ----------------
-       Farben mit eigener Bewegung. Der Preis richtet sich nach dem Aufwand
-       der Animation, nicht nach der Farbe - eine Flamme faellt im Spiel
-       staerker auf als ein Leuchten. */
-    SHOP_SKINS: [
-      {
-        id: 'neon', name: 'Neon', price: 120, color: '#3fd0ff', trail: '#9ef1ff',
-        anim: 'pulse', desc: 'A ring of light pulsing to the beat'
-      },
-      {
-        id: 'inferno', name: 'Inferno', price: 220, color: '#ff5c2a', trail: '#ffd166',
-        anim: 'flame', desc: 'Tongues of flame rise off your body'
-      },
-      {
-        id: 'toxic', name: 'Toxic', price: 180, color: '#7cff4a', trail: '#c8ff9b',
-        anim: 'bubble', desc: 'Bubbling streaks drift upward'
-      },
-      {
-        id: 'frost', name: 'Frost', price: 180, color: '#7fd7ff', trail: '#ffffff',
-        anim: 'frost', desc: 'Ice crystals swirl around you'
-      },
-      {
-        id: 'void', name: 'Void', price: 260, color: '#8b5cf6', trail: '#d8b4fe',
-        anim: 'void', desc: 'A dark veil trails behind you'
-      },
-      {
-        id: 'gold', name: 'Gold', price: 400, color: '#ffd166', trail: '#fff3c4',
-        anim: 'sparkle', desc: 'Golden sparks jump with every step'
-      },
-      {
-        id: 'storm', name: 'Storm', price: 240, color: '#7aa2ff', trail: '#e8f0ff',
-        anim: 'storm', desc: 'Lightning flickers all around you'
-      },
-      {
-        id: 'sakura', name: 'Sakura', price: 200, color: '#ff9ec7', trail: '#ffe1ee',
-        anim: 'petals', desc: 'Petals drift down around you'
-      },
-      {
-        id: 'magma', name: 'Magma', price: 280, color: '#ff7043', trail: '#ffbe57',
-        anim: 'magma', desc: 'Glowing drops fall to the ground'
-      },
-      {
-        id: 'ghost', name: 'Ghost', price: 300, color: '#b8c6e8', trail: '#ffffff',
-        anim: 'ghost', desc: 'Afterimages trail behind you'
-      },
-      {
-        id: 'prism', name: 'Prism', price: 350, color: '#ff5c7a', trail: '#3fd0ff',
-        anim: 'prism', desc: 'The ring of light keeps changing color'
-      },
-      {
-        id: 'disco', name: 'Disco', price: 450, color: '#c05cff', trail: '#ffd166',
-        anim: 'disco', desc: 'Spotlight beams circle like in a club'
-      },
-      {
-        id: 'nebel', name: 'Mist', price: 160, color: '#9aa7b8', trail: '#dfe7f2',
-        anim: 'mist', desc: 'Thick haze drifts around your feet'
-      },
-      {
-        id: 'runen', name: 'Runes', price: 320, color: '#5ce1b4', trail: '#c9fff0',
-        anim: 'runes', desc: 'Glowing sigils circle around you'
-      }
-    ]
   };
 
-  /* Reichweite in Geschoss-Lebensdauer umrechnen. So ist "range" die eine
-     Zahl, an der man dreht - Speed und Lebensdauer bleiben konsistent. */
+  /* Waffen-Lebensdauer aus range berechnen */
   for (const key of Object.keys(C.WEAPONS)) {
     const w = C.WEAPONS[key];
     if (w.range && w.bulletSpeed) w.bulletLife = w.range / w.bulletSpeed;

@@ -1,4 +1,4 @@
-# NEON STRIKE — 2D Online Arena Shooter
+# LOVE CRACKING ZOMBIES
 
 Top-Down-Multiplayer-Shooter mit Lobby-Codes, vier Spielmodi, 17 Maps und
 server-autoritativer Simulation. Läuft komplett lokal — keine externen Assets,

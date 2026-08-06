@@ -3,8 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>AyriShooter</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
+<title>Love Cracking Zombies</title>
 <link rel="stylesheet" href="style.css" />
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🎯</text></svg>" />
 </head>
@@ -14,92 +13,18 @@
 <div class="scanlines"></div>
 <div class="vignette"></div>
 
-<!-- ============ LOGIN ============ -->
-<section class="screen active" id="scr-login">
-  <div class="menu-wrap login-wrap">
-    <div class="logo">
-      <h1 class="title" data-text="AYRI SHOOTER">Ayri Shooter</h1>
-    </div>
-
-    <div class="card login-card">
-      <p class="login-lead">Sign in to earn stars and make the leaderboard.</p>
-
-      <button class="btn google-btn" id="btn-google">
-        <span class="g-logo" aria-hidden="true">
-          <svg viewBox="0 0 48 48" width="20" height="20">
-            <path fill="#4285F4" d="M45.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h11.8c-.5 2.8-2.1 5.1-4.4 6.7v5.5h7.1c4.2-3.8 6.6-9.5 6.6-16.2z"/>
-            <path fill="#34A853" d="M24 46c6 0 11-2 14.6-5.3l-7.1-5.5c-2 1.3-4.5 2.1-7.5 2.1-5.8 0-10.6-3.9-12.4-9.1H4.3v5.7C7.9 41.1 15.4 46 24 46z"/>
-            <path fill="#FBBC05" d="M11.6 28.2c-.5-1.3-.7-2.8-.7-4.2s.3-2.9.7-4.2v-5.7H4.3C2.8 17 2 20.4 2 24s.8 7 2.3 9.9l7.3-5.7z"/>
-            <path fill="#EA4335" d="M24 10.7c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.1 30 2 24 2 15.4 2 7.9 6.9 4.3 14.1l7.3 5.7c1.8-5.2 6.6-9.1 12.4-9.1z"/>
-          </svg>
-        </span>
-        <b>SIGN IN WITH GOOGLE</b>
-      </button>
-
-      <button class="btn ghost" id="btn-guest">Play without signing in</button>
-      <p class="login-note">As a guest you can play everything, but you earn no stars.</p>
-      <p class="err" id="login-err"></p>
-      <div class="login-blocked" id="login-blocked">
-        <b>Google sign-in is blocked on this device.</b>
-        <span>Some school and company networks, and some antivirus tools, block
-        sign-in popups — nothing is wrong with the game. Just play without
-        signing in; only stars and the leaderboard stay empty.</span>
-      </div>
-    </div>
-
-    <div class="chip-row login-chips">
-      <span class="chip" id="chip-status2"><i class="dot"></i><span id="conn-text2">connecting…</span></span>
-    </div>
-  </div>
-</section>
-
 <!-- ============ MENU ============ -->
-<section class="screen" id="scr-menu">
+<section class="screen active" id="scr-menu">
   <button class="gear" id="btn-settings" title="Settings">⚙</button>
-  <button class="gear pals" id="btn-friends" title="Friends">👥<span class="badge" id="pal-badge">0</span></button>
   <div class="menu-wrap">
     <div class="logo">
-      <h1 class="title" data-text="NEON STRIKE">Ayri Shooter</h1>
-    </div>
-
-    <div class="ident card">
-      <div class="acct" id="acct">
-        <img class="avatar" id="acct-photo" alt="" />
-        <div class="acct-lines">
-          <b id="acct-name">Guest</b>
-          <span class="stars" id="acct-stars">★ 0</span>
-        </div>
-        <button class="btn small ghost" id="btn-signout">Sign out</button>
-      </div>
-      <label class="lbl">YOUR NAME</label>
-      <input id="inp-name" class="txt" maxlength="14" placeholder="Player" autocomplete="off" />
-      <div class="chip-row">
-        <span class="chip" id="chip-status"><i class="dot"></i><span id="conn-text">connecting…</span></span>
-        <span class="chip" id="chip-ping">— ms</span>
-        <span class="chip" id="chip-rank">Rank —</span>
-      </div>
+      <h1 class="title" data-text="LOVE CRACKING ZOMBIES">Love Cracking Zombies</h1>
     </div>
 
     <nav class="menu-btns">
       <button class="btn big primary" id="btn-create">
         <span class="ico">⬢</span>
-        <span class="lines"><b>CREATE GROUP</b><small>Open a lobby &amp; share the code</small></span>
-      </button>
-      <button class="btn big" id="btn-join">
-        <span class="ico">⌁</span>
-        <span class="lines"><b>JOIN GROUP</b><small>Enter the 6-digit code</small></span>
-      </button>
-      <button class="btn big" id="btn-skins">
-        <span class="ico">◈</span>
-        <span class="lines"><b>SKIN LOCKER</b><small>Color, pattern &amp; trail</small></span>
-      </button>
-      <button class="btn big" id="btn-shop">
-        <span class="ico">◆</span>
-        <span class="lines"><b>SKIN SHOP</b><small>Special colors for gold</small></span>
-      </button>
-      <button class="btn big" id="btn-board">
-        <span class="ico">★</span>
-        <span class="lines"><b>LEADERBOARD</b><small>Stars &amp; rankings</small></span>
+        <span class="lines"><b>PLAY</b><small>Zombie survival — pick map &amp; weapon</small></span>
       </button>
       <button class="btn big ghost" id="btn-help">
         <span class="ico">⌨</span>
@@ -109,60 +34,15 @@
   </div>
 </section>
 
-<!-- ============ SKINLOCKER ============ -->
-<section class="screen" id="scr-skins">
-  <div class="panel wide">
-    <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Back</button>
-      <h2>SKIN LOCKER</h2>
-      <span class="pspacer"></span>
-    </header>
-
-    <div class="skin-grid">
-      <div class="skin-preview">
-        <canvas id="skin-cv" width="360" height="360"></canvas>
-        <div class="preview-tag">LIVE PREVIEW</div>
-      </div>
-
-      <div class="skin-controls">
-        <div class="ctl">
-          <label class="lbl">UNIFORM COLOR</label>
-          <div class="swatches" id="sw-body"></div>
-          <input type="range" id="hue-body" min="0" max="360" value="140" class="slider" />
-        </div>
-
-        <div class="ctl">
-          <label class="lbl">TRAIL / EFFECT COLOR</label>
-          <div class="swatches" id="sw-trail"></div>
-          <input type="range" id="hue-trail" min="0" max="360" value="45" class="slider" />
-        </div>
-
-        <div class="ctl">
-          <label class="lbl">CAMO PATTERN</label>
-          <div class="patterns" id="pattern-row"></div>
-        </div>
-
-        <button class="btn primary" id="btn-skin-save">SAVE</button>
-      </div>
-    </div>
-
-    <div class="fx-locker">
-      <label class="lbl">SPECIAL COLORS</label>
-      <div class="fx-row" id="fx-row"></div>
-      <p class="hint" id="fx-hint"></p>
-    </div>
-  </div>
-</section>
-
 <!-- ============ JOIN ============ -->
 <section class="screen" id="scr-join">
   <div class="panel">
     <header class="phead">
       <button class="back" data-back="scr-menu">‹ Back</button>
-      <h2>JOIN GROUP</h2>
+      <h2>JOIN GAME</h2>
       <span class="pspacer"></span>
     </header>
-    <p class="hint">Enter the lobby's 6-digit code.</p>
+    <p class="hint">Enter the game code.</p>
     <div class="code-input" id="code-input">
       <input class="digit" inputmode="numeric" maxlength="1" />
       <input class="digit" inputmode="numeric" maxlength="1" />
@@ -220,34 +100,6 @@
   </div>
 </section>
 
-<!-- ============ LEADERBOARD ============ -->
-<section class="screen" id="scr-board">
-  <div class="panel wide">
-    <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Back</button>
-      <h2>LEADERBOARD</h2>
-      <span class="pspacer"></span>
-    </header>
-
-    <div class="board-you" id="board-you"></div>
-
-    <div class="brow head lb-row">
-      <div>#</div><div></div><div>PLAYER</div>
-      <div class="num">★</div><div class="num">WINS</div><div class="num">GAMES</div><div class="num">K/D</div>
-    </div>
-    <div class="lb-list" id="lb-list"></div>
-    <p class="hint" id="lb-empty" style="display:none">Nobody signed in yet — sign in with Google to appear here.</p>
-
-    <div class="star-rules">
-      <h3>How stars work</h3>
-      <p>After every match players are ranked by kills. The <b>top half gains</b>
-      stars, the <b>bottom half loses</b> them — 1st place gains the most.
-      Stars never drop below 0.</p>
-      <div class="star-example" id="star-example"></div>
-    </div>
-  </div>
-</section>
-
 <!-- ============ PREMATCH: MAP, BANS, WEAPON ============ -->
 <section class="screen" id="scr-prematch">
   <div class="prep-wrap">
@@ -273,42 +125,6 @@
     <div class="pick-grid" id="pick-grid"></div>
 
     <p class="prep-note" id="prep-note"></p>
-  </div>
-</section>
-
-<!-- ============ SKINSHOP ============ -->
-<section class="screen" id="scr-shop">
-  <div class="panel wide">
-    <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Back</button>
-      <h2>SKIN SHOP</h2>
-      <span class="gold-badge" id="shop-gold">0 Gold</span>
-    </header>
-
-    <p class="hint" id="shop-hint">You earn gold after every match — most for 1st place,
-      but last place never leaves empty-handed.</p>
-
-    <div class="shop-grid" id="shop-grid"></div>
-  </div>
-</section>
-
-<!-- ============ FRIENDS ============ -->
-<section class="screen" id="scr-friends">
-  <div class="panel wide">
-    <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Back</button>
-      <h2>FRIENDS</h2>
-      <span class="pspacer"></span>
-    </header>
-
-    <div class="pal-tabs" id="pal-tabs">
-      <button data-tab="friends" class="on">FRIENDS<span class="n" id="pal-n-friends">0</span></button>
-      <button data-tab="incoming">REQUESTS<span class="n" id="pal-n-incoming">0</span></button>
-      <button data-tab="outgoing">SENT<span class="n" id="pal-n-outgoing">0</span></button>
-    </div>
-
-    <div class="pal-list" id="pal-list"></div>
-    <p class="hint" id="pal-hint"></p>
   </div>
 </section>
 
@@ -415,9 +231,6 @@
           <li><b>Sword:</b> 360° swing, 25 damage, no ammo, fastest movement. Invisible for 0.5 s after every kill.</li>
           <li><b>Sergio:</b> throws a record that turns around at the first wall and flies back. It hits both ways — you can only throw again once it is back in your hand.</li>
           <li><b>Before the match:</b> 8 s map vote, then two wheels each spin out a weapon that gets banned, then 5 s to pick freely.</li>
-          <li><b>Gold:</b> paid out after every match — most for 1st place, still something for last. Spend it in the skin shop on colors with their own animation.</li>
-          <li><b>Mines:</b> left click throws one up to 310 px over walls, a second left click detonates it — 99 damage in the blast. Enemies cannot see them.</li>
-          <li><b>Heavy weapons:</b> double dash cooldown (4.8 s).</li>
           <li><b>Stars:</b> top half of the table gains, bottom half loses. Never below 0.</li>
           <li><b>Grenades:</b> 2 per match, 1 s fuse, 80 damage, blow up walls and bushes.</li>
           <li><b>Bushes:</b> enemies inside are invisible — unless they shoot or stand right in front of you. The crossbow stays silent.</li>
@@ -439,6 +252,7 @@
   <div id="hud">
     <div class="hud-top">
       <div class="score-plate" id="score-plate"></div>
+      <div class="wave-display" id="wave-display">WAVE 1</div>
       <div class="timer" id="timer">5:00</div>
       <div class="mapname" id="mapname">—</div>
     </div>
@@ -496,10 +310,10 @@
 <!-- ============ RESULT ============ -->
 <section class="screen" id="scr-result">
   <div class="panel wide">
-    <h2 class="result-title" id="result-title">VICTORY</h2>
+    <h2 class="result-title" id="result-title">DEFEATED</h2>
     <p class="result-sub" id="result-sub"></p>
     <div class="board" id="result-board"></div>
-    <button class="btn primary wide-btn" id="btn-result-back">BACK TO LOBBY</button>
+    <button class="btn primary wide-btn" id="btn-result-back">BACK TO MENU</button>
   </div>
 </section>
 
@@ -511,12 +325,6 @@
   <small>Still trying — the server address is fetched again automatically.
   If this stays up, the game server is currently offline.</small>
 </div>
-
-<!-- Firebase (optional): SDK wird lokal aus node_modules ausgeliefert -->
-<script src="/vendor/firebase/firebase-app-compat.js"></script>
-<script src="/vendor/firebase/firebase-auth-compat.js"></script>
-<script src="/vendor/firebase/firebase-analytics-compat.js"></script>
-<script src="js/firebase.js"></script>
 
 <script src="js/config.js"></script>
 <script src="/shared/constants.js"></script>

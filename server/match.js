@@ -4,6 +4,7 @@ const C = require('../shared/constants.js');
 const MAPS = require('../shared/maps.js');
 const PHYS = require('../shared/physics.js');
 const { botThink } = require('./bots.js');
+const { zombieThink } = require('./zombies.js');
 
 let PROJ_ID = 1;
 
@@ -16,28 +17,27 @@ class Match {
   constructor(room, mode, mapId) {
     this.room = room;
     this.mode = C.MODES[mode] || C.MODES.ffa;
-    this.map = MAPS.instance(mapId);      // eigene Kopie - Zerstoerung bleibt im Match
+    this.isSolo = mode === 'solo';
+    this.map = MAPS.instance(mapId);
     this.mapId = this.map.id;
     this.tick = 0;
     this.time = 0;
-    this.timeLeft = this.mode.time;
-    this.state = 'countdown';   // countdown | live | over
-    this.countdown = C.COUNTDOWN;
+    this.timeLeft = this.isSolo ? 0 : this.mode.time;
+    this.state = 'live';
     this.players = new Map();
     this.projectiles = [];
     this.pickups = [];
     this.events = [];
+    this.events.push({ e: 'go' });
     this.tileChanges = [];
     this.teamScore = [0, 0];
     this.winner = null;
 
-    this.map.packs.forEach((p, i) => {
-      this.pickups.push({
-        id: i + 1, type: p.type,
-        x: p.x * C.TILE + C.TILE / 2, y: p.y * C.TILE + C.TILE / 2,
-        active: true, respawnAt: 0
-      });
-    });
+    this.currentWave = 0;
+    this.wavePrep = 0;
+    this.waveZombiesAlive = 0;
+    this.totalKills = 0;
+    this.waveTimer = 0;
   }
 
   static randomWeapon() {
@@ -56,28 +56,36 @@ class Match {
   }
 
   addPlayer(member) {
-    const choices = Match.weaponChoices(C.WEAPON_CHOICES);
-    const wKey = choices[0];          // vorlaeufig, bis gewaehlt wird
-    const w = C.WEAPONS[wKey];
+    const choicesOrig = member.zombie ? ['sword'] : Match.weaponChoices(C.WEAPON_CHOICES);
+    const wKeyOrig = member.zombie ? 'sword' : choicesOrig[0];
+    const w = C.WEAPONS[wKeyOrig];
     const p = {
       id: member.id,
-      name: member.name,
-      color: member.skin.color,
-      pattern: member.skin.pattern,
-      trail: member.skin.trail,
-      team: member.team,
+      name: member.zombie ? ('ZOMBIE ' + (member.zombieNum || '')) : member.name,
+      color: member.zombie ? '#5c9a3a' : member.skin.color,
+      pattern: member.zombie ? 'solid' : member.skin.pattern,
+      trail: member.zombie ? '#8bff4a' : member.skin.trail,
+      team: member.team || 0,
       bot: !!member.bot,
-      weaponKey: wKey,
-      weapon: w,
-      choices,
-      picked: false,
-      speedMult: w.speedMult,
+      zombie: !!member.zombie,
+      weaponKey: 'sword',
+      weapon: member.zombie ? {
+        key: 'sword', name: 'Claw', short: 'CLAW', icon: '',
+        melee: true, arc: Math.PI * 0.8, swingTime: 0.3, cloakTime: 0,
+        mag: 0, dmg: member.zombieDmg || 10, fireCd: 0.8, reload: 0, auto: true,
+        range: 62, bulletSpeed: 1, spread: 0, spreadGrow: 0, spreadMax: 0,
+        speedMult: 1, falloffStart: 9999, falloffMin: 1, recoil: 0
+      } : w,
+      choices: choicesOrig,
+      picked: member.zombie ? true : false,
+      speedMult: member.zombie ? (member.zombieSpeed || 1) : w.speedMult,
       x: 0, y: 0, vx: 0, vy: 0,
       aim: 0,
-      hp: C.HP_MAX,
+      hp: member.zombie ? (member.zombieHp || C.HP_MAX) : C.HP_MAX,
+      hpMax: member.zombie ? (member.zombieHp || C.HP_MAX) : C.HP_MAX,
       alive: true,
-      ammo: w.mag,
-      grenades: C.GRENADES,
+      ammo: 0,
+      grenades: 0,
       grenadeCd: 0,
       spin: 0,
       spreadAcc: 0,
@@ -85,7 +93,7 @@ class Match {
       fireCd: 0,
       dashT: 0, dashX: 0, dashY: 0, dashCd: 0,
       respawnT: 0,
-      invulT: C.SPAWN_INVUL,
+      invulT: 0,
       lastHitAt: -99,
       lastFireAt: -99,
       cloakUntil: 0,
@@ -94,11 +102,13 @@ class Match {
       multiWindow: 0, multiCount: 0,
       lastSeq: 0,
       input: { up: false, down: false, left: false, right: false, shoot: false, reload: false, dash: false, grenade: false, aim: 0, seq: 0 },
-      botMem: {}
+      botMem: {},
+      zombieMem: {},
+      zombieDmg: member.zombieDmg || 10,
+      zombieSpeed: member.zombieSpeed || 1
     };
     this.players.set(p.id, p);
-    // Bots entscheiden sich sofort
-    if (p.bot) this.pickWeapon(p.id, choices[Math.floor(Math.random() * choices.length)]);
+    if (p.bot && !p.zombie) this.pickWeapon(p.id, choicesOrig[Math.floor(Math.random() * choicesOrig.length)]);
     this.respawn(p, true);
     return p;
   }
@@ -172,7 +182,7 @@ class Match {
     p.ammo = p.weapon.mag;
     p.reloadT = 0; p.fireCd = 0; p.dashT = 0; p.dashCd = 0;
     p.spin = 0; p.spreadAcc = 0;
-    p.invulT = C.SPAWN_INVUL;
+    p.invulT = 0;
     p.respawnT = 0;
     p.streak = 0;
     p.burnUntil = 0; p.burnBy = null; p.burnTick = 0;
@@ -207,25 +217,19 @@ class Match {
     this.time += dt;
     this.tick++;
 
-    if (this.state === 'countdown') {
-      this.countdown -= dt;
-      if (this.countdown <= 0) {
-        this.finalizeChoices();
-        this.state = 'live';
-        this.events.push({ e: 'go' });
-      }
-      return;
-    }
     if (this.state === 'over') return;
 
-    this.timeLeft = Math.max(0, this.timeLeft - dt);
+    if (!this.isSolo) this.timeLeft = Math.max(0, this.timeLeft - dt);
 
     for (const p of this.players.values()) {
-      if (p.bot) botThink(this, p, dt);
+      if (p.zombie) zombieThink(this, p, dt);
+      else if (p.bot) botThink(this, p, dt);
       this.stepPlayer(p, dt);
     }
     this.stepProjectiles(dt);
     this.stepPickups(dt);
+
+    if (this.isSolo) this.stepWaves(dt);
     this.checkEnd();
   }
 
@@ -245,7 +249,7 @@ class Match {
       p.respawnT -= dt;
       p.spin = 0;
       p.latchGrenade = p.latchDash = p.latchReload = false;
-      if (p.respawnT <= 0) this.respawn(p, false);
+      if (p.respawnT <= 0 && !p.zombie && !(this.isSolo && !p.bot)) this.respawn(p, false);
       return;
     }
 
@@ -768,20 +772,35 @@ class Match {
     victim.respawnT = C.RESPAWN_TIME;
     victim.streak = 0;
 
-    let multi = 0;
-    if (killer && killer !== victim) {
-      killer.kills++;
-      killer.streak++;
-      killer.bestStreak = Math.max(killer.bestStreak, killer.streak);
-      killer.multiCount = killer.multiWindow > 0 ? killer.multiCount + 1 : 1;
-      killer.multiWindow = 3.0;
-      multi = killer.multiCount;
-      if (this.mode.teams > 1) this.teamScore[killer.team]++;
-      // Schwert: nach dem Kill kurz verschwinden, um wieder wegzukommen
-      const ct = killer.weapon.cloakTime;
-      if (ct) {
-        killer.cloakUntil = this.time + ct;
-        this.events.push({ e: 'cloak', id: killer.id, t: ct });
+    if (victim.zombie) {
+      victim.respawnT = 999;
+      if (killer && !killer.zombie) {
+        killer.kills++;
+        killer.streak++;
+        killer.bestStreak = Math.max(killer.bestStreak, killer.streak);
+        this.totalKills++;
+        if (Math.random() < 0.35) {
+          const roll = Math.random();
+          const type = roll < 0.65 ? 'health' : 'ammo';
+          const id = -(this.tick * 1000 + (this.pickups.length || 0));
+          this.pickups.push({ id, type, x: victim.x, y: victim.y, active: true, respawnAt: 0, oneshot: true });
+        }
+      }
+    } else {
+      let multi = 0;
+      if (killer && killer !== victim) {
+        killer.kills++;
+        killer.streak++;
+        killer.bestStreak = Math.max(killer.bestStreak, killer.streak);
+        killer.multiCount = killer.multiWindow > 0 ? killer.multiCount + 1 : 1;
+        killer.multiWindow = 3.0;
+        multi = killer.multiCount;
+        if (this.mode.teams > 1) this.teamScore[killer.team]++;
+        const ct = killer.weapon.cloakTime;
+        if (ct) {
+          killer.cloakUntil = this.time + ct;
+          this.events.push({ e: 'cloak', id: killer.id, t: ct });
+        }
       }
     }
 
@@ -789,8 +808,10 @@ class Match {
       e: 'kill', id: victim.id, by: killer ? killer.id : null,
       x: victim.x, y: victim.y, hx, hy, a: ang,
       w: killer ? killer.weaponKey : null,
-      multi, streak: killer ? killer.streak : 0,
-      dist: killer ? Math.round(Math.hypot(killer.x - victim.x, killer.y - victim.y)) : 0
+      multi: victim.zombie ? 0 : (killer ? killer.multiCount : 0),
+      streak: killer ? killer.streak : 0,
+      dist: killer ? Math.round(Math.hypot(killer.x - victim.x, killer.y - victim.y)) : 0,
+      zombie: !!victim.zombie
     });
   }
 
@@ -808,13 +829,13 @@ class Match {
         if (pk.type === 'health') {
           if (p.hp >= C.HP_MAX) continue;
           p.hp = Math.min(C.HP_MAX, p.hp + C.PACK_HEAL);
-          pk.active = false; pk.respawnAt = C.PACK_RESPAWN;
+          pk.active = false; pk.respawnAt = pk.oneshot ? Infinity : C.PACK_RESPAWN;
         } else {
           const full = p.ammo >= p.weapon.mag && p.reloadT <= 0 && p.grenades >= C.GRENADES;
           if (full) continue;
           p.ammo = p.weapon.mag; p.reloadT = 0;
           p.grenades = Math.min(C.GRENADES, p.grenades + 1);
-          pk.active = false; pk.respawnAt = C.AMMO_PACK_RESPAWN;
+          pk.active = false; pk.respawnAt = pk.oneshot ? Infinity : C.AMMO_PACK_RESPAWN;
         }
         this.events.push({ e: 'pickup', id: pk.id, by: p.id, t: pk.type, x: pk.x, y: pk.y });
         break;
@@ -822,8 +843,75 @@ class Match {
     }
   }
 
+  stepWaves(dt) {
+    this.waveZombiesAlive = 0;
+    for (const p of this.players.values()) {
+      if (p.zombie && p.alive) this.waveZombiesAlive++;
+    }
+
+    if (this.waveZombiesAlive === 0) {
+      this.waveTimer += dt;
+      if (this.waveTimer >= C.WAVE_INTERVAL || this.currentWave === 0) {
+        this.waveTimer = 0;
+        this.currentWave++;
+        this.spawnWave(this.currentWave);
+      }
+    } else {
+      this.waveTimer = 0;
+    }
+  }
+
+  spawnWave(n) {
+    const cfg = C.waveFor(n);
+
+    for (let i = 0; i < cfg.count; i++) {
+      const spawn = this.zombieSpawnPoint();
+      const zId = -(this.tick * 1000 + i);
+      const speedRatio = cfg.speed / C.SPEED;
+      const member = {
+        id: zId, zombie: true, zombieNum: (this.currentWave * 100 + i + 1),
+        zombieHp: cfg.hp, zombieDmg: cfg.damage,
+        zombieSpeed: speedRatio,
+        team: 0, bot: true,
+        skin: { color: '#5c9a3a', trail: '#8bff4a', pattern: 'solid' }
+      };
+      this.addPlayer(member);
+      const zp = this.players.get(zId);
+      if (zp) { zp.x = spawn.x; zp.y = spawn.y; zp.hp = cfg.hp; zp.hpMax = cfg.hp; }
+    }
+    this.events.push({ e: 'wave', n: this.currentWave, count: cfg.count });
+  }
+
+  zombieSpawnPoint() {
+    for (let i = 0; i < 100; i++) {
+      const edge = Math.floor(Math.random() * 4);
+      let tx, ty;
+      const pad = 3;
+      if (edge === 0) { tx = pad + Math.floor(Math.random() * (this.map.n - pad * 2)); ty = pad; }
+      else if (edge === 1) { tx = this.map.n - pad - 1; ty = pad + Math.floor(Math.random() * (this.map.n - pad * 2)); }
+      else if (edge === 2) { tx = pad + Math.floor(Math.random() * (this.map.n - pad * 2)); ty = this.map.n - pad - 1; }
+      else { tx = pad; ty = pad + Math.floor(Math.random() * (this.map.n - pad * 2)); }
+
+      if (PHYS.tileAt(this.map, tx, ty) === C.T_WALL) continue;
+      const wx = tx * C.TILE + C.TILE / 2, wy = ty * C.TILE + C.TILE / 2;
+      let farEnough = true;
+      for (const o of this.players.values()) {
+        if (o.zombie || !o.alive) continue;
+        if (Math.hypot(o.x - wx, o.y - wy) < 350) { farEnough = false; break; }
+      }
+      if (farEnough) return { x: wx, y: wy };
+    }
+    return { x: C.WORLD / 2 + 400, y: C.WORLD / 2 };
+  }
+
   checkEnd() {
     if (this.state !== 'live') return;
+    if (this.isSolo) {
+      for (const p of this.players.values()) {
+        if (!p.zombie && !p.alive) return this.end(null);
+      }
+      return;
+    }
     const lim = this.mode.scoreLimit;
     if (this.mode.teams > 1) {
       for (let t = 0; t < 2; t++) if (this.teamScore[t] >= lim) return this.end(t);
@@ -886,7 +974,7 @@ class Match {
     const me = this.players.get(id);
     const ps = [];
     for (const p of this.players.values()) {
-      const vis = me ? this.canSee(me, p) : true;
+      const vis = me ? (p.zombie ? PHYS.los(this.map, me.x, me.y, p.x, p.y) : this.canSee(me, p)) : true;
       if (!vis && p.alive) continue;
       ps.push({
         i: p.id,
@@ -894,6 +982,7 @@ class Match {
         y: Math.round(p.y * 10) / 10,
         a: Math.round(p.aim * 100) / 100,
         h: Math.round(p.hp),
+        hm: p.zombie ? Math.round(p.hpMax) : 0,
         t: p.team,
         al: p.alive ? 1 : 0,
         iv: p.invulT > 0 ? 1 : 0,
@@ -904,7 +993,8 @@ class Match {
         w: C.WEAPON_ORDER.indexOf(p.weaponKey),
         bu2: p.burnUntil && this.time < p.burnUntil ? 1 : 0,
         ck: p.cloakUntil > this.time ? 1 : 0,
-        rl: p.reloadT > 0 ? Math.round((1 - p.reloadT / p.weapon.reload) * 100) / 100 : 0
+        rl: p.reloadT > 0 ? Math.round((1 - p.reloadT / p.weapon.reload) * 100) / 100 : 0,
+        zb: p.zombie ? 1 : 0
       });
     }
 
@@ -933,10 +1023,13 @@ class Match {
       ps, bs,
       pk: this.pickups.map(p => ({ i: p.id, x: p.x, y: p.y, a: p.active ? 1 : 0, ty: p.type })),
       ts: this.teamScore,
-      sb: [...this.players.values()].map(p => ({
+      sb: [...this.players.values()].filter(p => !p.zombie).map(p => ({
         i: p.id, k: p.kills, d: p.deaths, dm: Math.round(p.damage), s: p.bestStreak, t: p.team, al: p.alive ? 1 : 0
       })),
-      ev: me ? this.events.filter(e => this.eventVisible(me, e)) : this.events
+      ev: me ? this.events.filter(e => this.eventVisible(me, e)) : this.events,
+      wv: this.isSolo ? this.currentWave : 0,
+      wp: this.isSolo ? Math.max(0, Math.round(this.wavePrep * 10) / 10) : 0,
+      wz: this.isSolo ? this.waveZombiesAlive : 0
     };
     if (this.tileChanges.length) snap.tc = this.tileChanges;
 
@@ -970,10 +1063,13 @@ class Match {
   }
 
   scoreboard() {
-    return [...this.players.values()].map(p => ({
-      id: p.id, name: p.name, color: p.color, team: p.team, bot: p.bot, weapon: p.weaponKey,
-      kills: p.kills, deaths: p.deaths, damage: Math.round(p.damage), streak: p.bestStreak
-    })).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || b.damage - a.damage);
+    return [...this.players.values()]
+      .filter(p => !p.zombie)
+      .map(p => ({
+        id: p.id, name: p.name, color: p.color, team: p.team, bot: p.bot, weapon: p.weaponKey,
+        kills: p.kills, deaths: p.deaths, damage: Math.round(p.damage), streak: p.bestStreak,
+        wave: this.currentWave, totalKills: this.totalKills
+      })).sort((a, b) => b.kills - a.kills || a.deaths - b.deaths || b.damage - a.damage);
   }
 
   clearEvents() {

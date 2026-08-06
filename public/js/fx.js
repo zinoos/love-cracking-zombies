@@ -94,7 +94,7 @@ const FX = (() => {
       corpses.push({
         x: p.x, y: p.y, ang: p.a || 0, color: p.color, pattern: p.pattern,
         vx: Math.cos(ang) * 150, vy: Math.sin(ang) * 150, spin: rnd(-9, 9), rot: 0,
-        life: 3.2, max: 3.2, name: p.name
+        life: 3.2, max: 3.2, name: p.name, zombie: !!p.zombie
       });
       if (corpses.length > 12) corpses.shift();
     },

@@ -102,7 +102,7 @@ gcloud auth login
 gcloud config set project shootergame2d
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com
 
-gcloud run deploy neon-strike \
+gcloud run deploy love-cracking-zombies \
   --source . \
   --region europe-west6 \
   --allow-unauthenticated \
