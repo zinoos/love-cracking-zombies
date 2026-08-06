@@ -3,7 +3,11 @@ dist/
 data/
 .firebase/
 *.log
+*.err
 .DS_Store
+# Vom Waechter erzeugt bzw. von aussen geholt
+.watchdog.json
+cloudflared.exe
 # Zugangsdaten gehoeren nie ins Repo
 serviceaccount*.json
 .env

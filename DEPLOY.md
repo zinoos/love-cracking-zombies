@@ -15,7 +15,42 @@ Deshalb zwei Teile:
 
 ---
 
-## Variante 0 — Render, kostenlos und ohne Kreditkarte (aktuell genutzt)
+## Aktuell im Betrieb: Wächter auf dem PC
+
+```bash
+npm run watchdog
+```
+
+Der Wächter hält den Betrieb ohne Zutun aufrecht:
+
+1. startet den Spielserver und startet ihn neu, wenn er abstürzt
+2. startet den Cloudflare-Schnelltunnel und liest seine Adresse aus
+3. pingt die Adresse alle 30 s an — antwortet sie zweimal nicht, wird der
+   Tunnel neu gestartet
+4. bei neuer Adresse: baut `dist/` neu und veröffentlicht auf Firebase Hosting
+
+**Warum das nötig war:** ein Schnelltunnel bekommt bei jedem Start eine neue
+Zufallsadresse und stirbt gelegentlich weg — der `cloudflared`-Prozess läuft
+dann noch, aber die Adresse antwortet nicht mehr. Auf der Webseite stand dann
+„Kein Spielserver erreichbar", obwohl der Server lief. Von Hand hiess das jedes
+Mal: Tunnel neu starten, Adresse eintragen, neu veröffentlichen.
+
+### Nach jeder Anmeldung automatisch starten
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install-autostart.ps1
+```
+
+Legt eine `.cmd` im Autostart-Ordner an (kein Adminrecht nötig, anders als die
+Aufgabenplanung). Entfernen mit `-Entfernen`. Die Ausgabe landet in
+`watchdog.log`.
+
+**Grenze:** Das Spiel läuft nur, solange dieser PC an ist. Für echten
+Dauerbetrieb siehe Variante 0.
+
+---
+
+## Variante 0 — Render, kostenlos und ohne Kreditkarte (dauerhaft)
 
 `render.yaml` liegt im Repo, Render erkennt es als Blueprint.
 

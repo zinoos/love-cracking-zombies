@@ -8,6 +8,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "build:hosting": "node scripts/build-hosting.js",
+    "watchdog": "node scripts/watchdog.js",
     "docker:build": "docker build -t neon-strike .",
     "docker:run": "docker run --rm -p 3000:8080 neon-strike"
   },
