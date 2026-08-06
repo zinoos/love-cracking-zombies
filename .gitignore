@@ -7,6 +7,7 @@ data/
 .DS_Store
 # Vom Waechter erzeugt bzw. von aussen geholt
 .watchdog.json
+.watchdog.pid
 cloudflared.exe
 # Zugangsdaten gehoeren nie ins Repo
 serviceaccount*.json
