@@ -35,9 +35,11 @@ const CF = process.env.CLOUDFLARED
   || 'cloudflared';
 
 const PRUEF_INTERVALL = 30000;   // wie oft die Adresse geprueft wird
-/* 25 s waren zu knapp: der erste Startversuch lief regelmaessig in den
-   Abbruch, obwohl der Tunnel ein paar Sekunden spaeter stand. */
-const ANLAUF = 60000;            // so lange darf ein Tunnel zum Starten brauchen
+const NAME_FRIST = 30000;        // so lange darf cloudflared brauchen, bis der Name feststeht
+/* Danach kann es dauern, bis der frische Name im DNS auftaucht. Grosszuegig,
+   denn ein Neuversuch macht es nicht besser - er wuerfelt nur einen neuen
+   Namen, der wieder von vorn propagieren muss. */
+const ANLAUF = 150000;           // so lange darf die Adresse zum Antworten brauchen
 
 let server = null, tunnel = null, aktuelleAdresse = null, laeuft = true;
 
@@ -155,16 +157,27 @@ async function starteTunnel() {
   });
   tunnel.on('error', e => sag('cloudflared laesst sich nicht starten:', e.message));
 
-  const bis = Date.now() + ANLAUF;
-  while (Date.now() < bis) {
+  /* Zwei getrennte Fristen. Vorher lief eine gemeinsame Uhr: bis der Name im
+     Protokoll stand und im DNS auftauchte, war sie oft abgelaufen - der
+     Waechter warf den Tunnel weg und startete einen neuen, dessen Name wieder
+     von vorn propagieren musste. Das konnte endlos so weitergehen. */
+  const bisName = Date.now() + NAME_FRIST;
+  let url = null;
+  while (Date.now() < bisName && !url) {
     await schlaf(800);
     let text = '';
     try { text = fs.readFileSync(LOG, 'utf8'); } catch (_) { continue; }
     const treffer = text.match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/g);
-    if (!treffer || !treffer.length) continue;
-    const url = treffer[treffer.length - 1];
+    if (treffer && treffer.length) url = treffer[treffer.length - 1];
+  }
+  if (!url) return null;
+
+  sag('Tunnel heisst', url, '- warte auf DNS');
+  const bisDns = Date.now() + ANLAUF;
+  while (Date.now() < bisDns) {
     // Erst melden, wenn die Adresse auch wirklich antwortet
     if (await erreichbar(url, 8000)) return url;
+    await schlaf(2000);
   }
   return null;
 }

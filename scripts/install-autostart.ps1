@@ -43,9 +43,10 @@ $Zeilen = @(
   'set FIREBASE_PROJECT_ID=nosershooter'
 )
 if ($Schluessel) { $Zeilen += "set GOOGLE_SERVICE_ACCOUNT_FILE=$Schluessel" }
-# Ohne cmd-Wrapper und ohne Umleitung: die verschachtelten Anfuehrungszeichen
-# hat cmd falsch zerlegt. Der Waechter schreibt sein Protokoll selbst.
-$Zeilen += "start `"NeonStrike`" /min `"$Node`" scripts\watchdog.js"
+# Ausgabe nach nul: der Waechter schreibt sein Protokoll selbst, und eine
+# Konsole braucht er nicht. Haengt er doch an einer, kann ein Schreibversuch
+# darauf ihn blockieren - dann steht er still, ohne abzustuerzen.
+$Zeilen += "start `"NeonStrike`" /min `"$Node`" scripts\watchdog.js >nul 2>&1"
 
 Set-Content -Path $Datei -Value $Zeilen -Encoding ASCII
 
