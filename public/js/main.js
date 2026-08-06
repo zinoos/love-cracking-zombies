@@ -297,6 +297,9 @@
     // Verbindungshaenger keinen Alarm ausloesen.
     if (!everConnected || connectFails >= 3) UI.serverNotice(true, NET.target);
   });
+  /* Der Tunnel bekommt bei jedem Neustart eine neue Adresse. NET holt sie
+     dann nach - der Hinweis soll das neue Ziel zeigen, nicht das tote. */
+  NET.on('serverwechsel', () => { connectFails = 0; UI.serverNotice(true, NET.target); });
   NET.on('ping', ms => UI.setPing(ms, G.inMatch ? Math.round(snapJitter) : 0));
 
   NET.on(C.MSG.HELLO, m => {

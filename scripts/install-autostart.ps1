@@ -43,9 +43,9 @@ $Zeilen = @(
   'set FIREBASE_PROJECT_ID=nosershooter'
 )
 if ($Schluessel) { $Zeilen += "set GOOGLE_SERVICE_ACCOUNT_FILE=$Schluessel" }
-# Ausgabe in eine Datei, sonst laesst sich spaeter nicht nachsehen, warum
-# etwas nicht lief - das Fenster ist minimiert und beim Abmelden weg.
-$Zeilen += "start `"NeonStrike`" /min cmd /c `"`"$Node`" scripts\watchdog.js >> `"$Projekt\watchdog.log`" 2>&1`""
+# Ohne cmd-Wrapper und ohne Umleitung: die verschachtelten Anfuehrungszeichen
+# hat cmd falsch zerlegt. Der Waechter schreibt sein Protokoll selbst.
+$Zeilen += "start `"NeonStrike`" /min `"$Node`" scripts\watchdog.js"
 
 Set-Content -Path $Datei -Value $Zeilen -Encoding ASCII
 

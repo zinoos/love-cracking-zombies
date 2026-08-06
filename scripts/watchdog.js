@@ -25,6 +25,8 @@ const ROOT = path.join(__dirname, '..');
 const PORT = Number(process.env.PORT || 3000);
 const LOG = path.join(ROOT, 'tunnel.log');
 const STATE = path.join(ROOT, '.watchdog.json');
+const PROTOKOLL = path.join(ROOT, 'watchdog.log');
+const PIDDATEI = path.join(ROOT, '.watchdog.pid');
 
 // cloudflared: erst im Projekt suchen, dann im Pfad
 const CF = process.env.CLOUDFLARED
@@ -33,13 +35,24 @@ const CF = process.env.CLOUDFLARED
   || 'cloudflared';
 
 const PRUEF_INTERVALL = 30000;   // wie oft die Adresse geprueft wird
-const ANLAUF = 25000;            // so lange darf ein Tunnel zum Starten brauchen
+/* 25 s waren zu knapp: der erste Startversuch lief regelmaessig in den
+   Abbruch, obwohl der Tunnel ein paar Sekunden spaeter stand. */
+const ANLAUF = 60000;            // so lange darf ein Tunnel zum Starten brauchen
 
 let server = null, tunnel = null, aktuelleAdresse = null, laeuft = true;
 
-const zeit = () => new Date().toLocaleTimeString('de-CH');
-const sag = (...a) => console.log(`[${zeit()}]`, ...a);
+const zeit = () => new Date().toLocaleString('de-CH');
 const schlaf = ms => new Promise(r => setTimeout(r, ms));
+
+/* Selber ins Protokoll schreiben statt die Ausgabe beim Start umzuleiten.
+   Die Umleitung brauchte verschachtelte Anfuehrungszeichen in der Autostart-
+   Datei, die cmd falsch zerlegt hat - und ohne Protokoll war hinterher nicht
+   zu sehen, warum nichts lief. */
+function sag(...a) {
+  const zeile = `[${zeit()}] ` + a.join(' ');
+  console.log(zeile);
+  try { fs.appendFileSync(PROTOKOLL, zeile + '\n'); } catch (_) { /* egal */ }
+}
 
 /** Eine Adresse anpingen. Gibt true zurueck, wenn /health antwortet. */
 function erreichbar(url, timeoutMs) {
@@ -200,7 +213,27 @@ function beenden() {
   process.exit(0);
 }
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, beenden);
-process.on('exit', () => { if (laeuft) { laeuft = false; toeteTunnel(); } });
+process.on('exit', () => {
+  if (laeuft) { laeuft = false; toeteTunnel(); }
+  try { if (fs.readFileSync(PIDDATEI, 'utf8').trim() === String(process.pid)) fs.rmSync(PIDDATEI); }
+  catch (_) { /* egal */ }
+});
+// Ein Absturz soll im Protokoll stehen und nicht stillschweigend enden
+process.on('uncaughtException', e => { sag('Abbruch:', e && e.stack || e); beenden(); });
 
-sag('Waechter gestartet. Prueft alle', PRUEF_INTERVALL / 1000, 'Sekunden.');
-hauptschleife().catch(e => { console.error(e); beenden(); });
+/* Nur ein Waechter gleichzeitig - zwei wuerden sich gegenseitig die Tunnel
+   abschiessen (toeteTunnel raeumt per taskkill alle cloudflared-Prozesse ab). */
+function laeuftSchon() {
+  let alt;
+  try { alt = Number(fs.readFileSync(PIDDATEI, 'utf8').trim()); } catch (_) { return false; }
+  if (!alt || alt === process.pid) return false;
+  try { process.kill(alt, 0); return true; } catch (_) { return false; }
+}
+if (laeuftSchon()) {
+  sag('Es laeuft bereits ein Waechter - dieser Start wird beendet.');
+  process.exit(0);
+}
+try { fs.writeFileSync(PIDDATEI, String(process.pid)); } catch (_) { /* egal */ }
+
+sag('Waechter gestartet (PID ' + process.pid + '). Prueft alle', PRUEF_INTERVALL / 1000, 'Sekunden.');
+hauptschleife().catch(e => { sag('Schleife abgebrochen:', e && e.stack || e); beenden(); });

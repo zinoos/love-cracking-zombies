@@ -15,10 +15,16 @@ const NET = (() => {
 
   try { session = sessionStorage.getItem('ns_session') || null; } catch (_) { /* egal */ }
 
-  /** Serveradresse: ?server=… > window.GAME_SERVER > selber Host wie die Seite. */
+  /* Nachgeladene Adresse aus config.js. Der Spielserver haengt an einem
+     Tunnel, dessen Adresse sich bei jedem Neustart aendert. Ohne das hier
+     haemmert eine offene Seite endlos gegen die tote alte Adresse, obwohl
+     nebenan laengst eine neue veroeffentlicht ist. */
+  let frisch = null;
+
+  /** Serveradresse: ?server=… > frisch geholt > window.GAME_SERVER > selber Host. */
   function url() {
     const q = new URLSearchParams(location.search).get('server');
-    const override = (q || window.GAME_SERVER || '').trim();
+    const override = (q || frisch || window.GAME_SERVER || '').trim();
     if (override) {
       if (/^wss?:\/\//i.test(override)) return override;
       // Blanker Host: ueber HTTPS immer wss, sonst ws
@@ -60,10 +66,30 @@ const NET = (() => {
     };
   }
 
+  /* config.js liegt auf Hosting mit no-cache, holt also wirklich die zuletzt
+     veroeffentlichte Adresse. Ein eigener Parser statt eval: hier wird fremder
+     Text ausgewertet, und ausgefuehrt werden soll davon nichts. */
+  function adresseNachladen() {
+    if (new URLSearchParams(location.search).get('server')) return; // Testvorgabe schlaegt alles
+    fetch('/js/config.js?t=' + Date.now(), { cache: 'no-store' })
+      .then(r => (r.ok ? r.text() : null))
+      .then(text => {
+        if (!text) return;
+        const m = text.match(/^window\.GAME_SERVER\s*=\s*'([^']*)';/m);
+        if (!m || !m[1] || m[1] === frisch || m[1] === window.GAME_SERVER) return;
+        frisch = m[1];
+        attempt = 0;                       // neue Adresse verdient neue Versuche
+        emit('serverwechsel', frisch);
+      })
+      .catch(() => { /* offline - naechster Versuch kommt von allein */ });
+  }
+
   /* Schnell der erste Versuch, danach in groesseren Schritten. Ein Aussetzer
      von einer Sekunde soll nicht eineinhalb Sekunden Wartezeit kosten. */
   function scheduleReconnect() {
     if (reconnectT) return;
+    // Nach drei Fehlversuchen liegt es eher an der Adresse als am Netz
+    if (attempt === 3 || (attempt > 3 && attempt % 5 === 0)) adresseNachladen();
     const delay = Math.min(4000, 300 * Math.pow(1.8, attempt++));
     reconnectT = setTimeout(() => { reconnectT = null; connect(); }, delay);
   }
