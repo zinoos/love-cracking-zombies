@@ -47,6 +47,11 @@ button{cursor:pointer;border:0;background:none}
   position:fixed;inset:0;z-index:3;
   display:none;align-items:center;justify-content:center;
   padding:24px;overflow:auto;
+  /* Zentriert und scrollend zugleich: ist der Inhalt hoeher als das Fenster,
+     schiebt "center" seinen oberen Rand vor den Scrollanfang - dorthin kommt
+     man nicht mehr, und da sitzt der Zurueck-Button. "safe" schaltet in dem
+     Fall auf Anfang um. Die Zeile davor bleibt als Rueckfall stehen. */
+  align-items:safe center;justify-content:safe center;
 }
 .screen.active{display:flex;animation:screenIn .45s cubic-bezier(.2,.9,.25,1)}
 @keyframes screenIn{
@@ -462,7 +467,10 @@ kbd{background:rgba(255,255,255,.07);border:1px solid var(--line);border-bottom-
 /* ---------- Skinshop ---------- */
 .gold-badge{font-family:var(--mono);font-size:14px;padding:5px 12px;border-radius:99px;color:#ffd166;
   background:rgba(255,209,102,.12);border:1px solid rgba(255,209,102,.4)}
-.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-top:16px}
+/* Die Karten scrollen in sich, nicht das ganze Fenster - so bleiben Zurueck
+   und Goldstand immer sichtbar, egal wie viele Skins dazukommen. */
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-top:16px;
+  max-height:min(58vh,560px);overflow-y:auto;overscroll-behavior:contain;padding-right:6px}
 .shop-card{padding:14px;border-radius:14px;text-align:center;
   background:rgba(255,255,255,.05);border:1px solid var(--line)}
 .shop-card.owned{border-color:rgba(74,222,128,.5)}
