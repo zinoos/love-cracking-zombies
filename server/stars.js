@@ -95,6 +95,10 @@ function get(uid) {
   if (p.gold === undefined) { p.gold = 0; dirty.add(uid); }
   if (p.owned === undefined) { p.owned = ''; dirty.add(uid); }
   if (p.skin === undefined) { p.skin = ''; dirty.add(uid); }
+  // Freunde kamen spaeter dazu - alte Eintraege haben die Felder nicht
+  if (p.friends === undefined) { p.friends = ''; dirty.add(uid); }
+  if (p.reqIn === undefined) { p.reqIn = ''; dirty.add(uid); }
+  if (p.reqOut === undefined) { p.reqOut = ''; dirty.add(uid); }
   return p;
 }
 
@@ -177,6 +181,103 @@ function equipSkin(uid, id) {
   return { ok: true, profil: publicProfile(uid) };
 }
 
+/* ---------------- Freunde ----------------
+
+   Die drei Listen liegen wie owned als Textfeld, damit ein Spieler in
+   Firestore ein einziges flaches Dokument bleibt. friends ist beidseitig:
+   jede Aenderung fasst immer beide Eintraege an, sonst haette einer einen
+   Freund, der ihn nicht kennt. */
+
+const liste = (p, feld) => String(p[feld] || '').split(',').filter(Boolean);
+
+function setzeListe(uid, p, feld, werte) {
+  p[feld] = [...new Set(werte)].join(',');
+  dirty.add(uid);
+}
+
+/** Kurzprofil fuer die Freundesliste - nie das ganze Konto herausgeben. */
+function kurz(uid) {
+  const p = players.get(uid);
+  return {
+    uid,
+    name: (p && p.name) || 'Player',
+    photo: (p && p.photo) || '',
+    stars: (p && p.stars) || 0
+  };
+}
+
+/** Alles, was ein Client ueber seine Freunde wissen darf. */
+function friendState(uid) {
+  const p = get(uid);
+  return {
+    friends: liste(p, 'friends').map(kurz),
+    incoming: liste(p, 'reqIn').map(kurz),
+    outgoing: liste(p, 'reqOut').map(kurz)
+  };
+}
+
+/** Anfrage stellen. Hat der andere schon angefragt, wird daraus sofort eine
+    Freundschaft - sonst haengen zwei Anfragen ueber Kreuz und keiner kommt
+    weiter. */
+function request(vonUid, zuUid) {
+  if (!zuUid || vonUid === zuUid) return { ok: false, grund: 'Not possible' };
+  const a = get(vonUid), b = get(zuUid);
+  if (liste(a, 'friends').includes(zuUid)) return { ok: false, grund: 'Already friends' };
+
+  if (liste(a, 'reqIn').includes(zuUid)) return accept(vonUid, zuUid);
+  if (liste(a, 'reqOut').includes(zuUid)) return { ok: false, grund: 'Request already sent' };
+
+  if (liste(a, 'friends').length >= C.FRIENDS.MAX) return { ok: false, grund: 'Your friend list is full' };
+  if (liste(b, 'friends').length >= C.FRIENDS.MAX) return { ok: false, grund: 'Their friend list is full' };
+  if (liste(b, 'reqIn').length >= C.FRIENDS.REQ_MAX) return { ok: false, grund: 'They have too many requests' };
+
+  setzeListe(vonUid, a, 'reqOut', [...liste(a, 'reqOut'), zuUid]);
+  setzeListe(zuUid, b, 'reqIn', [...liste(b, 'reqIn'), vonUid]);
+  save();
+  return { ok: true, beide: [vonUid, zuUid], art: 'request' };
+}
+
+function accept(uid, anderer) {
+  const a = get(uid), b = get(anderer);
+  if (!liste(a, 'reqIn').includes(anderer)) return { ok: false, grund: 'No such request' };
+  setzeListe(uid, a, 'reqIn', liste(a, 'reqIn').filter(x => x !== anderer));
+  setzeListe(anderer, b, 'reqOut', liste(b, 'reqOut').filter(x => x !== uid));
+  setzeListe(uid, a, 'friends', [...liste(a, 'friends'), anderer]);
+  setzeListe(anderer, b, 'friends', [...liste(b, 'friends'), uid]);
+  save();
+  return { ok: true, beide: [uid, anderer], art: 'accept' };
+}
+
+function decline(uid, anderer) {
+  const a = get(uid), b = get(anderer);
+  setzeListe(uid, a, 'reqIn', liste(a, 'reqIn').filter(x => x !== anderer));
+  setzeListe(anderer, b, 'reqOut', liste(b, 'reqOut').filter(x => x !== uid));
+  save();
+  return { ok: true, beide: [uid, anderer], art: 'decline' };
+}
+
+/** Eigene Anfrage zuruecknehmen - Gegenstueck zu decline. */
+function cancel(uid, anderer) {
+  const a = get(uid), b = get(anderer);
+  setzeListe(uid, a, 'reqOut', liste(a, 'reqOut').filter(x => x !== anderer));
+  setzeListe(anderer, b, 'reqIn', liste(b, 'reqIn').filter(x => x !== uid));
+  save();
+  return { ok: true, beide: [uid, anderer], art: 'cancel' };
+}
+
+function removeFriend(uid, anderer) {
+  const a = get(uid), b = get(anderer);
+  setzeListe(uid, a, 'friends', liste(a, 'friends').filter(x => x !== anderer));
+  setzeListe(anderer, b, 'friends', liste(b, 'friends').filter(x => x !== uid));
+  save();
+  return { ok: true, beide: [uid, anderer], art: 'remove' };
+}
+
+/** Sind die beiden befreundet? Fuer den Beitritt zur Lobby eines Freundes. */
+function areFriends(a, b) {
+  return liste(get(a), 'friends').includes(b);
+}
+
 /* Reihenfolge: Sterne, dann Siege, Kills, Spiele, zuletzt Name.
    Wer angemeldet war, aber noch nicht gespielt hat, steht mit 0 Sternen
    ganz unten - taucht aber auf. */
@@ -246,5 +347,6 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 
 module.exports = {
   init, get, touch, award, leaderboard, rankOf, publicProfile, save,
-  buySkin, equipSkin, ownedList
+  buySkin, equipSkin, ownedList,
+  friendState, request, accept, decline, cancel, removeFriend, areFriends
 };

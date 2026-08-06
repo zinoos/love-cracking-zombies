@@ -236,6 +236,7 @@ class Room {
   /** Phase 1: drei Karten zur Wahl. */
   beginVote() {
     this.state = 'prematch';
+    friendsRaum(this);        // ab jetzt kann niemand mehr dazustossen
     this.phase = 'vote';
     this.phaseT = C.PREMATCH.VOTE_TIME * PHASE_SCALE;
     this.mapVotes.clear();
@@ -420,6 +421,7 @@ class Room {
       this.state = 'lobby';
       this.match = null;
       this.broadcastRoom();
+      friendsRaum(this);      // Lobby steht Freunden wieder offen
     }, 2200);
   }
 
@@ -434,7 +436,12 @@ class Room {
       canStart: this.canStart(),
       members: [...this.members.values()].map(m => ({
         id: m.id, name: m.name, skin: m.skin, team: m.team, bot: !!m.bot, host: m.id === this.hostId,
-        stars: m.uid ? STARS.get(m.uid).stars : null, guest: !m.bot && !m.uid
+        stars: m.uid ? STARS.get(m.uid).stars : null, guest: !m.bot && !m.uid,
+        /* Die Kennung geht nur an Mitspieler desselben Raums. Sie ist kein
+           Geheimnis - anmelden kann man sich damit nicht -, aber sie ist die
+           Adresse fuer eine Freundschaftsanfrage, und die soll man nur an
+           Leute schicken koennen, mit denen man gerade zusammen ist. */
+        uid: m.uid || null
       }))
     };
   }
@@ -545,6 +552,68 @@ function resume(session, ws, temp) {
   return old;
 }
 
+/* ---------------- Freunde ----------------
+
+   Die Liste selbst liegt bei STARS, hier kommt nur dazu, was der Server
+   gerade weiss: wer online ist und wessen Lobby offen steht. */
+
+/** Angemeldeter Client zu einer Kennung, falls gerade verbunden. */
+function clientByUid(uid) {
+  for (const c of clients.values()) if (c.uid === uid) return c;
+  return null;
+}
+
+/** Kann man dieser Lobby gerade beitreten? */
+function offeneLobby(code) {
+  const r = rooms.get(code);
+  if (!r) return null;
+  if (r.state !== 'lobby') return { code, state: r.state, joinable: false };
+  return { code, state: r.state, joinable: r.members.size < C.MAX_PLAYERS };
+}
+
+function friendPayload(uid) {
+  const st = STARS.friendState(uid);
+  for (const f of st.friends) {
+    const c = clientByUid(f.uid);
+    /* Nicht "steht noch im Verzeichnis", sondern "hat eine offene Leitung".
+       Nach einem Abriss bleibt der Platz eine Minute reserviert - in der Zeit
+       stand sonst "online" bei jemandem, der gar nicht mehr da ist. Der Raum
+       zaehlt weiter, denn dorthin kann ein Freund sehr wohl noch. */
+    f.online = !!(c && !c.goneAt && c.ws && c.ws.readyState === 1);
+    const lob = c && c.roomCode ? offeneLobby(c.roomCode) : null;
+    f.room = lob ? lob.code : null;
+    f.state = lob ? lob.state : null;
+    f.joinable = !!(lob && lob.joinable);
+  }
+  // Online zuerst, davon die mit offener Lobby - danach nach Namen
+  st.friends.sort((a, b) =>
+    (b.joinable - a.joinable) || (b.online - a.online) || a.name.localeCompare(b.name));
+  return { t: C.MSG.FRIENDS, ...st };
+}
+
+/** Beiden Seiten den neuen Stand schicken, soweit sie online sind. */
+function pushFriends(uids) {
+  for (const uid of uids) {
+    const c = clientByUid(uid);
+    if (c) send(c.ws, friendPayload(uid));
+  }
+}
+
+/** Jemand ist gekommen, gegangen oder hat die Lobby gewechselt: er selbst und
+    alle seine Freunde bekommen den neuen Stand. Ohne das stuende auf der
+    Freundesliste noch "Join" fuer eine Lobby, die es nicht mehr gibt. */
+function friendsUmfeld(uid) {
+  if (!uid) return;
+  const freunde = STARS.friendState(uid).friends.map(f => f.uid);
+  pushFriends([uid, ...freunde]);
+}
+
+/** Dasselbe fuer einen ganzen Raum - bei Zustandswechseln des Raums. */
+function friendsRaum(r) {
+  if (!r) return;
+  for (const m of r.members.values()) if (m.uid) friendsUmfeld(m.uid);
+}
+
 function handle(client, msg) {
   const M = C.MSG;
   const room = rooms.get(client.roomCode);
@@ -563,9 +632,11 @@ function handle(client, msg) {
     case M.AUTH: {
       // Abmelden
       if (!msg.idToken) {
+        const vorher = client.uid;
         client.uid = null; client.authName = '';
         send(client.ws, { t: M.ME, profile: null });
         if (room) room.broadcastRoom();
+        friendsUmfeld(vorher);
         break;
       }
       verifyIdToken(msg.idToken, AUTH_PROJECT).then(u => {
@@ -576,6 +647,8 @@ function handle(client, msg) {
         send(client.ws, { t: M.ME, profile: STARS.publicProfile(u.uid), name: client.name });
         const r = rooms.get(client.roomCode);
         if (r) r.broadcastRoom();
+        send(client.ws, friendPayload(u.uid));
+        friendsUmfeld(u.uid);
       }).catch(e => {
         client.uid = null;
         send(client.ws, { t: M.ERROR, msg: 'Sign-in rejected: ' + e.message });
@@ -599,6 +672,7 @@ function handle(client, msg) {
       const r = new Room(client);
       if (msg.mode && C.MODES[msg.mode]) r.mode = msg.mode;
       r.broadcastRoom();
+      friendsUmfeld(client.uid);
       break;
     }
 
@@ -613,11 +687,13 @@ function handle(client, msg) {
       client.skin = sanitizeSkin(msg.skin || client.skin);
       target.add(client);
       target.broadcastRoom();
+      friendsUmfeld(client.uid);
       break;
     }
 
     case M.LEAVE:
       if (room) { room.remove(client.id); client.roomCode = null; }
+      friendsUmfeld(client.uid);
       break;
 
     case M.CHAT:
@@ -705,6 +781,68 @@ function handle(client, msg) {
       }
       break;
     }
+
+    /* ---- Freunde ---- */
+
+    case M.FRIENDS:
+      if (client.uid) send(client.ws, friendPayload(client.uid));
+      else send(client.ws, { t: M.FRIENDS, friends: [], incoming: [], outgoing: [], guest: true });
+      break;
+
+    case M.FRIENDREQ: {
+      if (!client.uid) return send(client.ws, { t: M.ERROR, msg: 'Sign in to add friends' });
+      const ziel = String(msg.uid || '');
+      /* Anfragen nur an Leute aus dem eigenen Raum - oder an jemanden, der
+         selbst schon angefragt hat. Ohne diese Schranke koennte man mit einer
+         erratenen Kennung wildfremde Konten zuschuetten. */
+      const imRaum = room && [...room.members.values()].some(m => m.uid === ziel);
+      const hatGefragt = STARS.friendState(client.uid).incoming.some(x => x.uid === ziel);
+      if (!imRaum && !hatGefragt) {
+        return send(client.ws, { t: M.ERROR, msg: 'You can only add players from your group' });
+      }
+      const r = STARS.request(client.uid, ziel);
+      if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
+      else pushFriends(r.beide);
+      break;
+    }
+
+    case M.FRIENDACT: {
+      if (!client.uid) break;
+      const anderer = String(msg.uid || '');
+      if (!anderer || anderer === client.uid) break;
+      let r;
+      switch (msg.do) {
+        case 'accept': r = STARS.accept(client.uid, anderer); break;
+        case 'decline': r = STARS.decline(client.uid, anderer); break;
+        case 'cancel': r = STARS.cancel(client.uid, anderer); break;
+        case 'remove': r = STARS.removeFriend(client.uid, anderer); break;
+        default: return;
+      }
+      if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
+      else pushFriends(r.beide);
+      break;
+    }
+
+    case M.FRIENDJOIN: {
+      if (!client.uid) break;
+      const freund = String(msg.uid || '');
+      if (!STARS.areFriends(client.uid, freund)) {
+        return send(client.ws, { t: M.ERROR, msg: 'Not on your friend list' });
+      }
+      const c = clientByUid(freund);
+      const ziel = c && rooms.get(c.roomCode);
+      if (!ziel) return send(client.ws, { t: M.ERROR, msg: 'Friend is not in a group' });
+      if (ziel.state !== 'lobby') return send(client.ws, { t: M.ERROR, msg: 'Their match is already running' });
+      if (ziel.members.size >= C.MAX_PLAYERS) return send(client.ws, { t: M.ERROR, msg: 'Their group is full' });
+      if (ziel.code === client.roomCode) return send(client.ws, { t: M.ERROR, msg: 'You are already in that group' });
+      if (room) room.remove(client.id);
+      if (msg.name) client.name = sanitizeName(msg.name);
+      if (msg.skin) client.skin = sanitizeSkin(msg.skin);
+      ziel.add(client);
+      ziel.broadcastRoom();
+      friendsUmfeld(client.uid);
+      break;
+    }
   }
 }
 
@@ -748,6 +886,8 @@ setInterval(() => {
       if (room) room.remove(c.id);
       sessions.delete(c.session);
       clients.delete(c.id);
+      // Erst nach dem Loeschen melden, sonst gilt er noch als online
+      friendsUmfeld(c.uid);
       console.log(`  Spieler ${c.id} (${c.name}) endgueltig entfernt`);
     }
   }

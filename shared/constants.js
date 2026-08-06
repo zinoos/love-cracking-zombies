@@ -308,8 +308,18 @@
       // Vorbereitung: Server meldet die Phase, Client schickt seine Stimme
       PHASE: 'phase', VOTE: 'vote',
       // Skinshop
-      SHOP: 'shop', BUY: 'buy', EQUIP: 'equip'
+      SHOP: 'shop', BUY: 'buy', EQUIP: 'equip',
+      /* Freunde. FRIENDS ist die komplette Liste vom Server - es gibt keine
+         Teilaktualisierung, die Listen sind klein und ein ganzer Stand kann
+         nicht auseinanderlaufen. */
+      FRIENDS: 'friends', FRIENDREQ: 'friendreq', FRIENDACT: 'friendact',
+      FRIENDJOIN: 'friendjoin'
     },
+
+    /* Obergrenzen fuer die Freundesliste. Ohne sie koennte ein Konto beliebig
+       viele Eintraege ansammeln - jeder davon landet in einem einzigen
+       Firestore-Feld. */
+    FRIENDS: { MAX: 80, REQ_MAX: 50 },
 
     WEAPON_CHOICES: 3,   // Zur Auswahl gestellte Waffen vor dem Match
 

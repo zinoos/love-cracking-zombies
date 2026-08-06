@@ -382,6 +382,39 @@ kbd{background:rgba(255,255,255,.07);border:1px solid var(--line);border-bottom-
   background:rgba(255,255,255,.06);border:1px solid var(--line);
   transition:transform .18s,background .18s}
 .gear:hover{background:rgba(255,255,255,.13);transform:rotate(45deg)}
+/* Freundesknopf links neben dem Zahnrad - gleiche Groesse, gleiche Reihe.
+   Er dreht sich beim Ueberfahren nicht, das passt nur zum Zahnrad. */
+.pals{right:74px}
+.pals:hover{background:rgba(255,255,255,.13);transform:translateY(-2px)}
+/* Zahl offener Anfragen - der einzige Grund, ungefragt aufzufallen */
+.pals .badge{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;
+  border-radius:99px;background:var(--bad);color:#fff;font:700 11px/19px var(--font);
+  display:none;box-shadow:0 0 0 2px #0a0f1c}
+.pals.has .badge{display:block}
+
+/* ---------- Freunde ---------- */
+.pal-tabs{display:flex;gap:8px;margin-bottom:14px}
+.pal-tabs button{padding:8px 15px;border-radius:10px;border:1px solid var(--line);
+  background:rgba(255,255,255,.03);font-size:12px;letter-spacing:.1em;transition:.16s}
+.pal-tabs button.on{background:rgba(63,208,255,.16);border-color:var(--acc);color:var(--acc)}
+.pal-tabs button .n{margin-left:6px;opacity:.75;font-family:var(--mono)}
+.pal-list{display:flex;flex-direction:column;gap:8px;
+  max-height:min(52vh,470px);overflow-y:auto;overscroll-behavior:contain;padding-right:4px}
+.pal{display:flex;align-items:center;gap:11px;padding:10px 12px;border-radius:12px;
+  background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.pal img,.pal .av{width:34px;height:34px;border-radius:99px;object-fit:cover;flex:none;
+  background:rgba(255,255,255,.09)}
+.pal .who{flex:1;min-width:0}
+.pal .who b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pal .who span{font-size:11px;color:var(--dim)}
+.pal .dot{width:8px;height:8px;border-radius:99px;background:#4a5560;flex:none}
+.pal.on .dot{background:var(--acc);box-shadow:0 0 8px var(--acc)}
+.pal .btn.small{padding:6px 12px;font-size:11.5px}
+.pal-empty{font-size:13px;color:var(--dim);padding:16px 2px;line-height:1.5}
+/* Anklickbarer Name in der Lobby - er sieht sonst nicht nach Knopf aus */
+.prow .nm.addable{cursor:pointer;text-decoration:underline dotted rgba(255,255,255,.3);
+  text-underline-offset:3px}
+.prow .nm.addable:hover{color:var(--acc)}
 .set-grid{display:grid;grid-template-columns:1fr 1fr;gap:26px}
 @media (max-width:820px){.set-grid{grid-template-columns:1fr}}
 .set-col h3{margin:0 0 12px;font-size:13px;letter-spacing:.18em;color:var(--dim)}

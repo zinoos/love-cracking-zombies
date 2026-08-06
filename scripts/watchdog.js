@@ -72,12 +72,57 @@ function erreichbar(url, timeoutMs) {
 
 /* ---------------- Spielserver ---------------- */
 
+/* Wer haelt den Port? Nach einem harten Abbruch des Waechters bleibt sein
+   Spielserver zurueck - unter Windows laeuft beim Beenden per TerminateProcess
+   kein Aufraeumen mehr. Der naechste Waechter kaeme dann nie hoch, weil sein
+   Server den Port nicht binden kann. */
+function portBesetztVon() {
+  const pids = new Set();
+  if (process.platform === 'win32') {
+    const r = spawnSync('netstat', ['-ano', '-p', 'tcp'], { encoding: 'utf8' });
+    /* Nicht auf das Statuswort pruefen - auf einem deutschen Windows steht da
+       "ABHOEREN" statt "LISTENING". Ein lauschender Eintrag ist stattdessen
+       daran zu erkennen, dass die Gegenstelle 0.0.0.0:0 bzw. [::]:0 ist. */
+    for (const z of String(r.stdout || '').split('\n')) {
+      const m = z.match(/^\s*TCP\s+(\S+):(\d+)\s+(\S+)\s+\S+\s+(\d+)\s*$/);
+      if (m && Number(m[2]) === PORT && /:0$/.test(m[3])) pids.add(Number(m[4]));
+    }
+  } else {
+    const r = spawnSync('lsof', ['-ti', `tcp:${PORT}`, '-sTCP:LISTEN'], { encoding: 'utf8' });
+    for (const z of String(r.stdout || '').split('\n')) if (z.trim()) pids.add(Number(z.trim()));
+  }
+  pids.delete(process.pid);
+  return [...pids];
+}
+
+function raeumePort() {
+  const alt = portBesetztVon();
+  if (!alt.length) return;
+  sag('Port', PORT, 'ist noch belegt (' + alt.join(', ') + ') - wird freigeraeumt');
+  for (const pid of alt) {
+    try {
+      if (process.platform === 'win32') spawnSync('taskkill', ['/F', '/T', '/PID', String(pid)], { stdio: 'ignore' });
+      else process.kill(pid, 'SIGKILL');
+    } catch (_) { /* schon weg */ }
+  }
+}
+
 function starteServer() {
   if (server && !server.killed) return;
   sag('Spielserver wird gestartet');
+  /* Eigene Prozessgruppe und keine geteilte Konsole. Vorher lief der Server
+     mit stdio:'inherit' an derselben Konsole wie der Waechter - wurde er von
+     aussen hart beendet, ging das Konsolenereignis an die ganze Gruppe und
+     riss den Waechter mit (Exitcode 0xC000013A). Genau der sollte ja
+     ueberleben und neu starten. */
   server = spawn(process.execPath, ['server.js'], {
-    cwd: ROOT, stdio: 'inherit', env: process.env
+    cwd: ROOT, stdio: ['ignore', 'pipe', 'pipe'], env: process.env,
+    detached: true, windowsHide: true
   });
+  // Ausgabe des Servers mitschreiben, sonst waere sie jetzt verloren
+  const mit = d => { try { fs.appendFileSync(PROTOKOLL, String(d)); } catch (_) { /* egal */ } };
+  server.stdout.on('data', mit);
+  server.stderr.on('data', mit);
   server.on('exit', code => {
     if (!laeuft) return;
     sag(`Spielserver beendet (Code ${code}) - Neustart in 3 s`);
@@ -178,6 +223,7 @@ async function tunnelSicherstellen(grund) {
 }
 
 async function hauptschleife() {
+  raeumePort();          // Reste eines abgestuerzten Vorgaengers
   starteServer();
   await schlaf(3000);
   await tunnelSicherstellen('Start');
@@ -209,7 +255,14 @@ function beenden() {
   laeuft = false;
   sag('Waechter wird beendet');
   toeteTunnel();
-  if (server) { try { server.kill(); } catch (_) { /* egal */ } }
+  /* In eigener Gruppe nimmt kill() den Server nicht mehr sicher mit -
+     unter Windows deshalb ueber die Prozesskennung abraeumen. */
+  if (server && server.pid) {
+    try {
+      if (process.platform === 'win32') spawnSync('taskkill', ['/F', '/T', '/PID', String(server.pid)], { stdio: 'ignore' });
+      else process.kill(-server.pid);
+    } catch (_) { try { server.kill(); } catch (__) { /* egal */ } }
+  }
   process.exit(0);
 }
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, beenden);

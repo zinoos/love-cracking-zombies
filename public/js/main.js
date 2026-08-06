@@ -282,6 +282,10 @@
   NET.on('open', () => {
     UI.setConn(true);
     NET.send({ t: C.MSG.HELLO, name: UI.name, skin: UI.skin, session: NET.session });
+    /* Gleich holen, nicht erst beim Oeffnen des Schirms: die Zahl offener
+       Anfragen steht am Knopf, und die Lobby muss wissen, wen man schon
+       kennt, um den Namen nicht erneut anklickbar zu machen. */
+    NET.send({ t: C.MSG.FRIENDS });
   });
   let connectFails = 0, everConnected = false;
   NET.on('open', () => { connectFails = 0; everConnected = true; UI.serverNotice(false); });
@@ -337,6 +341,18 @@
   UI.onPhaseVote(v => NET.send({ t: C.MSG.VOTE, v }));
 
   NET.on(C.MSG.SHOP, m => { UI.renderShop(m); UI.renderLocker(); });
+
+  /* ---- Freunde ---- */
+  NET.on(C.MSG.FRIENDS, m => UI.setFriends(m));
+  UI.onFriends(
+    (aktion, uid) => NET.send({ t: C.MSG.FRIENDACT, do: aktion, uid }),
+    uid => NET.send({ t: C.MSG.FRIENDJOIN, uid, name: UI.name, skin: UI.skin }),
+    (uid, name) => {
+      if (!AUTH.profile) return UI.toast('Sign in to add friends', 'err');
+      NET.send({ t: C.MSG.FRIENDREQ, uid });
+      UI.toast('Friend request sent to ' + name);
+    }
+  );
   UI.onShop(
     id => NET.send({ t: C.MSG.BUY, id }),
     id => NET.send({ t: C.MSG.EQUIP, id })
@@ -352,7 +368,9 @@
     UI.renderRoom(m, G.myId);
     // Nur aus Menue/Join heraus in die Lobby springen - Skinlocker/Hilfe nicht unterbrechen
     const from = UI.currentScreen();
-    if (!G.inMatch && (from === 'scr-menu' || from === 'scr-join' || from === 'scr-game')) UI.show('scr-lobby');
+    // scr-friends ist dabei: von dort tritt man der Gruppe eines Freundes bei
+    if (!G.inMatch && (from === 'scr-menu' || from === 'scr-join' || from === 'scr-game'
+      || from === 'scr-friends')) UI.show('scr-lobby');
     const me = m.members.find(x => x.id === G.myId);
     if (me) G.myTeam = me.team;
   });
@@ -851,6 +869,13 @@
       NET.send({ t: C.MSG.SHOP });
       UI.show('scr-shop');
       FB.log('shop_open');
+    };
+    UI.wireFriends();
+    $('btn-friends').onclick = () => {
+      NET.send({ t: C.MSG.FRIENDS });
+      UI.renderFriends();
+      UI.show('scr-friends');
+      FB.log('friends_open');
     };
 
     /* ---- Anmeldung ----

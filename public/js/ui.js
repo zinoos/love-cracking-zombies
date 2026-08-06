@@ -240,6 +240,13 @@ const UI = (() => {
       nm.className = 'nm';
       nm.textContent = m.name;
       if (teams > 1) nm.style.color = C.TEAM_COLORS[m.team];
+      /* Name anklickbar, wenn eine Anfrage ueberhaupt Sinn ergibt: beide
+         angemeldet, nicht man selbst, kein Bot und noch nicht befreundet. */
+      if (palAnfrage && m.uid && m.id !== myId && !m.bot && !palKennt(m.uid)) {
+        nm.classList.add('addable');
+        nm.title = 'Send friend request';
+        nm.onclick = () => palAnfrage(m.uid, m.name);
+      }
       row.appendChild(nm);
 
       if (m.host) { const t = document.createElement('span'); t.className = 'tag host'; t.textContent = 'HOST'; row.appendChild(t); }
@@ -745,6 +752,153 @@ const UI = (() => {
     }
   }
 
+  /* ---------- Freunde ---------- */
+
+  /* Der Server schickt immer den ganzen Stand, nie Teiländerungen - die
+     Listen sind klein und koennen so nicht auseinanderlaufen. */
+  let palData = { friends: [], incoming: [], outgoing: [], guest: false };
+  let palTab = 'friends';
+  let palAct = null;      // (aktion, uid) -> an den Server
+  let palJoin = null;     // (uid) -> Lobby des Freundes betreten
+
+  let palAnfrage = null;  // (uid, name) -> Anfrage aus der Lobby heraus
+
+  function onFriends(aktion, beitreten, anfragen) {
+    palAct = aktion; palJoin = beitreten; palAnfrage = anfragen;
+  }
+
+  /** Steht der schon in einer der drei Listen? Dann kein zweiter Klick. */
+  function palKennt(uid) {
+    return palData.friends.some(f => f.uid === uid)
+      || palData.outgoing.some(f => f.uid === uid)
+      || palData.incoming.some(f => f.uid === uid);
+  }
+
+  /** Zahlen am Knopf und an den Reitern - laeuft auch bei zugeklapptem Schirm,
+      sonst stehen dort alte Werte, sobald man ihn wieder aufmacht. */
+  function palBadge() {
+    const b = $('btn-friends');
+    if (!b) return;
+    const n = palData.incoming.length;
+    b.classList.toggle('has', n > 0);
+    $('pal-badge').textContent = n > 9 ? '9+' : String(n);
+    for (const k of ['friends', 'incoming', 'outgoing']) $('pal-n-' + k).textContent = palData[k].length;
+  }
+
+  function setFriends(m) {
+    palData = {
+      friends: m.friends || [], incoming: m.incoming || [],
+      outgoing: m.outgoing || [], guest: !!m.guest
+    };
+    palBadge();
+    if (current === 'scr-friends') renderFriends();
+    /* Die Lobby zeigt Namen nur dann anklickbar, wenn noch keine Anfrage
+       laeuft - nach einer Aenderung muss sie also neu gezeichnet werden. */
+    if (current === 'scr-lobby' && roomState) renderRoom(roomState, NET.id);
+  }
+
+  function wireFriends() {
+    [...$('pal-tabs').children].forEach(b => {
+      b.onclick = () => { SFX.ui(true); palTabWahl(b.dataset.tab); };
+    });
+  }
+
+  function palTabWahl(tab) {
+    palTab = tab;
+    [...$('pal-tabs').children].forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+    renderFriends();
+  }
+
+  /** Eine Zeile: Bild, Name, Zustand, Knoepfe. */
+  function palZeile(f, art) {
+    const row = document.createElement('div');
+    row.className = 'pal' + (f.online ? ' on' : '');
+
+    if (f.photo) {
+      const img = document.createElement('img');
+      img.src = f.photo; img.alt = '';
+      img.onerror = () => { img.remove(); };
+      row.appendChild(img);
+    } else {
+      const av = document.createElement('div');
+      av.className = 'av';
+      row.appendChild(av);
+    }
+
+    if (art === 'friends') {
+      const d = document.createElement('i');
+      d.className = 'dot';
+      row.appendChild(d);
+    }
+
+    const who = document.createElement('div');
+    who.className = 'who';
+    const nb = document.createElement('b');
+    nb.textContent = f.name;
+    const sub = document.createElement('span');
+    if (art !== 'friends') sub.textContent = '★ ' + f.stars;
+    else if (f.joinable) sub.textContent = 'In a group · ★ ' + f.stars;
+    else if (f.room) sub.textContent = (f.state === 'lobby' ? 'Group is full' : 'In a match') + ' · ★ ' + f.stars;
+    else sub.textContent = (f.online ? 'Online' : 'Offline') + ' · ★ ' + f.stars;
+    who.append(nb, sub);
+    row.appendChild(who);
+
+    const knopf = (text, klasse, fn) => {
+      const b = document.createElement('button');
+      b.className = 'btn small ' + klasse;
+      b.textContent = text;
+      b.onclick = fn;
+      row.appendChild(b);
+      return b;
+    };
+
+    if (art === 'friends') {
+      if (f.joinable) knopf('Join', 'primary', () => palJoin && palJoin(f.uid));
+      knopf('Remove', 'ghost', () => palAct && palAct('remove', f.uid));
+    } else if (art === 'incoming') {
+      knopf('Accept', 'primary', () => palAct && palAct('accept', f.uid));
+      knopf('Decline', 'ghost', () => palAct && palAct('decline', f.uid));
+    } else {
+      knopf('Cancel', 'ghost', () => palAct && palAct('cancel', f.uid));
+    }
+    return row;
+  }
+
+  const PAL_LEER = {
+    friends: 'No friends yet. Open a group, click a player\'s name and send them a request.',
+    incoming: 'No open requests.',
+    outgoing: 'You have not sent any requests.'
+  };
+
+  function renderFriends() {
+    palBadge();
+    const host = $('pal-list');
+    host.innerHTML = '';
+    const hint = $('pal-hint');
+
+    if (palData.guest) {
+      hint.textContent = 'Sign in to add friends and join their groups.';
+      const p = document.createElement('div');
+      p.className = 'pal-empty';
+      p.textContent = 'Friends are tied to your account, so guests cannot have any.';
+      host.appendChild(p);
+      return;
+    }
+
+    const liste = palData[palTab];
+    if (!liste.length) {
+      const p = document.createElement('div');
+      p.className = 'pal-empty';
+      p.textContent = PAL_LEER[palTab];
+      host.appendChild(p);
+    } else {
+      for (const f of liste) host.appendChild(palZeile(f, palTab));
+    }
+    hint.textContent = palTab === 'friends' && liste.length
+      ? 'Join is only there while their group is open — not during a match.'
+      : '';
+  }
+
   let lockerT = 0;
   function lockerTick(dt) {
     if (current !== 'scr-skins' || !lockerAnim.length) return;
@@ -1156,6 +1310,7 @@ const UI = (() => {
     $, show, currentScreen, toast, skin, buildSkinUI, saveSkin,
     wireSettings, renderSettings,
     renderPhase, onPhaseVote, renderShop, onShop, renderLocker,
+    onFriends, setFriends, renderFriends, wireFriends,
     get name() { return profileName; },
     set name(v) { profileName = v; },
     renderRoom, addChat, updateHUD, setScorePlate, killfeed, centerMsg, reconnecting,

@@ -56,6 +56,7 @@
 <!-- ============ MENU ============ -->
 <section class="screen" id="scr-menu">
   <button class="gear" id="btn-settings" title="Settings">⚙</button>
+  <button class="gear pals" id="btn-friends" title="Friends">👥<span class="badge" id="pal-badge">0</span></button>
   <div class="menu-wrap">
     <div class="logo">
       <h1 class="title" data-text="NEON STRIKE">Ayri Shooter</h1>
@@ -288,6 +289,26 @@
       but last place never leaves empty-handed.</p>
 
     <div class="shop-grid" id="shop-grid"></div>
+  </div>
+</section>
+
+<!-- ============ FRIENDS ============ -->
+<section class="screen" id="scr-friends">
+  <div class="panel wide">
+    <header class="phead">
+      <button class="back" data-back="scr-menu">‹ Back</button>
+      <h2>FRIENDS</h2>
+      <span class="pspacer"></span>
+    </header>
+
+    <div class="pal-tabs" id="pal-tabs">
+      <button data-tab="friends" class="on">FRIENDS<span class="n" id="pal-n-friends">0</span></button>
+      <button data-tab="incoming">REQUESTS<span class="n" id="pal-n-incoming">0</span></button>
+      <button data-tab="outgoing">SENT<span class="n" id="pal-n-outgoing">0</span></button>
+    </div>
+
+    <div class="pal-list" id="pal-list"></div>
+    <p class="hint" id="pal-hint"></p>
   </div>
 </section>
 
