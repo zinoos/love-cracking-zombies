@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -22,7 +22,7 @@
     </div>
 
     <div class="card login-card">
-      <p class="login-lead">Melde dich an, um Sterne zu sammeln und in die Bestenliste zu kommen.</p>
+      <p class="login-lead">Sign in to earn stars and make the leaderboard.</p>
 
       <button class="btn google-btn" id="btn-google">
         <span class="g-logo" aria-hidden="true">
@@ -33,29 +33,29 @@
             <path fill="#EA4335" d="M24 10.7c3.3 0 6.2 1.1 8.5 3.3l6.3-6.3C35 4.1 30 2 24 2 15.4 2 7.9 6.9 4.3 14.1l7.3 5.7c1.8-5.2 6.6-9.1 12.4-9.1z"/>
           </svg>
         </span>
-        <b>MIT GOOGLE ANMELDEN</b>
+        <b>SIGN IN WITH GOOGLE</b>
       </button>
 
-      <button class="btn ghost" id="btn-guest">Ohne Anmeldung spielen</button>
-      <p class="login-note">Als Gast kannst du alles spielen, sammelst aber keine Sterne.</p>
+      <button class="btn ghost" id="btn-guest">Play without signing in</button>
+      <p class="login-note">As a guest you can play everything, but you earn no stars.</p>
       <p class="err" id="login-err"></p>
       <div class="login-blocked" id="login-blocked">
-        <b>Die Google-Anmeldung wird auf diesem Gerät blockiert.</b>
-        <span>Das machen manche Schul- und Firmennetze oder Virenscanner mit
-        Anmeldefenstern — am Spiel liegt es nicht. Spiel einfach ohne Anmeldung
-        weiter; nur Sterne und Bestenliste bleiben dann leer.</span>
+        <b>Google sign-in is blocked on this device.</b>
+        <span>Some school and company networks, and some antivirus tools, block
+        sign-in popups — nothing is wrong with the game. Just play without
+        signing in; only stars and the leaderboard stay empty.</span>
       </div>
     </div>
 
     <div class="chip-row login-chips">
-      <span class="chip" id="chip-status2"><i class="dot"></i><span id="conn-text2">verbinde…</span></span>
+      <span class="chip" id="chip-status2"><i class="dot"></i><span id="conn-text2">connecting…</span></span>
     </div>
   </div>
 </section>
 
 <!-- ============ MENU ============ -->
 <section class="screen" id="scr-menu">
-  <button class="gear" id="btn-settings" title="Einstellungen">⚙</button>
+  <button class="gear" id="btn-settings" title="Settings">⚙</button>
   <div class="menu-wrap">
     <div class="logo">
       <h1 class="title" data-text="NEON STRIKE">Ayri Shooter</h1>
@@ -65,44 +65,44 @@
       <div class="acct" id="acct">
         <img class="avatar" id="acct-photo" alt="" />
         <div class="acct-lines">
-          <b id="acct-name">Gast</b>
+          <b id="acct-name">Guest</b>
           <span class="stars" id="acct-stars">★ 0</span>
         </div>
-        <button class="btn small ghost" id="btn-signout">Abmelden</button>
+        <button class="btn small ghost" id="btn-signout">Sign out</button>
       </div>
-      <label class="lbl">DEIN NAME</label>
-      <input id="inp-name" class="txt" maxlength="14" placeholder="Spieler" autocomplete="off" />
+      <label class="lbl">YOUR NAME</label>
+      <input id="inp-name" class="txt" maxlength="14" placeholder="Player" autocomplete="off" />
       <div class="chip-row">
-        <span class="chip" id="chip-status"><i class="dot"></i><span id="conn-text">verbinde…</span></span>
+        <span class="chip" id="chip-status"><i class="dot"></i><span id="conn-text">connecting…</span></span>
         <span class="chip" id="chip-ping">— ms</span>
-        <span class="chip" id="chip-rank">Platz —</span>
+        <span class="chip" id="chip-rank">Rank —</span>
       </div>
     </div>
 
     <nav class="menu-btns">
       <button class="btn big primary" id="btn-create">
         <span class="ico">⬢</span>
-        <span class="lines"><b>GRUPPE ERSTELLEN</b><small>Lobby öffnen &amp; Code teilen</small></span>
+        <span class="lines"><b>CREATE GROUP</b><small>Open a lobby &amp; share the code</small></span>
       </button>
       <button class="btn big" id="btn-join">
         <span class="ico">⌁</span>
-        <span class="lines"><b>GRUPPE BEITRETEN</b><small>6-stelligen Code eingeben</small></span>
+        <span class="lines"><b>JOIN GROUP</b><small>Enter the 6-digit code</small></span>
       </button>
       <button class="btn big" id="btn-skins">
         <span class="ico">◈</span>
-        <span class="lines"><b>SKINLOCKER</b><small>Farbe, Muster &amp; Spur</small></span>
+        <span class="lines"><b>SKIN LOCKER</b><small>Color, pattern &amp; trail</small></span>
       </button>
       <button class="btn big" id="btn-shop">
         <span class="ico">◆</span>
-        <span class="lines"><b>SKINSHOP</b><small>Besondere Farben für Gold</small></span>
+        <span class="lines"><b>SKIN SHOP</b><small>Special colors for gold</small></span>
       </button>
       <button class="btn big" id="btn-board">
         <span class="ico">★</span>
-        <span class="lines"><b>BESTENLISTE</b><small>Sterne &amp; Platzierungen</small></span>
+        <span class="lines"><b>LEADERBOARD</b><small>Stars &amp; rankings</small></span>
       </button>
       <button class="btn big ghost" id="btn-help">
         <span class="ico">⌨</span>
-        <span class="lines"><b>STEUERUNG</b><small>Tasten &amp; Spielregeln</small></span>
+        <span class="lines"><b>CONTROLS</b><small>Keys &amp; rules</small></span>
       </button>
     </nav>
   </div>
@@ -112,37 +112,43 @@
 <section class="screen" id="scr-skins">
   <div class="panel wide">
     <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Zurück</button>
-      <h2>SKINLOCKER</h2>
+      <button class="back" data-back="scr-menu">‹ Back</button>
+      <h2>SKIN LOCKER</h2>
       <span class="pspacer"></span>
     </header>
 
     <div class="skin-grid">
       <div class="skin-preview">
         <canvas id="skin-cv" width="360" height="360"></canvas>
-        <div class="preview-tag">LIVE VORSCHAU</div>
+        <div class="preview-tag">LIVE PREVIEW</div>
       </div>
 
       <div class="skin-controls">
         <div class="ctl">
-          <label class="lbl">UNIFORMFARBE</label>
+          <label class="lbl">UNIFORM COLOR</label>
           <div class="swatches" id="sw-body"></div>
           <input type="range" id="hue-body" min="0" max="360" value="140" class="slider" />
         </div>
 
         <div class="ctl">
-          <label class="lbl">SPUR / EFFEKTFARBE</label>
+          <label class="lbl">TRAIL / EFFECT COLOR</label>
           <div class="swatches" id="sw-trail"></div>
           <input type="range" id="hue-trail" min="0" max="360" value="45" class="slider" />
         </div>
 
         <div class="ctl">
-          <label class="lbl">TARNMUSTER</label>
+          <label class="lbl">CAMO PATTERN</label>
           <div class="patterns" id="pattern-row"></div>
         </div>
 
-        <button class="btn primary" id="btn-skin-save">SPEICHERN</button>
+        <button class="btn primary" id="btn-skin-save">SAVE</button>
       </div>
+    </div>
+
+    <div class="fx-locker">
+      <label class="lbl">SPECIAL COLORS</label>
+      <div class="fx-row" id="fx-row"></div>
+      <p class="hint" id="fx-hint"></p>
     </div>
   </div>
 </section>
@@ -151,11 +157,11 @@
 <section class="screen" id="scr-join">
   <div class="panel">
     <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Zurück</button>
-      <h2>GRUPPE BEITRETEN</h2>
+      <button class="back" data-back="scr-menu">‹ Back</button>
+      <h2>JOIN GROUP</h2>
       <span class="pspacer"></span>
     </header>
-    <p class="hint">Gib den 6-stelligen Code der Lobby ein.</p>
+    <p class="hint">Enter the lobby's 6-digit code.</p>
     <div class="code-input" id="code-input">
       <input class="digit" inputmode="numeric" maxlength="1" />
       <input class="digit" inputmode="numeric" maxlength="1" />
@@ -164,7 +170,7 @@
       <input class="digit" inputmode="numeric" maxlength="1" />
       <input class="digit" inputmode="numeric" maxlength="1" />
     </div>
-    <button class="btn primary wide-btn" id="btn-do-join">BEITRETEN</button>
+    <button class="btn primary wide-btn" id="btn-do-join">JOIN</button>
     <p class="err" id="join-err"></p>
   </div>
 </section>
@@ -173,28 +179,28 @@
 <section class="screen" id="scr-lobby">
   <div class="panel wide">
     <header class="phead">
-      <button class="back" id="btn-leave">‹ Verlassen</button>
+      <button class="back" id="btn-leave">‹ Leave</button>
       <h2>LOBBY</h2>
       <span class="pspacer"></span>
     </header>
 
     <div class="code-box">
-      <span class="lbl">RAUMCODE</span>
-      <div class="code-display" id="room-code" title="Klicken zum Kopieren">000000</div>
-      <span class="copy-hint" id="copy-hint">klicken zum kopieren</span>
+      <span class="lbl">ROOM CODE</span>
+      <div class="code-display" id="room-code" title="Click to copy">000000</div>
+      <span class="copy-hint" id="copy-hint">click to copy</span>
     </div>
 
     <div class="lobby-grid">
       <div class="lobby-col">
-        <label class="lbl">MODUS</label>
+        <label class="lbl">MODE</label>
         <div class="modes" id="mode-row"></div>
 
-        <label class="lbl" style="margin-top:18px">SPIELER <span id="pcount">0/6</span></label>
+        <label class="lbl" style="margin-top:18px">PLAYERS <span id="pcount">0/6</span></label>
         <div class="players" id="player-list"></div>
 
         <div class="host-tools" id="host-tools">
           <button class="btn small" id="btn-addbot">+ BOT</button>
-          <button class="btn small ghost" id="btn-shuffle">TEAMS MISCHEN</button>
+          <button class="btn small ghost" id="btn-shuffle">SHUFFLE TEAMS</button>
         </div>
       </div>
 
@@ -202,55 +208,55 @@
         <label class="lbl">CHAT</label>
         <div class="chat" id="chat-log"></div>
         <div class="chat-in">
-          <input id="chat-inp" class="txt" maxlength="120" placeholder="Nachricht…" />
+          <input id="chat-inp" class="txt" maxlength="120" placeholder="Message…" />
           <button class="btn small" id="chat-send">▶</button>
         </div>
       </div>
     </div>
 
-    <button class="btn primary wide-btn start" id="btn-start">MATCH STARTEN</button>
+    <button class="btn primary wide-btn start" id="btn-start">START MATCH</button>
     <p class="err" id="lobby-err"></p>
   </div>
 </section>
 
-<!-- ============ BESTENLISTE ============ -->
+<!-- ============ LEADERBOARD ============ -->
 <section class="screen" id="scr-board">
   <div class="panel wide">
     <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Zurück</button>
-      <h2>BESTENLISTE</h2>
+      <button class="back" data-back="scr-menu">‹ Back</button>
+      <h2>LEADERBOARD</h2>
       <span class="pspacer"></span>
     </header>
 
     <div class="board-you" id="board-you"></div>
 
     <div class="brow head lb-row">
-      <div>#</div><div></div><div>SPIELER</div>
-      <div class="num">★</div><div class="num">SIEGE</div><div class="num">SPIELE</div><div class="num">K/D</div>
+      <div>#</div><div></div><div>PLAYER</div>
+      <div class="num">★</div><div class="num">WINS</div><div class="num">GAMES</div><div class="num">K/D</div>
     </div>
     <div class="lb-list" id="lb-list"></div>
-    <p class="hint" id="lb-empty" style="display:none">Noch niemand angemeldet — melde dich mit Google an, um in die Liste zu kommen.</p>
+    <p class="hint" id="lb-empty" style="display:none">Nobody signed in yet — sign in with Google to appear here.</p>
 
     <div class="star-rules">
-      <h3>Wie es Sterne gibt</h3>
-      <p>Nach jedem Match wird nach Kills sortiert. Die <b>obere Hälfte gewinnt</b>
-      Sterne, die <b>untere verliert</b> welche — Platz 1 bekommt am meisten.
-      Unter 0 Sterne geht es nie.</p>
+      <h3>How stars work</h3>
+      <p>After every match players are ranked by kills. The <b>top half gains</b>
+      stars, the <b>bottom half loses</b> them — 1st place gains the most.
+      Stars never drop below 0.</p>
       <div class="star-example" id="star-example"></div>
     </div>
   </div>
 </section>
 
-<!-- ============ VORBEREITUNG: KARTE, SPERRE, WAFFE ============ -->
+<!-- ============ PREMATCH: MAP, BANS, WEAPON ============ -->
 <section class="screen" id="scr-prematch">
   <div class="prep-wrap">
     <div class="prep-steps" id="prep-steps">
-      <span class="pstep" data-step="vote">1 · KARTE</span>
-      <span class="pstep" data-step="wheel">2 · GLÜCKSRAD</span>
-      <span class="pstep" data-step="pick">3 · WAFFE</span>
+      <span class="pstep" data-step="vote">1 · MAP</span>
+      <span class="pstep" data-step="wheel">2 · WHEEL</span>
+      <span class="pstep" data-step="pick">3 · WEAPON</span>
     </div>
 
-    <h2 class="prep-title" id="prep-title">KARTE WÄHLEN</h2>
+    <h2 class="prep-title" id="prep-title">PICK A MAP</h2>
     <p class="prep-sub" id="prep-sub"></p>
 
     <div class="prep-clock">
@@ -273,84 +279,84 @@
 <section class="screen" id="scr-shop">
   <div class="panel wide">
     <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Zurück</button>
-      <h2>SKINSHOP</h2>
+      <button class="back" data-back="scr-menu">‹ Back</button>
+      <h2>SKIN SHOP</h2>
       <span class="gold-badge" id="shop-gold">0 Gold</span>
     </header>
 
-    <p class="hint" id="shop-hint">Gold bekommst du nach jedem Match — für Platz 1 am meisten,
-      aber auch der letzte Platz geht nicht leer aus.</p>
+    <p class="hint" id="shop-hint">You earn gold after every match — most for 1st place,
+      but last place never leaves empty-handed.</p>
 
     <div class="shop-grid" id="shop-grid"></div>
   </div>
 </section>
 
-<!-- ============ EINSTELLUNGEN ============ -->
+<!-- ============ SETTINGS ============ -->
 <section class="screen" id="scr-settings">
   <div class="panel wide">
     <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Zurück</button>
-      <h2>EINSTELLUNGEN</h2>
+      <button class="back" data-back="scr-menu">‹ Back</button>
+      <h2>SETTINGS</h2>
       <span class="pspacer"></span>
     </header>
 
     <div class="set-grid">
       <div class="set-col">
-        <h3>Leistung</h3>
+        <h3>Performance</h3>
 
         <label class="set-row toggle" for="set-perf">
           <span class="set-lbl">
-            <b>Leistungsmodus</b>
-            <small>Weniger Grafik, mehr Bilder pro Sekunde. Überschreibt die Einstellungen darunter.</small>
+            <b>Performance mode</b>
+            <small>Less detail, more frames per second. Overrides the settings below.</small>
           </span>
           <input type="checkbox" id="set-perf" />
           <i class="switch"></i>
         </label>
 
         <div class="set-row">
-          <span class="set-lbl"><b>Grafikstufe</b><small>Automatisch passt sich der Bildrate an</small></span>
+          <span class="set-lbl"><b>Graphics level</b><small>Auto follows your frame rate</small></span>
           <div class="seg" id="set-quality">
             <button data-q="-1">Auto</button>
-            <button data-q="0">Hoch</button>
-            <button data-q="1">Mittel</button>
-            <button data-q="2">Niedrig</button>
+            <button data-q="0">High</button>
+            <button data-q="1">Medium</button>
+            <button data-q="2">Low</button>
           </div>
         </div>
 
         <label class="set-row toggle" for="set-particles">
-          <span class="set-lbl"><b>Partikel &amp; Spuren</b><small>Funken, Rauch, Einschusslöcher</small></span>
+          <span class="set-lbl"><b>Particles &amp; trails</b><small>Sparks, smoke, bullet holes</small></span>
           <input type="checkbox" id="set-particles" />
           <i class="switch"></i>
         </label>
 
         <div class="set-row">
-          <span class="set-lbl"><b>Bildschirmwackeln</b><small><span id="set-shake-val">100</span> %</small></span>
+          <span class="set-lbl"><b>Screen shake</b><small><span id="set-shake-val">100</span> %</small></span>
           <input type="range" id="set-shake" min="0" max="150" step="10" />
         </div>
 
         <div class="set-row">
-          <span class="set-lbl"><b>Zeigerempfindlichkeit</b><small>Wie weit die Kamera zum Mauszeiger zieht — <span id="set-sens-val">100</span> %</small></span>
+          <span class="set-lbl"><b>Aim sensitivity</b><small>How far the camera leans toward the cursor — <span id="set-sens-val">100</span> %</small></span>
           <input type="range" id="set-sens" min="0" max="200" step="10" />
         </div>
 
-        <div class="perf-live" id="perf-live">Bildrate wird im Spiel gemessen</div>
+        <div class="perf-live" id="perf-live">Frame rate is measured in a match</div>
       </div>
 
       <div class="set-col">
-        <h3>Steuerung</h3>
-        <p class="hint">Auf eine Taste klicken und die neue Taste drücken. Escape bricht ab.</p>
+        <h3>Controls</h3>
+        <p class="hint">Click a key, then press the new one. Escape cancels.</p>
         <div class="keybinds" id="keybinds"></div>
 
         <div class="set-row static">
-          <span class="set-lbl"><b>Schießen</b><small>Linke Maustaste</small></span>
+          <span class="set-lbl"><b>Shoot</b><small>Left mouse button</small></span>
         </div>
         <div class="set-row static">
-          <span class="set-lbl"><b>Granate</b><small>Rechte Maustaste</small></span>
+          <span class="set-lbl"><b>Grenade</b><small>Right mouse button</small></span>
         </div>
 
         <div class="set-actions">
-          <button class="btn small ghost" id="btn-keys-reset">Tasten zurücksetzen</button>
-          <button class="btn small ghost" id="btn-settings-reset">Alles zurücksetzen</button>
+          <button class="btn small ghost" id="btn-keys-reset">Reset keys</button>
+          <button class="btn small ghost" id="btn-settings-reset">Reset everything</button>
         </div>
       </div>
     </div>
@@ -361,44 +367,44 @@
 <section class="screen" id="scr-help">
   <div class="panel wide">
     <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Zurück</button>
-      <h2>STEUERUNG &amp; REGELN</h2>
+      <button class="back" data-back="scr-menu">‹ Back</button>
+      <h2>CONTROLS &amp; RULES</h2>
       <span class="pspacer"></span>
     </header>
     <div class="help-grid">
       <div class="help-card">
-        <h3>Steuerung</h3>
+        <h3>Controls</h3>
         <ul class="keys">
-          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Bewegen</span></li>
-          <li><kbd>Maus</kbd><span>Zielen</span></li>
-          <li><kbd>Linksklick</kbd><span>Schießen</span></li>
-          <li><kbd>Rechtsklick</kbd><span>Granate werfen (2 pro Match)</span></li>
-          <li><kbd>R</kbd><span>Nachladen</span></li>
-          <li><kbd>Shift</kbd><span>Dash — 2,4 s, schwere Waffen 4,8 s</span></li>
+          <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>Move</span></li>
+          <li><kbd>Mouse</kbd><span>Aim</span></li>
+          <li><kbd>Left click</kbd><span>Shoot</span></li>
+          <li><kbd>Right click</kbd><span>Throw grenade (2 per match)</span></li>
+          <li><kbd>R</kbd><span>Reload</span></li>
+          <li><kbd>Shift</kbd><span>Dash — 2.4 s, heavy weapons 4.8 s</span></li>
           <li><kbd>Tab</kbd><span>Scoreboard</span></li>
-          <li><kbd>Esc</kbd><span>Menü / Match verlassen</span></li>
-          <li><kbd>M</kbd><span>Sound an/aus</span></li>
+          <li><kbd>Esc</kbd><span>Menu / leave match</span></li>
+          <li><kbd>M</kbd><span>Sound on/off</span></li>
         </ul>
       </div>
       <div class="help-card">
-        <h3>Regeln</h3>
+        <h3>Rules</h3>
         <ul class="rules">
-          <li><b>Sichtfeld:</b> du siehst nur nach vorn (106°), der Kegel dreht sich mit dir. Nur direkt um dich herum merkst du alles.</li>
-          <li><b>Waffe:</b> vor jedem Match aus 3 von 13 wählen — mehr Schaden oder Reichweite kostet Tempo.</li>
-          <li><b>Schwert:</b> Rundumschlag 360°, 35 Schaden, keine Munition, schnellste Bewegung. Nach jedem Kill 0,5 s unsichtbar.</li>
-          <li><b>Sergio:</b> wirft eine Schallplatte, die an der ersten Wand umkehrt und zurückkommt. Trifft auf Hin- und Rückweg — erst wenn sie wieder in der Hand liegt, kannst du erneut werfen.</li>
-          <li><b>Vor dem Match:</b> 8 s Kartenwahl, dann drehen zwei Glücksräder je eine Waffe aus, die gesperrt wird, danach 5 s freie Waffenwahl.</li>
-          <li><b>Gold:</b> gibt es nach jedem Match — für Platz 1 am meisten, für den letzten Platz immer noch etwas. Dafür gibt es im Skinshop Farben mit eigener Animation.</li>
-          <li><b>Minen:</b> Linksklick wirft sie bis 310 px über Wände, zweiter Linksklick zündet — 99 Schaden im Radius. Gegner sehen sie nicht.</li>
-          <li><b>Schwere Waffen:</b> doppelter Dash-Cooldown (4,8 s).</li>
-          <li><b>Sterne:</b> obere Tabellenhälfte gewinnt, untere verliert. Nie unter 0.</li>
-          <li><b>Granaten:</b> 2 pro Match, 1 s Zünder, 80 Schaden, sprengen Wände und Büsche.</li>
-          <li><b>Büsche:</b> Gegner darin sind unsichtbar — außer sie schießen oder stehen direkt vor dir. Die Armbrust ist lautlos.</li>
-          <li><b>Wände:</b> blockieren Kugeln und Sicht — bis Bazooka oder Granate sie zu Schutt sprengen.</li>
-          <li><b>Packs:</b> grün = Heilung, gelb = volles Magazin + Granate.</li>
-          <li><b>Respawn:</b> 3 s, danach 1,6 s unverwundbar.</li>
-          <li><b>Maps:</b> 17 Stück, zufällig gewählt, quadratisch &amp; symmetrisch.</li>
-          <li><b>Modi:</b> FFA (12 Kills), 1v1 (8), 2v2 (15), 3v3 (20) — oder Zeit läuft ab.</li>
+          <li><b>Field of view:</b> you only see ahead (106°) and the cone turns with you. Right around you, you notice everything.</li>
+          <li><b>Weapon:</b> pick one before every match — more damage or range costs speed.</li>
+          <li><b>Sword:</b> 360° swing, 25 damage, no ammo, fastest movement. Invisible for 0.5 s after every kill.</li>
+          <li><b>Sergio:</b> throws a record that turns around at the first wall and flies back. It hits both ways — you can only throw again once it is back in your hand.</li>
+          <li><b>Before the match:</b> 8 s map vote, then two wheels each spin out a weapon that gets banned, then 5 s to pick freely.</li>
+          <li><b>Gold:</b> paid out after every match — most for 1st place, still something for last. Spend it in the skin shop on colors with their own animation.</li>
+          <li><b>Mines:</b> left click throws one up to 310 px over walls, a second left click detonates it — 99 damage in the blast. Enemies cannot see them.</li>
+          <li><b>Heavy weapons:</b> double dash cooldown (4.8 s).</li>
+          <li><b>Stars:</b> top half of the table gains, bottom half loses. Never below 0.</li>
+          <li><b>Grenades:</b> 2 per match, 1 s fuse, 80 damage, blow up walls and bushes.</li>
+          <li><b>Bushes:</b> enemies inside are invisible — unless they shoot or stand right in front of you. The crossbow stays silent.</li>
+          <li><b>Walls:</b> block bullets and sight — until a bazooka or grenade blasts them to rubble.</li>
+          <li><b>Packs:</b> green = health, yellow = full magazine + grenade.</li>
+          <li><b>Respawn:</b> 3 s, then 1.6 s of invulnerability.</li>
+          <li><b>Maps:</b> 17 of them, picked at random, square &amp; symmetrical.</li>
+          <li><b>Modes:</b> FFA (12 kills), 1v1 (8), 2v2 (15), 3v3 (20) — or until time runs out.</li>
         </ul>
       </div>
     </div>
@@ -420,8 +426,8 @@
 
     <div class="reconnect" id="reconnect">
       <div class="rc-spin"></div>
-      <div class="rc-text">Verbindung unterbrochen</div>
-      <div class="rc-sub">Dein Platz bleibt frei — es wird neu verbunden …</div>
+      <div class="rc-text">Connection lost</div>
+      <div class="rc-sub">Your slot is held — reconnecting …</div>
     </div>
 
     <div class="hud-bottom">
@@ -434,31 +440,31 @@
           <div class="dash-bar"><i id="dash-fill"></i></div>
           <span class="dash-lbl">DASH</span>
         </div>
-        <div class="dash-wrap" id="spin-bar" title="Anlauf" style="display:none">
+        <div class="dash-wrap" id="spin-bar" title="Spin-up" style="display:none">
           <div class="dash-bar"><i id="spin-fill" class="spin"></i></div>
-          <span class="dash-lbl">ANLAUF</span>
+          <span class="dash-lbl">SPIN-UP</span>
         </div>
-        <div class="cloak-badge" id="cloak-badge" title="Nach einem Schwert-Kill sehen dich die Gegner nicht">UNSICHTBAR</div>
+        <div class="cloak-badge" id="cloak-badge" title="After a sword kill, enemies cannot see you">INVISIBLE</div>
       </div>
       <div class="weapon-row">
         <div class="weapon-plate" id="weapon-plate"></div>
         <div class="ammo" id="ammo-pips"></div>
-        <div class="nades" id="nade-pips" title="Rechtsklick wirft eine Granate"></div>
+        <div class="nades" id="nade-pips" title="Right click throws a grenade"></div>
       </div>
     </div>
 
-    <!-- Waffenwahl vor dem Match: drei zufällige Angebote -->
+    <!-- Weapon pick before the match: three random offers -->
     <div class="pickbox" id="pickbox">
-      <div class="pick-head">WÄHLE DEINE WAFFE</div>
-      <div class="pick-sub">Drei Angebote — für diese Runde. <span id="pick-timer">6</span> s</div>
+      <div class="pick-head">CHOOSE YOUR WEAPON</div>
+      <div class="pick-sub">Three offers — for this round. <span id="pick-timer">6</span> s</div>
       <div class="pick-cards" id="pick-cards"></div>
-      <div class="pick-hint" id="pick-hint">Keine Wahl = zufällige der drei</div>
+      <div class="pick-hint" id="pick-hint">No pick = a random one of the three</div>
     </div>
 
     <canvas id="minimap" width="180" height="180"></canvas>
 
     <div class="center-msg" id="center-msg"></div>
-    <div class="respawn" id="respawn-ui"><span class="rs-label">ELIMINIERT</span><span class="rs-time" id="rs-time">3.0</span></div>
+    <div class="respawn" id="respawn-ui"><span class="rs-label">ELIMINATED</span><span class="rs-time" id="rs-time">3.0</span></div>
     <div class="dmg-vig" id="dmg-vig"></div>
     <div class="hitmark" id="hitmark"></div>
 
@@ -469,20 +475,20 @@
 <!-- ============ RESULT ============ -->
 <section class="screen" id="scr-result">
   <div class="panel wide">
-    <h2 class="result-title" id="result-title">SIEG</h2>
+    <h2 class="result-title" id="result-title">VICTORY</h2>
     <p class="result-sub" id="result-sub"></p>
     <div class="board" id="result-board"></div>
-    <button class="btn primary wide-btn" id="btn-result-back">ZURÜCK ZUR LOBBY</button>
+    <button class="btn primary wide-btn" id="btn-result-back">BACK TO LOBBY</button>
   </div>
 </section>
 
 <div id="toast"></div>
 
 <div class="server-notice" id="server-notice">
-  <b>Kein Spielserver erreichbar</b>
-  <span>Ziel: <code id="notice-target">—</code></span>
-  <small>Es wird weiter versucht — die Serveradresse wird dabei automatisch neu
-  geholt. Bleibt es dabei, ist der Spielserver gerade aus.</small>
+  <b>No game server reachable</b>
+  <span>Target: <code id="notice-target">—</code></span>
+  <small>Still trying — the server address is fetched again automatically.
+  If this stays up, the game server is currently offline.</small>
 </div>
 
 <!-- Firebase (optional): SDK wird lokal aus node_modules ausgeliefert -->

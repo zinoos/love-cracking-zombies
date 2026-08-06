@@ -2186,7 +2186,7 @@ const RENDER = (() => {
 
   return {
     resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld,
-    drawAvatar, drawAvatarFront, drawShopPreview, shade,
+    drawAvatar, drawAvatarFront, drawShopPreview, skinEffekt, shade,
     setQuality,
     get quality() {
       return { level: qLevel, name: q().name, avgMs: Math.round(drawAvg * 100) / 100, pinned: qPinned >= 0 };

@@ -10,14 +10,14 @@ const SETTINGS = (() => {
   const KEY = 'ns_settings';
 
   const ACTIONS = [
-    { id: 'up', name: 'Vorwaerts', std: ['KeyW', 'ArrowUp'] },
-    { id: 'down', name: 'Rueckwaerts', std: ['KeyS', 'ArrowDown'] },
-    { id: 'left', name: 'Links', std: ['KeyA', 'ArrowLeft'] },
-    { id: 'right', name: 'Rechts', std: ['KeyD', 'ArrowRight'] },
-    { id: 'dash', name: 'Ausweichen', std: ['ShiftLeft', 'ShiftRight'] },
-    { id: 'reload', name: 'Nachladen', std: ['KeyR'] },
-    { id: 'score', name: 'Punktetafel', std: ['Tab'] },
-    { id: 'mute', name: 'Ton an/aus', std: ['KeyM'] },
+    { id: 'up', name: 'Forward', std: ['KeyW', 'ArrowUp'] },
+    { id: 'down', name: 'Backward', std: ['KeyS', 'ArrowDown'] },
+    { id: 'left', name: 'Left', std: ['KeyA', 'ArrowLeft'] },
+    { id: 'right', name: 'Right', std: ['KeyD', 'ArrowRight'] },
+    { id: 'dash', name: 'Dash', std: ['ShiftLeft', 'ShiftRight'] },
+    { id: 'reload', name: 'Reload', std: ['KeyR'] },
+    { id: 'score', name: 'Scoreboard', std: ['Tab'] },
+    { id: 'mute', name: 'Sound on/off', std: ['KeyM'] },
     { id: 'chat', name: 'Chat', std: ['KeyT'] }
   ];
 
@@ -84,10 +84,10 @@ const SETTINGS = (() => {
     if (!code) return '—';
     const map = {
       ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→',
-      ShiftLeft: 'Shift links', ShiftRight: 'Shift rechts',
-      ControlLeft: 'Strg links', ControlRight: 'Strg rechts',
-      AltLeft: 'Alt', AltRight: 'Alt Gr', Space: 'Leertaste', Tab: 'Tab',
-      CapsLock: 'Feststell', Enter: 'Enter', Backquote: '^'
+      ShiftLeft: 'Left Shift', ShiftRight: 'Right Shift',
+      ControlLeft: 'Left Ctrl', ControlRight: 'Right Ctrl',
+      AltLeft: 'Alt', AltRight: 'Alt Gr', Space: 'Space', Tab: 'Tab',
+      CapsLock: 'Caps Lock', Enter: 'Enter', Backquote: '^'
     };
     if (map[code]) return map[code];
     if (/^Key[A-Z]$/.test(code)) return code.slice(3);

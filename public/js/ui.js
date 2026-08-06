@@ -130,7 +130,7 @@ const UI = (() => {
 
     const prow = $('pattern-row');
     prow.innerHTML = '';
-    const labels = { solid: 'EINFARBIG', stripe: 'STREIFEN', dots: 'FLECKTARN', ring: 'RANGSTREIFEN', shard: 'SPLITTERTARN' };
+    const labels = { solid: 'SOLID', stripe: 'STRIPES', dots: 'SPECKLE', ring: 'RANK BAND', shard: 'SPLINTER' };
     C.SKIN_PATTERNS.forEach(p => {
       const b = document.createElement('button');
       b.className = 'pat' + (skin.pattern === p ? ' sel' : '');
@@ -177,6 +177,16 @@ const UI = (() => {
     }
     skinCtx.globalAlpha = 1;
 
+    /* Angelegte Sonderfarbe mitzeichnen, sonst muesste man ins Match, um zu
+       sehen, was man da gerade angelegt hat. */
+    const fx = fxAktiv();
+    if (fx) {
+      skinCtx.save();
+      skinCtx.translate(w / 2, h - 62 - h * 0.74 * 0.32);
+      RENDER.skinEffekt(skinCtx, fx.anim, h * 0.2, skinT, fx.color, fx.trail);
+      skinCtx.restore();
+    }
+
     /* Frontansicht statt Draufsicht: beim Farbwaehlen will man das Gesicht
        sehen, nicht den Helm von oben. */
     RENDER.drawAvatarFront(skinCtx, w / 2, h - 62, h * 0.74, skin, skinT);
@@ -184,7 +194,7 @@ const UI = (() => {
     skinCtx.font = '600 12px Rajdhani, sans-serif';
     skinCtx.fillStyle = 'rgba(160,190,225,.7)';
     skinCtx.textAlign = 'center';
-    skinCtx.fillText((profileName || 'Spieler').toUpperCase(), w / 2, h - 26);
+    skinCtx.fillText((profileName || 'Player').toUpperCase(), w / 2, h - 26);
     skinCtx.textAlign = 'left';
   }
 
@@ -203,7 +213,7 @@ const UI = (() => {
         const b = document.createElement('button');
         b.className = 'mode';
         b.dataset.mode = m.key;
-        b.innerHTML = `${m.short}<small>${m.key === 'ffa' ? 'bis 6' : m.perTeam * 2 + ' Spieler'}</small>`;
+        b.innerHTML = `${m.short}<small>${m.key === 'ffa' ? 'up to 6' : m.perTeam * 2 + ' players'}</small>`;
         b.onclick = () => { if (roomState && roomState.host === NET.id) NET.send({ t: C.MSG.SETUP, mode: m.key }); };
         modeRow.appendChild(b);
       });
@@ -247,7 +257,7 @@ const UI = (() => {
       }
       if (isHost && m.id !== myId) {
         const k = document.createElement('button');
-        k.className = 'kick'; k.textContent = '✕'; k.title = 'Entfernen';
+        k.className = 'kick'; k.textContent = '✕'; k.title = 'Remove';
         k.onclick = () => NET.send({ t: C.MSG.KICK, id: m.id });
         row.appendChild(k);
       }
@@ -258,8 +268,8 @@ const UI = (() => {
     const startBtn = $('btn-start');
     startBtn.style.display = isHost ? 'block' : 'none';
     startBtn.disabled = !!r.canStart;
-    startBtn.textContent = r.canStart ? r.canStart.toUpperCase() : 'MATCH STARTEN';
-    $('lobby-err').textContent = isHost ? '' : 'Warte auf den Host…';
+    startBtn.textContent = r.canStart ? r.canStart.toUpperCase() : 'START MATCH';
+    $('lobby-err').textContent = isHost ? '' : 'Waiting for the host…';
   }
 
   function addChat(name, color, text, sys) {
@@ -395,7 +405,7 @@ const UI = (() => {
     if (cloak) {
       const left = me.ck || 0;
       cloak.classList.toggle('show', left > 0);
-      if (left > 0) cloak.textContent = `UNSICHTBAR ${left.toFixed(1)}s`;
+      if (left > 0) cloak.textContent = `INVISIBLE ${left.toFixed(1)}s`;
     }
 
     // Balken auf den tatsaechlichen Cooldown der Waffe beziehen
@@ -471,10 +481,10 @@ const UI = (() => {
   }
 
   function phaseVote(m) {
-    $('prep-title').textContent = 'KARTE WÄHLEN';
-    $('prep-sub').textContent = 'Die Karte mit den meisten Stimmen wird gespielt.';
+    $('prep-title').textContent = 'PICK A MAP';
+    $('prep-sub').textContent = 'The map with the most votes gets played.';
     $('prep-note').textContent = m.you === undefined
-      ? 'Ohne Stimme zählst du nicht mit.' : '';
+      ? 'No vote means you do not count.' : '';
     const host = $('map-choices');
     if (host.dataset.sig !== m.maps.map(x => x.id).join(',')) {
       host.dataset.sig = m.maps.map(x => x.id).join(',');
@@ -537,7 +547,7 @@ const UI = (() => {
     if (!rad.querySelector('.wheel-tag')) {
       const tag = document.createElement('div');
       tag.className = 'wheel-tag';
-      tag.textContent = 'GESPERRT';
+      tag.textContent = 'BANNED';
       rad.appendChild(tag);
     }
     rad.classList.remove('locked');
@@ -545,9 +555,9 @@ const UI = (() => {
   }
 
   function phaseWheel(m, neu) {
-    $('prep-title').textContent = 'GLÜCKSRAD';
-    $('prep-sub').textContent = `Karte: ${m.mapName} — zwei Waffen fallen für diese Runde weg.`;
-    $('prep-note').textContent = 'Der Zufall entscheidet, niemand stimmt ab.';
+    $('prep-title').textContent = 'WHEEL OF FORTUNE';
+    $('prep-sub').textContent = `Map: ${m.mapName} — two weapons drop out for this round.`;
+    $('prep-note').textContent = 'Pure luck — nobody votes here.';
 
     if (neu || !radDaten) {
       radDaten = {
@@ -587,10 +597,10 @@ const UI = (() => {
   }
 
   function phasePick(m) {
-    $('prep-title').textContent = 'WAFFE WÄHLEN';
-    $('prep-sub').textContent = `Karte: ${m.mapName} — gesperrt: `
+    $('prep-title').textContent = 'PICK YOUR WEAPON';
+    $('prep-sub').textContent = `Map: ${m.mapName} — banned: `
       + (m.banned.length ? m.banned.map(k => C.WEAPONS[k].short).join(', ') : 'nichts');
-    $('prep-note').textContent = 'Ohne Wahl bekommst du eine zufällige erlaubte Waffe.';
+    $('prep-note').textContent = 'No pick means a random allowed weapon.';
     const host = $('pick-grid');
     if (!host.children.length) {
       for (const key of C.WEAPON_ORDER) {
@@ -611,7 +621,7 @@ const UI = (() => {
       card.classList.toggle('banned', m.banned.includes(key));
       card.classList.toggle('on', key === m.you);
       const wer = (m.taken || []).filter(x => x.w === key).length;
-      card.querySelector('.wtaken').textContent = wer ? `${wer}× gewählt` : '';
+      card.querySelector('.wtaken').textContent = wer ? `${wer}× picked` : '';
     });
   }
 
@@ -626,8 +636,8 @@ const UI = (() => {
     const p = m.profile;
     $('shop-gold').textContent = (p ? p.gold : 0) + ' Gold';
     $('shop-hint').textContent = p
-      ? 'Gold bekommst du nach jedem Match — für Platz 1 am meisten, aber auch der letzte Platz geht nicht leer aus.'
-      : 'Zum Kaufen musst du angemeldet sein. Gold sammelst du als angemeldeter Spieler in jedem Match.';
+      ? 'You earn gold after every match — most for 1st place, but last place never leaves empty-handed.'
+      : 'You have to be signed in to buy. Signed-in players earn gold in every match.';
     const host = $('shop-grid');
     host.innerHTML = '';
     shopAnim.length = 0;
@@ -647,10 +657,10 @@ const UI = (() => {
       d.textContent = s.desc;
       const pr = document.createElement('div');
       pr.className = 'sprice';
-      pr.textContent = hat ? 'gekauft' : s.price + ' Gold';
+      pr.textContent = hat ? 'owned' : s.price + ' Gold';
       const btn = document.createElement('button');
       btn.className = 'btn small' + (hat ? ' ghost' : ' primary');
-      btn.textContent = an ? 'Angelegt' : hat ? 'Anlegen' : 'Kaufen';
+      btn.textContent = an ? 'Equipped' : hat ? 'Equip' : 'Buy';
       btn.disabled = !p || an;
       btn.onclick = () => {
         if (!p) return;
@@ -671,6 +681,78 @@ const UI = (() => {
       const g = a.cv.getContext('2d');
       g.clearRect(0, 0, a.cv.width, a.cv.height);
       RENDER.drawShopPreview(g, a.cv.width / 2, a.cv.height - 30, a.cv.height * 0.62, a.skin, shopT);
+    }
+  }
+
+  /* ---------- Sonderfarben im Skinlocker ---------- */
+
+  /* Gekaufte Farben gehoeren dorthin, wo man seinen Skin einstellt - im Shop
+     nachschauen zu muessen, was gerade anliegt, ergibt keinen Sinn. Die Daten
+     kommen aus dem Serverprofil, nicht aus der lokalen Skinkonfiguration. */
+  const lockerAnim = [];
+
+  /** Gerade angelegte Sonderfarbe, oder null. */
+  function fxAktiv() {
+    const p = AUTH.profile;
+    if (!p || !p.skin) return null;
+    return C.SHOP_SKINS.find(s => s.id === p.skin) || null;
+  }
+
+  function renderLocker() {
+    const row = $('fx-row'), hint = $('fx-hint');
+    if (!row) return;
+    row.innerHTML = '';
+    lockerAnim.length = 0;
+
+    const p = AUTH.profile;
+    if (!p) {
+      hint.textContent = 'Sign in to buy and equip special colors.';
+      return;
+    }
+    const meine = C.SHOP_SKINS.filter(s => p.owned.includes(s.id));
+    if (!meine.length) {
+      hint.textContent = 'No special colors yet — buy them in the skin shop with gold.';
+      return;
+    }
+    hint.textContent = 'Tap a color to equip it. It shows on your player in every match.';
+
+    // "Keine" zuerst, damit man immer wieder zum eigenen Farbschema zurueckkann
+    const keine = document.createElement('div');
+    keine.className = 'fx-tile none' + (p.skin ? '' : ' on');
+    keine.innerHTML = '<div class="fxnone">✕</div><div class="fxn">None</div>';
+    const ks = document.createElement('div');
+    ks.className = 'fxs';
+    ks.textContent = p.skin ? '' : 'EQUIPPED';
+    keine.appendChild(ks);
+    keine.onclick = () => { if (p.skin && shopEquip) { SFX.ui(true); shopEquip(''); } };
+    row.appendChild(keine);
+
+    for (const s of meine) {
+      const an = p.skin === s.id;
+      const tile = document.createElement('div');
+      tile.className = 'fx-tile' + (an ? ' on' : '');
+      const cv = document.createElement('canvas');
+      cv.width = 152; cv.height = 152;
+      tile.appendChild(cv);
+      lockerAnim.push({ cv, skin: s });
+      const n = document.createElement('div');
+      n.className = 'fxn'; n.textContent = s.name;
+      const st = document.createElement('div');
+      st.className = 'fxs'; st.textContent = an ? 'EQUIPPED' : '';
+      tile.append(n, st);
+      tile.onclick = () => { if (!an && shopEquip) { SFX.ui(true); shopEquip(s.id); } };
+      row.appendChild(tile);
+    }
+  }
+
+  let lockerT = 0;
+  function lockerTick(dt) {
+    if (current !== 'scr-skins' || !lockerAnim.length) return;
+    lockerT += dt;
+    for (const a of lockerAnim) {
+      const g = a.cv.getContext('2d');
+      g.clearRect(0, 0, a.cv.width, a.cv.height);
+      RENDER.drawShopPreview(g, a.cv.width / 2, a.cv.height - 18, a.cv.height * 0.6, a.skin, lockerT);
     }
   }
 
@@ -720,7 +802,7 @@ const UI = (() => {
     if (lauscht) return;
     lauscht = action;
     btn.classList.add('listening');
-    btn.textContent = 'Taste drücken …';
+    btn.textContent = 'Press a key …';
 
     const fertig = () => {
       lauscht = null;
@@ -733,7 +815,7 @@ const UI = (() => {
       if (ev.code === 'Escape') { fertig(); return; }
       const ersetzt = SETTINGS.bind(action, ev.code);
       fertig();
-      if (ersetzt) toast(`${SETTINGS.label(ev.code)} war auf „${ersetzt.name}“ — dort jetzt frei`, 'err');
+      if (ersetzt) toast(`${SETTINGS.label(ev.code)} was on “${ersetzt.name}” — freed up there`, 'err');
     };
     addEventListener('keydown', onKey, true);
   }
@@ -753,8 +835,8 @@ const UI = (() => {
     [...$('set-quality').children].forEach(b => {
       b.onclick = () => { SETTINGS.set('quality', Number(b.dataset.q)); renderSettings(); };
     });
-    $('btn-keys-reset').onclick = () => { SETTINGS.resetKeys(); renderSettings(); toast('Tastenbelegung zurückgesetzt', 'ok'); };
-    $('btn-settings-reset').onclick = () => { SETTINGS.reset(); renderSettings(); toast('Einstellungen zurückgesetzt', 'ok'); };
+    $('btn-keys-reset').onclick = () => { SETTINGS.resetKeys(); renderSettings(); toast('Key bindings reset', 'ok'); };
+    $('btn-settings-reset').onclick = () => { SETTINGS.reset(); renderSettings(); toast('Settings reset', 'ok'); };
   }
 
   /** Laufende Messwerte im Einstellungsfenster. */
@@ -839,7 +921,7 @@ const UI = (() => {
         <div class="num">${p.damage}</div>
         <div class="num">${p.streak}</div>
         ${withStars ? `<div class="num">${p.stars === null || p.stars === undefined
-          ? '<span class="delta flat" title="Gast oder Bot">—</span>'
+          ? '<span class="delta flat" title="Guest or bot">—</span>'
           : starBadge(p.stars) + (p.capped ? '<span class="capped" title="Nicht unter 0">⌊0⌋</span>' : '')}</div>` : ''}
       </div>`).join('');
     const head = `<div class="${cls} head"><div></div><div>SPIELER</div><div class="num">K</div><div class="num">T</div><div class="num">DMG</div><div class="num">SERIE</div>${withStars ? '<div class="num">STERNE</div>' : ''}</div>`;
@@ -868,7 +950,7 @@ const UI = (() => {
       won = payload.winner === myId;
     }
     title.className = 'result-title ' + (draw ? 'draw' : won ? 'win' : 'lose');
-    title.textContent = draw ? 'UNENTSCHIEDEN' : won ? 'SIEG' : 'NIEDERLAGE';
+    title.textContent = draw ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
     const sub = payload.teams > 1
       ? `${payload.mapName} · ${C.MODES[payload.mode].name} · ${payload.teamScore[0]} : ${payload.teamScore[1]}`
       : `${payload.mapName} · ${C.MODES[payload.mode].name}`;
@@ -890,7 +972,7 @@ const UI = (() => {
     host.innerHTML = '';
     box.classList.add('show');
     box.classList.remove('done');
-    $('pick-hint').textContent = 'Keine Wahl = zufällige der drei';
+    $('pick-hint').textContent = 'No pick = a random one of the three';
 
     choices.forEach((key, i) => {
       const w = C.WEAPONS[key];
@@ -923,7 +1005,7 @@ const UI = (() => {
       if (box.classList.contains('done')) return;
       box.classList.add('done');
       [...host.children].forEach(c => c.classList.toggle('chosen', c === card));
-      $('pick-hint').textContent = C.WEAPONS[key].name + ' gewählt';
+      $('pick-hint').textContent = C.WEAPONS[key].name + ' picked';
       SFX.pickup();
       if (onPick) onPick(key);
       setTimeout(() => box.classList.remove('show'), 1100);
@@ -972,18 +1054,18 @@ const UI = (() => {
       photo.style.display = st.photo ? 'block' : 'none';
       stars.textContent = '★ ' + (st.profile ? st.profile.stars : 0);
       stars.style.display = '';
-      out.textContent = 'Abmelden';
+      out.textContent = 'Sign out';
       out.dataset.action = 'signout';
       $('chip-rank').textContent = st.profile && st.profile.rank
-        ? `Platz ${st.profile.rank} von ${st.profile.totalPlayers}`
-        : 'noch kein Platz';
+        ? `Rank ${st.profile.rank} of ${st.profile.totalPlayers}`
+        : 'unranked';
     } else {
-      name.textContent = 'Gast';
+      name.textContent = 'Guest';
       photo.style.display = 'none';
       stars.style.display = 'none';
-      out.textContent = 'Anmelden';
+      out.textContent = 'Sign in';
       out.dataset.action = 'signin';
-      $('chip-rank').textContent = 'Gast — keine Sterne';
+      $('chip-rank').textContent = 'Guest — no stars';
     }
   }
 
@@ -1015,12 +1097,12 @@ const UI = (() => {
       you.innerHTML =
         `<div class="you-rank">${y.rank ? '#' + y.rank : '—'}</div>` +
         `<div class="you-main"><b>${esc(y.name || 'Du')}</b>` +
-        `<span>${y.matches} Spiele · ${y.wins} Siege · Bestwert ★ ${y.best}</span></div>` +
+        `<span>${y.matches} games · ${y.wins} wins · best ★ ${y.best}</span></div>` +
         `<div class="you-stars">★ ${y.stars}</div>`;
     } else {
       you.style.display = 'flex';
-      you.innerHTML = '<div class="you-main"><b>Nicht angemeldet</b>' +
-        '<span>Als Gast werden keine Sterne gezählt.</span></div>';
+      you.innerHTML = '<div class="you-main"><b>Not signed in</b>' +
+        '<span>Guests do not collect stars.</span></div>';
     }
 
     // Beispielverteilung fuer die aktuelle Lobbygroesse zeigen
@@ -1029,7 +1111,7 @@ const UI = (() => {
       ex.innerHTML = [2, 4, 6].map(n => {
         const row = [];
         for (let r = 1; r <= n; r++) row.push(starBadge(C.starDelta(r, n, false)));
-        return `<div class="ex-row"><span class="ex-n">${n} Spieler</span>${row.join('')}</div>`;
+        return `<div class="ex-row"><span class="ex-n">${n} players</span>${row.join('')}</div>`;
       }).join('');
     }
   }
@@ -1048,7 +1130,7 @@ const UI = (() => {
       if (!chip) return;
       chip.classList.toggle('on', on);
       chip.classList.toggle('off', !on);
-      $(t).textContent = on ? 'verbunden' : 'getrennt';
+      $(t).textContent = on ? 'connected' : 'offline';
     });
   }
   function setPing(ms, jitter) {
@@ -1060,7 +1142,7 @@ const UI = (() => {
 
   function tick(dt) {
     if (current !== 'scr-game') drawBg(dt);
-    if (current === 'scr-skins') drawSkinPreview(dt);
+    if (current === 'scr-skins') { drawSkinPreview(dt); lockerTick(dt); }
     if (current === 'scr-settings') settingsLive();
     if (current === 'scr-shop') shopTick(dt);
     if (current === 'scr-prematch') {
@@ -1073,7 +1155,7 @@ const UI = (() => {
   return {
     $, show, currentScreen, toast, skin, buildSkinUI, saveSkin,
     wireSettings, renderSettings,
-    renderPhase, onPhaseVote, renderShop, onShop,
+    renderPhase, onPhaseVote, renderShop, onShop, renderLocker,
     get name() { return profileName; },
     set name(v) { profileName = v; },
     renderRoom, addChat, updateHUD, setScorePlate, killfeed, centerMsg, reconnecting,

@@ -442,15 +442,15 @@
     { name: 'Arena', biome: 'sand', seed: 66123, gen: genArena },
     { name: 'Canyon', biome: 'canyon', seed: 51900, gen: genCanyon },
     { name: 'Grove', biome: 'forest', seed: 88240, gen: genGrove },
-    { name: 'Zitadelle', biome: 'concrete', seed: 30277, gen: genCitadel },
-    { name: 'Sumpf', biome: 'forest', seed: 61844, gen: genSwamp },
-    { name: 'Werft', biome: 'industrial', seed: 45019, gen: genShipyard },
-    { name: 'Krater', biome: 'canyon', seed: 72633, gen: genCrater },
-    { name: 'Kaserne', biome: 'concrete', seed: 58471, gen: genBarracks },
-    { name: 'Schlucht', biome: 'canyon', seed: 90312, gen: genRavine },
-    { name: 'Turm', biome: 'neon', seed: 24680, gen: genTower },
-    { name: 'Dschungel', biome: 'forest', seed: 13579, gen: genJungle },
-    { name: 'Ruine', biome: 'sand', seed: 46802, gen: genRuins }
+    { name: 'Citadel', biome: 'concrete', seed: 30277, gen: genCitadel },
+    { name: 'Swamp', biome: 'forest', seed: 61844, gen: genSwamp },
+    { name: 'Shipyard', biome: 'industrial', seed: 45019, gen: genShipyard },
+    { name: 'Crater', biome: 'canyon', seed: 72633, gen: genCrater },
+    { name: 'Barracks', biome: 'concrete', seed: 58471, gen: genBarracks },
+    { name: 'Ravine', biome: 'canyon', seed: 90312, gen: genRavine },
+    { name: 'Tower', biome: 'neon', seed: 24680, gen: genTower },
+    { name: 'Jungle', biome: 'forest', seed: 13579, gen: genJungle },
+    { name: 'Ruins', biome: 'sand', seed: 46802, gen: genRuins }
   ];
 
   /* ---------- Nachbearbeitung ---------- */

@@ -92,7 +92,7 @@
     }
     if (SETTINGS.matches('reload', e)) wantReload = true;
     if (SETTINGS.matches('dash', e)) wantDash = true;
-    if (SETTINGS.matches('mute', e)) UI.toast(SFX.toggle() ? 'Sound aus' : 'Sound an');
+    if (SETTINGS.matches('mute', e)) UI.toast(SFX.toggle() ? 'Sound off' : 'Sound on');
     if (SETTINGS.matches('chat', e) && G.inMatch) {
       const inp = document.getElementById('chat-inp');
       if (inp) { e.preventDefault(); inp.focus(); }
@@ -315,12 +315,14 @@
     if (warImMatch) {
       resetMatch();
       UI.show('scr-menu');
-      UI.toast('Verbindung zu lange weg - das Match lief ohne dich weiter', 'err');
+      UI.toast('Disconnected too long — the match went on without you', 'err');
     }
   });
 
   NET.on(C.MSG.ME, m => {
     AUTH.setProfile(m.profile);
+    // Gold und angelegte Farbe stehen im Profil - Locker mitziehen
+    UI.renderLocker();
     if (m.name) {
       UI.name = m.name;
       const inp = $('inp-name');
@@ -334,7 +336,7 @@
   NET.on(C.MSG.PHASE, m => UI.renderPhase(m));
   UI.onPhaseVote(v => NET.send({ t: C.MSG.VOTE, v }));
 
-  NET.on(C.MSG.SHOP, m => UI.renderShop(m));
+  NET.on(C.MSG.SHOP, m => { UI.renderShop(m); UI.renderLocker(); });
   UI.onShop(
     id => NET.send({ t: C.MSG.BUY, id }),
     id => NET.send({ t: C.MSG.EQUIP, id })
@@ -473,7 +475,7 @@
     NET.send({ t: C.MSG.LEAVE });
     resetMatch();
     UI.show('scr-menu');
-    UI.toast('Match verlassen');
+    UI.toast('Left the match');
   }
 
   let lastCountdownSecond = -1;
@@ -711,7 +713,7 @@
         SFX.throwNade(dist2me(ev.x, ev.y));
         break;
       case 'mineset':
-        if (ev.id === G.myId) { SFX.ui(false); UI.toast('Mine scharf — Linksklick zündet'); }
+        if (ev.id === G.myId) { SFX.ui(false); UI.toast('Mine armed — left click detonates'); }
         break;
       case 'mineboom':
         // Explosion selbst kommt als 'boom'
@@ -838,7 +840,7 @@
       UI.show('scr-join');
       setTimeout(() => digits[0].focus(), 120);
     };
-    $('btn-skins').onclick = () => { UI.buildSkinUI(); UI.show('scr-skins'); };
+    $('btn-skins').onclick = () => { UI.buildSkinUI(); UI.renderLocker(); UI.show('scr-skins'); };
     $('btn-help').onclick = () => UI.show('scr-help');
     $('btn-board').onclick = () => {
       NET.send({ t: C.MSG.BOARDREQ });
@@ -861,7 +863,7 @@
       $('btn-google').disabled = true;
       $('btn-google').style.opacity = .45;
       $('btn-guest').classList.add('primary-fallback');
-      $('btn-guest').textContent = 'Ohne Anmeldung spielen';
+      $('btn-guest').textContent = 'Play without signing in';
     }
 
     // SDK gar nicht geladen -> Filter hat es schon vorher geblockt
@@ -872,7 +874,7 @@
       const btn = $('btn-google');
       btn.disabled = true;
       const alt = btn.querySelector('b').textContent;
-      btn.querySelector('b').textContent = 'ANMELDEFENSTER OFFEN …';
+      btn.querySelector('b').textContent = 'SIGN-IN WINDOW OPEN …';
       try {
         await AUTH.signIn();
         FB.log('login', { method: 'google' });
@@ -883,19 +885,19 @@
             anmeldungBlockiert('');
             break;
           case 'abgebrochen':
-            $('login-err').textContent = 'Anmeldung abgebrochen.';
+            $('login-err').textContent = 'Sign-in cancelled.';
             break;
           case 'domain':
-            $('login-err').textContent = 'Diese Adresse ist in Firebase nicht freigegeben '
+            $('login-err').textContent = 'This address is not authorized in Firebase '
               + '(Authentication → Settings → Authorized domains).';
             break;
           case 'projekt':
-            $('login-err').textContent = 'Google-Anmeldung ist im Firebase-Projekt nicht aktiviert.';
+            $('login-err').textContent = 'Google sign-in is not enabled in the Firebase project.';
             break;
           default:
             $('login-err').textContent = e.message;
         }
-        FB.log('login_failed', { reason: e.grund || 'unbekannt' });
+        FB.log('login_failed', { reason: e.grund || 'unknown' });
       } finally {
         btn.querySelector('b').textContent = alt;
         if (!AUTH.blocked()) btn.disabled = false;
@@ -948,7 +950,7 @@
 
     function doJoin() {
       const code = digits.map(d => d.value).join('');
-      if (code.length !== 6) { $('join-err').textContent = 'Bitte 6 Ziffern eingeben'; return; }
+      if (code.length !== 6) { $('join-err').textContent = 'Please enter 6 digits'; return; }
       FB.log('lobby_join');
       NET.send({ t: C.MSG.JOIN, code, name: UI.name, skin: UI.skin });
     }
@@ -958,8 +960,8 @@
     $('room-code').onclick = () => {
       const code = $('room-code').textContent;
       navigator.clipboard?.writeText(code).then(
-        () => { $('copy-hint').textContent = 'kopiert!'; setTimeout(() => $('copy-hint').textContent = 'klicken zum kopieren', 1600); },
-        () => UI.toast('Kopieren nicht möglich: ' + code)
+        () => { $('copy-hint').textContent = 'copied!'; setTimeout(() => $('copy-hint').textContent = 'click to copy', 1600); },
+        () => UI.toast('Could not copy: ' + code)
       );
     };
     $('btn-leave').onclick = () => { NET.send({ t: C.MSG.LEAVE }); UI.show('scr-menu'); };

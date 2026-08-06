@@ -49,7 +49,7 @@ function send(ws, obj) {
 
 function sanitizeName(n) {
   n = String(n || '').replace(/[^\p{L}\p{N} _.\-]/gu, '').trim().slice(0, 14);
-  return n || 'Spieler';
+  return n || 'Player';
 }
 
 function sanitizeSkin(s) {
@@ -168,13 +168,13 @@ class Room {
   canStart() {
     const cfg = C.MODES[this.mode];
     const n = this.members.size;
-    if (n < cfg.min) return `Mindestens ${cfg.min} Spieler noetig`;
-    if (n > cfg.max) return `Maximal ${cfg.max} Spieler in ${cfg.name}`;
+    if (n < cfg.min) return `At least ${cfg.min} players needed`;
+    if (n > cfg.max) return `At most ${cfg.max} players in ${cfg.name}`;
     if (cfg.teams > 1) {
       const counts = [0, 0];
       for (const m of this.members.values()) counts[m.team]++;
       if (counts[0] !== cfg.perTeam || counts[1] !== cfg.perTeam) {
-        return `Teams muessen ${cfg.perTeam} vs ${cfg.perTeam} sein`;
+        return `Teams have to be ${cfg.perTeam} vs ${cfg.perTeam}`;
       }
     }
     return null;
@@ -472,7 +472,7 @@ class Room {
 wss.on('connection', (ws, req) => {
   const client = {
     id: CLIENT_ID++, ws, bot: false,
-    name: 'Spieler', skin: sanitizeSkin({}), team: 0, roomCode: null, alive: true,
+    name: 'Player', skin: sanitizeSkin({}), team: 0, roomCode: null, alive: true,
     uid: null, authName: '',
     session: crypto.randomBytes(16).toString('hex'),
     lastSeen: Date.now(), goneAt: 0
@@ -578,7 +578,7 @@ function handle(client, msg) {
         if (r) r.broadcastRoom();
       }).catch(e => {
         client.uid = null;
-        send(client.ws, { t: M.ERROR, msg: 'Anmeldung abgelehnt: ' + e.message });
+        send(client.ws, { t: M.ERROR, msg: 'Sign-in rejected: ' + e.message });
         send(client.ws, { t: M.ME, profile: null });
       });
       break;
@@ -605,9 +605,9 @@ function handle(client, msg) {
     case M.JOIN: {
       const code = String(msg.code || '').replace(/\D/g, '').slice(0, C.CODE_LEN);
       const target = rooms.get(code);
-      if (!target) return send(client.ws, { t: M.ERROR, msg: 'Kein Raum mit diesem Code' });
-      if (target.state === 'match') return send(client.ws, { t: M.ERROR, msg: 'Match laeuft bereits' });
-      if (target.members.size >= C.MAX_PLAYERS) return send(client.ws, { t: M.ERROR, msg: 'Lobby ist voll (6/6)' });
+      if (!target) return send(client.ws, { t: M.ERROR, msg: 'No room with that code' });
+      if (target.state === 'match') return send(client.ws, { t: M.ERROR, msg: 'Match already running' });
+      if (target.members.size >= C.MAX_PLAYERS) return send(client.ws, { t: M.ERROR, msg: 'Lobby is full (6/6)' });
       if (room) room.remove(client.id);
       client.name = sanitizeName(msg.name || client.name);
       client.skin = sanitizeSkin(msg.skin || client.skin);
@@ -642,7 +642,7 @@ function handle(client, msg) {
       if (room && room.hostId === client.id && msg.id !== client.id) {
         const victim = room.members.get(msg.id);
         if (victim && !victim.bot) {
-          send(victim.ws, { t: M.ERROR, msg: 'Du wurdest aus der Lobby entfernt', kicked: true });
+          send(victim.ws, { t: M.ERROR, msg: 'You were removed from the lobby', kicked: true });
           victim.roomCode = null;
         }
         room.remove(msg.id);
@@ -679,7 +679,7 @@ function handle(client, msg) {
 
     case M.BUY: {
       if (!client.uid) {
-        send(client.ws, { t: M.ERROR, msg: 'Zum Kaufen musst du angemeldet sein' });
+        send(client.ws, { t: M.ERROR, msg: 'You have to be signed in to buy' });
         break;
       }
       const r = STARS.buySkin(client.uid, String(msg.id || ''));
@@ -697,6 +697,9 @@ function handle(client, msg) {
       if (!r.ok) send(client.ws, { t: M.ERROR, msg: r.grund });
       else {
         send(client.ws, { t: M.ME, profile: r.profil });
+        /* Auch der Shop muss es erfahren, sonst steht auf der Karte weiter
+           "Equip", obwohl die Farbe laengst anliegt. */
+        send(client.ws, { t: M.SHOP, skins: C.SHOP_SKINS, profile: r.profil });
         const rr = rooms.get(client.roomCode);
         if (rr) rr.broadcastRoom();
       }

@@ -24,7 +24,7 @@ const AUTH = (() => {
     return {
       signedIn: !!user,
       guest,
-      name: user ? (user.displayName || user.email || 'Spieler') : '',
+      name: user ? (user.displayName || user.email || 'Player') : '',
       photo: user ? user.photoURL : '',
       profile
     };
@@ -89,7 +89,7 @@ const AUTH = (() => {
   }
 
   async function signIn() {
-    if (!available()) { const f = new Error('Auth nicht geladen'); f.grund = 'blockiert'; throw f; }
+    if (!available()) { const f = new Error('Auth not loaded'); f.grund = 'blockiert'; throw f; }
     const provider = new firebase.auth.GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
@@ -114,7 +114,7 @@ const AUTH = (() => {
           throw f;
         }
       }
-      const f = new Error(e.message || 'Anmeldung fehlgeschlagen');
+      const f = new Error(e.message || 'Sign-in failed');
       f.grund = grund;
       throw f;
     }

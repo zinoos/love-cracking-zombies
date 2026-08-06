@@ -45,21 +45,21 @@
        bulletLife wird aus range/bulletSpeed berechnet - siehe initWeapons(). */
     WEAPONS: {
       pistol: {
-        key: 'pistol', name: 'Pistole', short: 'PISTOLE', icon: '🔫', tier: 1,
+        key: 'pistol', name: 'Pistol', short: 'PISTOL', icon: '🔫', tier: 1,
         mag: 15, dmg: 25, fireCd: 0.25, reload: 1.1, auto: false,
         bulletSpeed: 900, range: 400, spread: 0.018, spreadGrow: 0.010, spreadMax: 0.06,
         speedMult: 1.00, falloffStart: 300, falloffMin: 0.55, recoil: 80,
-        pros: ['Einzige Waffe mit vollem Lauftempo', '25 Schaden je Treffer', '15 Schuss',
-          'Schnellstes Nachladen (1,1 s)'],
-        cons: ['Mittlere Reichweite', 'Kein Dauerfeuer']
+        pros: ['Only weapon with full run speed', '25 damage per hit', '15 rounds',
+          'Fastest reload (1.1 s)'],
+        cons: ['Medium range', 'No full auto']
       },
       smg: {
-        key: 'smg', name: 'MP', short: 'MP', icon: '💨', tier: 1,
+        key: 'smg', name: 'SMG', short: 'SMG', icon: '💨', tier: 1,
         mag: 35, dmg: 15, fireCd: 0.075, reload: 2.0, auto: true,
         bulletSpeed: 820, range: 300, spread: 0.05, spreadGrow: 0.011, spreadMax: 0.15,
         speedMult: 1.06, falloffStart: 200, falloffMin: 0.4, recoil: 30,
-        pros: ['Sehr hohe Feuerrate', '35 Schuss im Magazin', 'Schnelle Bewegung'],
-        cons: ['Kurze Reichweite', 'Starke Streuung']
+        pros: ['Very high fire rate', '35 rounds per magazine', 'Fast movement'],
+        cons: ['Short range', 'Heavy spread']
       },
       revolver: {
         key: 'revolver', name: 'Revolver', short: 'REVOLVER', icon: '🎰', tier: 2,
@@ -68,38 +68,38 @@
         speedMult: 0.98, falloffStart: 400, falloffMin: 0.7, recoil: 430,
         kick: true,          // Rueckstoss traegt dich - als Fluchtmittel nutzbar
         lastShotMult: 2,     // die letzte Patrone der Trommel schlaegt doppelt zu
-        pros: ['40 Schaden je Treffer', 'Letzte Patrone macht doppelten Schaden (80)',
-          'Rückstoß schleudert dich zurück — nutzbar zum Ausweichen'],
-        cons: ['Träge Schussfolge', 'Nur 5 Schuss']
+        pros: ['40 damage per hit', 'Last round deals double damage (80)',
+          'Recoil throws you back — usable to dodge'],
+        cons: ['Slow rate of fire', 'Only 5 rounds']
       },
       ak47: {
         key: 'ak47', name: 'AK-47', short: 'AK-47', icon: '🎯', tier: 2,
         mag: 20, dmg: 18, fireCd: 0.13, reload: 2.4, auto: true,
         bulletSpeed: 1000, range: 460, spread: 0.028, spreadGrow: 0.016, spreadMax: 0.13,
         speedMult: 0.90, falloffStart: 420, falloffMin: 0.55, recoil: 40,
-        pros: ['Größte Reichweite der Automatikwaffen', '18 Schaden je Treffer'],
-        cons: ['Nur 20 Schuss', 'Streuung im Dauerfeuer', 'Langsameres Lauftempo']
+        pros: ['Longest range of the automatics', '18 damage per hit'],
+        cons: ['Only 20 rounds', 'Spread on full auto', 'Slower run speed']
       },
       shotgun: {
-        key: 'shotgun', name: 'Schrotflinte', short: 'SCHROT', icon: '💥', tier: 2,
+        key: 'shotgun', name: 'Shotgun', short: 'SHOTGUN', icon: '💥', tier: 2,
         mag: 6, dmg: 9, pellets: 8, fireCd: 0.8, reload: 2.6, auto: false,
         // Streuung 15 Prozent weiter als zuvor (0,15) - breiterer Kegel,
         // dafuer sitzen auf Distanz noch weniger Kugeln
         bulletSpeed: 780, range: 210, spread: 0.1725, spreadGrow: 0, spreadMax: 0.1725,
         speedMult: 0.94, falloffStart: 130, falloffMin: 0.2, recoil: 210,
-        pros: ['Tödlich auf Tuchfühlung', 'Breiter Schrotkegel - trifft auch bei grobem Zielen'],
-        cons: ['Kaum Reichweite', 'Langsame Schussfolge', 'Streut stark']
+        pros: ['Lethal up close', 'Wide pellet cone - hits even with rough aim'],
+        cons: ['Barely any range', 'Slow rate of fire', 'Spreads a lot']
       },
       flamer: {
-        key: 'flamer', name: 'Flammenwerfer', short: 'FLAMMEN', icon: '🔥', tier: 2,
+        key: 'flamer', name: 'Flamethrower', short: 'FLAMER', icon: '🔥', tier: 2,
         mag: 200, dmg: 5, pellets: 2, fireCd: 0.05, reload: 4.0, auto: true,
         bulletSpeed: 620, range: 240, spread: 0.16, spreadGrow: 0, spreadMax: 0.16,
         speedMult: 0.72, falloffStart: 90, falloffMin: 0.35, recoil: 6,
         heavy: true,
         burn: 3.5,   // brennt nach: Schaden ueber Zeit, auch wenn der Gegner flieht
         fire: true,  // Geschosse werden als Flammen gezeichnet, nicht als Kugeln
-        pros: ['Setzt Gegner in Brand — Schaden wirkt nach', '200 Einheiten Treibstoff'],
-        cons: ['Kurze Reichweite', 'Sehr langsam', '4 s Nachladen']
+        pros: ['Sets enemies on fire — damage keeps ticking', '200 units of fuel'],
+        cons: ['Short range', 'Very slow', '4 s reload']
       },
       /* Sergio wirft eine Schallplatte, die von Waenden abprallt und wieder
          zurueckkommt. Nachschub gibt es erst, wenn die Platte wieder in seiner
@@ -113,46 +113,46 @@
         speedMult: 1.02, falloffStart: 9999, falloffMin: 1, recoil: 40,
         // Die erste Wand schickt die Platte zurueck - sie springt nicht weiter
         returnSpeed: 620,    // Rueckflug ist schneller als der Hinweg
-        pros: ['Kehrt an der ersten Wand um und kommt zurueck', 'Trifft auf Hin- und Rueckweg',
-          'Kein Nachladen - die Platte kommt von selbst'],
-        cons: ['Nur eine Platte gleichzeitig', 'Erst wieder werfen, wenn sie zurueck ist',
-          'Mittlere Reichweite']
+        pros: ['Turns around at the first wall and flies back', 'Hits on the way out and back',
+          'No reloading - the record returns on its own'],
+        cons: ['Only one record at a time', 'Can only throw again once it is back',
+          'Medium range']
       },
       sword: {
-        key: 'sword', name: 'Schwert', short: 'SCHWERT', icon: '⚔️', tier: 2,
+        key: 'sword', name: 'Sword', short: 'SWORD', icon: '⚔️', tier: 2,
         melee: true, arc: Math.PI * 2,  // Rundumschlag - trifft in alle Richtungen
         swingTime: 0.26,                // Dauer der sichtbaren Drehung
         cloakTime: 0.5,                 // nach einem Kill so lange unsichtbar
         mag: 0, dmg: 25, fireCd: 0.495, reload: 0, auto: true,
         range: 68, bulletSpeed: 1, spread: 0, spreadGrow: 0, spreadMax: 0,
         speedMult: 1.20, falloffStart: 9999, falloffMin: 1, recoil: 0,
-        pros: ['Trifft rundum - 360 Grad, auch im Ruecken', 'Schnellste Bewegung im Spiel',
-          '0,5 s unsichtbar nach jedem Kill', 'Keine Munition'],
-        cons: ['Nur Nahkampf (68 px)', 'Drei Treffer noetig', 'Traege Schlagfolge',
-          'Chancenlos auf Distanz']
+        pros: ['Hits all around - 360 degrees, even behind you', 'Fastest movement in the game',
+          'Invisible for 0.5 s after every kill', 'No ammo'],
+        cons: ['Melee only (68 px)', 'Three hits needed', 'Slow swing rate',
+          'Hopeless at range']
       },
       mine: {
-        key: 'mine', name: 'Minenleger', short: 'MINEN', icon: '🧨', tier: 3,
+        key: 'mine', name: 'Miner', short: 'MINES', icon: '🧨', tier: 3,
         mine: true,
         mag: 1, dmg: 0, fireCd: 0.35, reload: 0, auto: false,
         range: 310, bulletSpeed: 1, spread: 0, spreadGrow: 0, spreadMax: 0,
         speedMult: 0.86, recoil: 0,
         blastDmg: 99, blastMin: 1,   // voller Schaden im ganzen Radius
         blastRadius: 96, wallBreak: 1.2, bushBreak: 1.6, selfFactor: 1,
-        pros: ['99 Schaden im ganzen Radius', 'Fliegt über Wände', 'Unsichtbar für Gegner'],
-        cons: ['Kurze Wurfweite (310 px)', 'Nur eine Mine gleichzeitig',
-          'Muss von Hand gezündet werden', 'Erst nach der Explosion gibt es Nachschub']
+        pros: ['99 damage across the whole radius', 'Flies over walls', 'Invisible to enemies'],
+        cons: ['Short throw (310 px)', 'Only one mine at a time',
+          'Has to be detonated by hand', 'No resupply until it explodes']
       },
       crossbow: {
-        key: 'crossbow', name: 'Armbrust', short: 'ARMBRUST', icon: '🏹', tier: 2,
+        key: 'crossbow', name: 'Crossbow', short: 'CROSSBOW', icon: '🏹', tier: 2,
         mag: 1, dmg: 55, fireCd: 0.3, reload: 1.25, auto: false,
         bulletSpeed: 1150, range: 580, spread: 0.006, spreadGrow: 0, spreadMax: 0.006,
         speedMult: 0.92, falloffStart: 700, falloffMin: 0.85, recoil: 90,
         silent: true,
-        pros: ['Lautlos — verrät dich im Busch nicht', 'Sehr präzise'], cons: ['Ein Bolzen je Ladung', '2 Treffer nötig']
+        pros: ['Silent — will not give you away in a bush', 'Very accurate'], cons: ['One bolt per load', '2 hits needed']
       },
       grenadier: {
-        key: 'grenadier', name: 'Granatwerfer', short: 'GRANATW.', icon: '🎳', tier: 3,
+        key: 'grenadier', name: 'Grenadier', short: 'GRENADIER', icon: '🎳', tier: 3,
         mag: 5, dmg: 0, fireCd: 0.9, reload: 3.4, auto: false,
         projectile: 'rocket', bulletSpeed: 520, range: 560, spread: 0.02, spreadGrow: 0, spreadMax: 0.02,
         speedMult: 0.80, recoil: 140,
@@ -160,8 +160,8 @@
         blastDmg: 55, blastRadius: 92, blastMin: 0.3, wallBreak: 0, bushBreak: 1.8,
         selfFactor: 0.5,
         bounce: 0.55, fuse: 1.5,   // prallt ab und geht erst nach Zeit hoch -> um Ecken schiessen
-        pros: ['Prallt von Wänden ab — Treffer um die Ecke', 'Flächenschaden'],
-        cons: ['Sprengt keine Wände', 'Zündet erst nach 1,5 s']
+        pros: ['Bounces off walls — hits around corners', 'Splash damage'],
+        cons: ['Does not blow up walls', 'Only detonates after 1.5 s']
       },
       minigun: {
         key: 'minigun', name: 'Minigun', short: 'MINIGUN', icon: '⚙️', tier: 3,
@@ -170,15 +170,15 @@
         speedMult: 0.62, falloffStart: 340, falloffMin: 0.45, recoil: 20,
         heavy: true,
         spinUp: 0.55,
-        pros: ['100 Schuss ohne Nachladen'], cons: ['Sehr langsam', 'Anlaufzeit', '5 s Nachladen', 'Kurze Reichweite']
+        pros: ['100 rounds without reloading'], cons: ['Very slow', 'Spin-up time', '5 s reload', 'Short range']
       },
       sniper: {
-        key: 'sniper', name: 'Scharfschütze', short: 'SNIPER', icon: '🔭', tier: 3,
+        key: 'sniper', name: 'Sniper', short: 'SNIPER', icon: '🔭', tier: 3,
         mag: 5, dmg: 70, fireCd: 1.25, reload: 3.0, auto: false,
         bulletSpeed: 1900, range: 780, spread: 0.003, spreadGrow: 0.02, spreadMax: 0.09,
         speedMult: 0.84, falloffStart: 4000, falloffMin: 1, recoil: 170,
         pierce: 1, laser: true,
-        pros: ['Größte Reichweite', 'Kein Schadensabfall', 'Durchschlag'], cons: ['Lange Nachladezeit', 'Langsam']
+        pros: ['Longest range', 'No damage falloff', 'Pierces'], cons: ['Long reload', 'Slow']
       },
       bazooka: {
         key: 'bazooka', name: 'Bazooka', short: 'BAZOOKA', icon: '🚀', tier: 3,
@@ -188,8 +188,8 @@
         blastDmg: 75, blastRadius: 108, blastMin: 0.32, wallBreak: 1.5, bushBreak: 2.0,
         selfFactor: 0.55,
         heavy: true,
-        pros: ['75 Schaden Flächentreffer', 'Sprengt Wände'],
-        cons: ['Nur 4 Raketen', 'Am langsamsten', 'Träges Geschoss — leicht auszuweichen', 'Träger Dash']
+        pros: ['75 splash damage', 'Blows up walls'],
+        cons: ['Only 4 rockets', 'Slowest of all', 'Sluggish projectile — easy to dodge', 'Sluggish dash']
       }
     },
     WEAPON_ORDER: ['sword', 'pistol', 'smg', 'revolver', 'ak47', 'shotgun', 'flamer',
@@ -245,14 +245,14 @@
     MAP_COUNT: 17,
 
     MODES: {
-      ffa: { key: 'ffa', name: 'Alle gegen Alle', short: 'FFA', teams: 1, perTeam: 6, min: 2, max: 6, scoreLimit: 12, time: 300 },
+      ffa: { key: 'ffa', name: 'Free for all', short: 'FFA', teams: 1, perTeam: 6, min: 2, max: 6, scoreLimit: 12, time: 300 },
       '1v1': { key: '1v1', name: '1 vs 1', short: '1v1', teams: 2, perTeam: 1, min: 2, max: 2, scoreLimit: 8, time: 240 },
       '2v2': { key: '2v2', name: '2 vs 2', short: '2v2', teams: 2, perTeam: 2, min: 4, max: 4, scoreLimit: 15, time: 300 },
       '3v3': { key: '3v3', name: '3 vs 3', short: '3v3', teams: 2, perTeam: 3, min: 6, max: 6, scoreLimit: 20, time: 300 }
     },
 
     TEAM_COLORS: ['#3fb9ff', '#ff5c7a'],
-    TEAM_NAMES: ['Blau', 'Rot'],
+    TEAM_NAMES: ['Blue', 'Red'],
 
     SKIN_PATTERNS: ['solid', 'stripe', 'dots', 'ring', 'shard'],
 
@@ -348,59 +348,59 @@
     SHOP_SKINS: [
       {
         id: 'neon', name: 'Neon', price: 120, color: '#3fd0ff', trail: '#9ef1ff',
-        anim: 'pulse', desc: 'Pulsierender Lichtkranz im Takt'
+        anim: 'pulse', desc: 'A ring of light pulsing to the beat'
       },
       {
         id: 'inferno', name: 'Inferno', price: 220, color: '#ff5c2a', trail: '#ffd166',
-        anim: 'flame', desc: 'Flammenzungen steigen vom Koerper auf'
+        anim: 'flame', desc: 'Tongues of flame rise off your body'
       },
       {
-        id: 'toxic', name: 'Toxisch', price: 180, color: '#7cff4a', trail: '#c8ff9b',
-        anim: 'bubble', desc: 'Blubbernde Schlieren steigen auf'
+        id: 'toxic', name: 'Toxic', price: 180, color: '#7cff4a', trail: '#c8ff9b',
+        anim: 'bubble', desc: 'Bubbling streaks drift upward'
       },
       {
         id: 'frost', name: 'Frost', price: 180, color: '#7fd7ff', trail: '#ffffff',
-        anim: 'frost', desc: 'Eiskristalle wirbeln um dich'
+        anim: 'frost', desc: 'Ice crystals swirl around you'
       },
       {
-        id: 'void', name: 'Leere', price: 260, color: '#8b5cf6', trail: '#d8b4fe',
-        anim: 'void', desc: 'Dunkler Schleier zieht hinter dir her'
+        id: 'void', name: 'Void', price: 260, color: '#8b5cf6', trail: '#d8b4fe',
+        anim: 'void', desc: 'A dark veil trails behind you'
       },
       {
         id: 'gold', name: 'Gold', price: 400, color: '#ffd166', trail: '#fff3c4',
-        anim: 'sparkle', desc: 'Goldfunken springen bei jedem Schritt'
+        anim: 'sparkle', desc: 'Golden sparks jump with every step'
       },
       {
-        id: 'storm', name: 'Gewitter', price: 240, color: '#7aa2ff', trail: '#e8f0ff',
-        anim: 'storm', desc: 'Blitze zucken um dich herum'
+        id: 'storm', name: 'Storm', price: 240, color: '#7aa2ff', trail: '#e8f0ff',
+        anim: 'storm', desc: 'Lightning flickers all around you'
       },
       {
-        id: 'sakura', name: 'Kirschbluete', price: 200, color: '#ff9ec7', trail: '#ffe1ee',
-        anim: 'petals', desc: 'Bluetenblaetter rieseln herab'
+        id: 'sakura', name: 'Sakura', price: 200, color: '#ff9ec7', trail: '#ffe1ee',
+        anim: 'petals', desc: 'Petals drift down around you'
       },
       {
         id: 'magma', name: 'Magma', price: 280, color: '#ff7043', trail: '#ffbe57',
-        anim: 'magma', desc: 'Gluehende Tropfen fallen zu Boden'
+        anim: 'magma', desc: 'Glowing drops fall to the ground'
       },
       {
-        id: 'ghost', name: 'Geist', price: 300, color: '#b8c6e8', trail: '#ffffff',
-        anim: 'ghost', desc: 'Nachbilder ziehen hinter dir her'
+        id: 'ghost', name: 'Ghost', price: 300, color: '#b8c6e8', trail: '#ffffff',
+        anim: 'ghost', desc: 'Afterimages trail behind you'
       },
       {
-        id: 'prism', name: 'Prisma', price: 350, color: '#ff5c7a', trail: '#3fd0ff',
-        anim: 'prism', desc: 'Der Lichtkranz wechselt staendig die Farbe'
+        id: 'prism', name: 'Prism', price: 350, color: '#ff5c7a', trail: '#3fd0ff',
+        anim: 'prism', desc: 'The ring of light keeps changing color'
       },
       {
         id: 'disco', name: 'Disco', price: 450, color: '#c05cff', trail: '#ffd166',
-        anim: 'disco', desc: 'Scheinwerferkegel kreisen wie im Club'
+        anim: 'disco', desc: 'Spotlight beams circle like in a club'
       },
       {
-        id: 'nebel', name: 'Nebelschwaden', price: 160, color: '#9aa7b8', trail: '#dfe7f2',
-        anim: 'mist', desc: 'Dichter Schwaden zieht um deine Fuesse'
+        id: 'nebel', name: 'Mist', price: 160, color: '#9aa7b8', trail: '#dfe7f2',
+        anim: 'mist', desc: 'Thick haze drifts around your feet'
       },
       {
-        id: 'runen', name: 'Runen', price: 320, color: '#5ce1b4', trail: '#c9fff0',
-        anim: 'runes', desc: 'Leuchtende Zeichen kreisen um dich'
+        id: 'runen', name: 'Runes', price: 320, color: '#5ce1b4', trail: '#c9fff0',
+        anim: 'runes', desc: 'Glowing sigils circle around you'
       }
     ]
   };
