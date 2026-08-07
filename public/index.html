@@ -26,6 +26,10 @@
         <span class="ico">⬢</span>
         <span class="lines"><b>PLAY</b><small>Zombie survival — pick map &amp; weapon</small></span>
       </button>
+      <button class="btn big ghost" id="btn-skills">
+        <span class="ico">⬡</span>
+        <span class="lines"><b>SKILLS</b><small>Upgrade your AK-47 with Damage Points</small></span>
+      </button>
       <button class="btn big ghost" id="btn-help">
         <span class="ico">⌨</span>
         <span class="lines"><b>CONTROLS</b><small>Keys &amp; rules</small></span>
@@ -245,6 +249,22 @@
   </div>
 </section>
 
+<!-- ============ SKILLS ============ -->
+<section class="screen" id="scr-skills">
+  <div class="panel wide">
+    <header class="phead">
+      <button class="back" data-back="scr-menu">‹ Back</button>
+      <h2>SKILL TREE</h2>
+      <div class="dp-display" id="dp-display">
+        <span class="dp-icon">⬡</span>
+        <span class="dp-amount" id="dp-amount">0</span>
+      </div>
+    </header>
+    <p class="hint">1 damage dealt = 1 Damage Point. Spend them to upgrade your AK-47.</p>
+    <div class="skill-tree" id="skill-tree"></div>
+  </div>
+</section>
+
 <!-- ============ GAME ============ -->
 <section class="screen game" id="scr-game">
   <canvas id="cv"></canvas>
@@ -253,6 +273,10 @@
     <div class="hud-top">
       <div class="score-plate" id="score-plate"></div>
       <div class="wave-display" id="wave-display">WAVE 1</div>
+      <div class="dp-hud" id="dp-hud">
+        <span class="dp-hud-icon">⬡</span>
+        <span class="dp-hud-num" id="dp-hud-num">0</span>
+      </div>
       <div class="timer" id="timer">5:00</div>
       <div class="mapname" id="mapname">—</div>
     </div>
@@ -312,8 +336,10 @@
   <div class="panel wide">
     <h2 class="result-title" id="result-title">DEFEATED</h2>
     <p class="result-sub" id="result-sub"></p>
+    <div class="result-dp" id="result-dp" style="display:none"></div>
     <div class="board" id="result-board"></div>
     <button class="btn primary wide-btn" id="btn-result-back">BACK TO MENU</button>
+    <button class="btn ghost wide-btn" id="btn-result-skills" style="display:none">SKILL TREE</button>
   </div>
 </section>
 

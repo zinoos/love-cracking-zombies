@@ -258,10 +258,13 @@ const UI = (() => {
   function updateHUD(me, matchInfo) {
     if (!me) return;
     const hp = Math.max(0, me.hp);
-    const pct = (hp / C.HP_MAX) * 100;
+    const shield = me.sh || 0;
+    const total = C.HP_MAX + 45;
+    const hpPct = (hp / C.HP_MAX) * 100;
+    const shieldPct = (shield / C.HP_MAX) * 100;
     const fill = $('hp-fill');
-    fill.style.width = pct + '%';
-    fill.classList.toggle('low', pct <= 30);
+    fill.style.width = hpPct + '%';
+    fill.classList.toggle('low', hpPct <= 30 && shield <= 0);
     $('hp-num').textContent = Math.round(hp);
     if (hp < lastHp - 0.5) {
       const v = $('dmg-vig');
@@ -269,6 +272,19 @@ const UI = (() => {
       setTimeout(() => { v.style.opacity = 0; }, 160);
     }
     lastHp = hp;
+
+    let shieldBar = $('shield-fill');
+    if (!shieldBar) {
+      const hpBar = $('hp-bar');
+      shieldBar = document.createElement('i');
+      shieldBar.id = 'shield-fill';
+      shieldBar.style.cssText = 'position:absolute;left:0;top:0;height:100%;border-radius:7px;' +
+        'background:linear-gradient(90deg,#3fd0ff,#63b8ff);transition:width .18s cubic-bezier(.2,.9,.25,1);' +
+        'box-shadow:0 0 12px rgba(63,208,255,.4)';
+      hpBar.appendChild(shieldBar);
+    }
+    shieldBar.style.width = shieldPct + '%';
+    shieldBar.style.display = shield > 0 ? 'block' : 'none';
 
     const reloading = me.rl > 0;
     const host = $('ammo-pips');
@@ -735,7 +751,17 @@ const UI = (() => {
     if (payload.mode === 'solo') {
       title.textContent = 'DEFEATED';
       $('result-sub').textContent = payload.mapName + ' · Wave ' + (payload.wave || 0) + ' · ' + (payload.kills || 0) + ' zombies killed';
+      const dp = $('result-dp');
+      if (payload.dpEarned !== undefined) {
+        dp.style.display = '';
+        dp.innerHTML = `Earned <b>${new Intl.NumberFormat().format(payload.dpEarned)} DP</b> this match · Total: <b>${new Intl.NumberFormat().format(payload.dpTotal || 0)} DP</b>`;
+      } else {
+        dp.style.display = 'none';
+      }
+      $('btn-result-skills').style.display = 'block';
     } else {
+      $('result-dp').style.display = 'none';
+      $('btn-result-skills').style.display = 'none';
       title.textContent = draw ? 'DRAW' : won ? 'VICTORY' : 'DEFEAT';
       const sub = payload.teams > 1
         ? `${payload.mapName} · ${C.MODES[payload.mode].name} · ${payload.teamScore[0]} : ${payload.teamScore[1]}`
@@ -875,6 +901,86 @@ const UI = (() => {
     }
   }
 
+  /* ---------- Skill Tree ---------- */
+  let onSkillBuy = null;
+  function setOnSkillBuy(fn) { onSkillBuy = fn; }
+
+  function renderSkills(profile) {
+    const dp = profile ? (profile.damagePoints || 0) : 0;
+    const owned = profile ? (profile.upgrades || []) : [];
+    $('dp-amount').textContent = dp;
+
+    const host = $('skill-tree');
+    const BRANCHES = { spreader:'CROWD CONTROL', destroyer:'BOSS KILLER', survivor:'SUSTAIN' };
+    const all = C.UPGRADE_TREE.map(id => C.UPGRADES[id]).filter(Boolean);
+
+    const byBranch = {};
+    for (const up of all) {
+      if (!byBranch[up.branch]) byBranch[up.branch] = [];
+      byBranch[up.branch].push(up);
+    }
+    for (const b of Object.keys(byBranch)) byBranch[b].sort((a, b) => a.tier - b.tier);
+
+    const row = (ups, label) => {
+      const col = document.createElement('div');
+      col.className = 'skill-branch-col';
+      const lbl = document.createElement('div');
+      lbl.className = 'skill-branch-label';
+      lbl.textContent = label;
+      col.appendChild(lbl);
+      for (const up of ups) {
+        const isOwned = owned.includes(up.id);
+        const prevTier = up.tier > 1 ? all.find(u => u.branch === up.branch && u.tier === up.tier - 1) : null;
+        const prereqMet = !prevTier || owned.includes(prevTier.id);
+        const canAfford = dp >= up.cost && prereqMet && !isOwned;
+
+        const card = document.createElement('div');
+        card.className = 'skill-node';
+        if (isOwned) card.classList.add('owned');
+        else if (canAfford) card.classList.add('affordable');
+        else card.classList.add('locked');
+
+        card.innerHTML =
+          `<span class="sn-tier">T${up.tier}</span>` +
+          `<span class="sn-ico">${C.UPGRADE_ICONS[up.id] || '◆'}</span>` +
+          `<span class="sn-name">${esc(up.name)}</span>` +
+          `<span class="sn-desc">${esc(up.desc)}</span>` +
+          `<span class="sn-cost">${isOwned ? 'OWNED' : new Intl.NumberFormat().format(up.cost) + ' DP'}</span>`;
+
+        if (canAfford) {
+          card.onclick = () => {
+            if (onSkillBuy) onSkillBuy(up.id);
+          };
+        }
+        col.appendChild(card);
+      }
+      return col;
+    };
+
+    host.innerHTML = '';
+    const base = document.createElement('div');
+    base.className = 'skill-base';
+    base.innerHTML =
+      `<span class="sb-ico">🎯</span>` +
+      `<span class="sb-name">AK-47</span>` +
+      `<span class="sb-tag">ALWAYS ACTIVE</span>`;
+    host.appendChild(base);
+
+    const branches = document.createElement('div');
+    branches.className = 'skill-branches';
+    for (const [key, label] of Object.entries(BRANCHES)) {
+      branches.appendChild(row(byBranch[key] || [], label));
+    }
+    host.appendChild(branches);
+  }
+
+  function updateDpCounter(amount) {
+    const el = $('dp-hud');
+    if (!el) return;
+    el.classList.toggle('show', true);
+    $('dp-hud-num').textContent = amount;
+  }
+
   return {
     $, show, currentScreen, toast, skin, saveSkin,
     wireSettings, renderSettings,
@@ -884,7 +990,7 @@ const UI = (() => {
     renderRoom, addChat, updateHUD, setScorePlate, killfeed, centerMsg, reconnecting,
     setWeapon, setGrenades, reloadBar, weaponPicker, pickerAssigned, pickerOpen,
     respawnUI, hitmark, showScoreboard, showResult, setConn, setPing, serverNotice,
-    updateWave,
+    updateWave, renderSkills, setOnSkillBuy, updateDpCounter,
     renderAccount, renderBoard, starBadge, tick, esc,
     get room() { return roomState; }
   };

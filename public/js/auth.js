@@ -3,6 +3,15 @@ const AUTH = (() => {
   let profile = null;
   const listeners = [];
 
+  function guestUid() {
+    let uid = localStorage.getItem('ns_guest_uid');
+    if (!uid) {
+      uid = 'guest_' + [...Array(24)].map(() => Math.floor(Math.random() * 16).toString(16)).join('');
+      localStorage.setItem('ns_guest_uid', uid);
+    }
+    return uid;
+  }
+
   function emit() { listeners.forEach(fn => fn(state())); }
 
   function state() {
@@ -11,7 +20,7 @@ const AUTH = (() => {
 
   function init() {}
 
-  function pushToken() { NET.send({ t: C.MSG.AUTH, idToken: null }); }
+  function pushToken() { NET.send({ t: C.MSG.AUTH, idToken: null, guestUid: guestUid() }); }
 
   function setProfile(p) { profile = p; emit(); }
 

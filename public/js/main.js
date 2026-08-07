@@ -46,6 +46,7 @@
     wavePrep: 0,
     waveAlive: 0,
     isSolo: false,
+    profile: null,
 
     playerList() { return [...G.players.values()].filter(p => p.visible); },
     bulletList() { return [...G.bullets.values()]; },
@@ -325,8 +326,12 @@
 
   NET.on(C.MSG.ME, m => {
     AUTH.setProfile(m.profile);
+    G.profile = m.profile;
     if (m.name) {
       UI.name = m.name;
+    }
+    if (UI.currentScreen() === 'scr-skills') {
+      UI.renderSkills(G.profile);
     }
   });
 
@@ -431,10 +436,12 @@
     UI.toast(m.resumed ? 'Back in the fight' : `Map: ${m.mapName}`, 'ok');
     if (G.isSolo) { 
       $('wave-display').style.display = 'block';
+      $('dp-hud').style.display = 'flex';
       $('score-plate').style.display = 'none';
       $('timer').style.display = 'none';
     } else {
       $('wave-display').style.display = 'none';
+      $('dp-hud').style.display = 'none';
       $('score-plate').style.display = '';
       $('timer').style.display = '';
     }
@@ -562,8 +569,9 @@
       localGrenades = s.me.gr;
       UI.updateHUD({
         hp: s.me.hp, am: s.me.am, rl: s.me.rl, dc: s.me.dc,
-        gr: s.me.gr, sp: s.me.sp, ck: s.me.ck || 0
+        gr: s.me.gr, sp: s.me.sp, ck: s.me.ck || 0, sh: s.me.sh || 0
       }, { timeLeft: s.tl });
+      if (G.isSolo && s.me.dp !== undefined) UI.updateDpCounter(s.me.dp);
       UI.respawnUI(!s.me.al, s.me.rs);
     }
 
@@ -756,6 +764,13 @@
         UI.centerMsg('NEXT WAVE INCOMING', '#ffd166');
         break;
       }
+      case 'phoenix': {
+        FX.flash('#ff9d3c', .4);
+        FX.shake(6, .4);
+        UI.centerMsg('PHOENIX — REVIVED!', '#ff9d3c');
+        SFX.countdown(0);
+        break;
+      }
     }
     void me;
   }
@@ -845,6 +860,12 @@
       SFX.resume();
       NET.send({ t: C.MSG.PLAY, name: UI.name, skin: UI.skin });
     };
+    const btnSkills = $('btn-skills');
+    if (btnSkills) btnSkills.onclick = () => {
+      SFX.resume();
+      UI.renderSkills(G.profile);
+      UI.show('scr-skills');
+    };
     const btnJoin = $('btn-join');
     if (btnJoin) btnJoin.onclick = () => {
       SFX.resume();
@@ -926,6 +947,15 @@
     $('btn-result-back').onclick = () => {
       UI.show('scr-menu');
     };
+    const btnResultSkills = $('btn-result-skills');
+    if (btnResultSkills) btnResultSkills.onclick = () => {
+      UI.renderSkills(G.profile);
+      UI.show('scr-skills');
+    };
+
+    UI.setOnSkillBuy(id => {
+      NET.send({ t: C.MSG.BUY, id });
+    });
   }
 
   /* ================= Start ================= */

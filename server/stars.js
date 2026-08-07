@@ -43,9 +43,10 @@ async function init() {
 function get(uid) {
   let p = players.get(uid);
   if (!p) {
+    const startDp = uid.startsWith('guest_') ? 500000 : 0;
     p = {
       uid, name: '', photo: '', stars: 0, matches: 0, wins: 0, kills: 0, deaths: 0,
-      best: 0, last: 0
+      best: 0, last: 0, damagePoints: startDp, upgrades: []
     };
     players.set(uid, p);
     dirty.add(uid);
@@ -94,6 +95,22 @@ function byRank(a, b) {
     || String(a.name || '').localeCompare(String(b.name || ''));
 }
 
+function buyUpgrade(uid, upgradeId) {
+  const p = get(uid);
+  const up = C.UPGRADES[upgradeId];
+  if (!up || p.upgrades.includes(upgradeId)) return { ok: false, reason: 'already owned or invalid' };
+  if (up.tier > 1) {
+    const prev = Object.values(C.UPGRADES).find(u => u.branch === up.branch && u.tier === up.tier - 1);
+    if (prev && !p.upgrades.includes(prev.id)) return { ok: false, reason: 'prerequisite not met' };
+  }
+  if (p.damagePoints < up.cost) return { ok: false, reason: 'not enough DP' };
+  p.damagePoints -= up.cost;
+  p.upgrades.push(upgradeId);
+  dirty.add(uid);
+  save();
+  return { ok: true, after: p.damagePoints };
+}
+
 function sorted() {
   return [...players.values()].sort(byRank);
 }
@@ -119,8 +136,18 @@ function publicProfile(uid) {
   return {
     uid: p.uid, name: p.name, photo: p.photo, stars: p.stars,
     matches: p.matches, wins: p.wins, kills: p.kills, deaths: p.deaths,
-    best: p.best, rank: r.rank, totalPlayers: r.total
+    best: p.best, rank: r.rank, totalPlayers: r.total,
+    damagePoints: p.damagePoints || 0, upgrades: p.upgrades || []
   };
+}
+
+function addDp(uid, amount) {
+  const p = get(uid);
+  if (!amount) return p.damagePoints || 0;
+  p.damagePoints = (p.damagePoints || 0) + amount;
+  dirty.add(uid);
+  save();
+  return p.damagePoints;
 }
 
 function purgeDemo() {
@@ -140,5 +167,5 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 }
 
 module.exports = {
-  init, get, touch, award, leaderboard, rankOf, publicProfile, save
+  init, get, touch, award, leaderboard, rankOf, publicProfile, buyUpgrade, addDp, save
 };

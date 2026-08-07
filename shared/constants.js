@@ -195,6 +195,30 @@
     WEAPON_ORDER: ['sword', 'pistol', 'smg', 'revolver', 'ak47', 'shotgun', 'flamer',
       'crossbow', 'sergio', 'mine', 'grenadier', 'minigun', 'sniper', 'bazooka'],
 
+    UPGRADES: {
+      scatter:  { id:'scatter',  name:'Scatter Shot',     branch:'spreader',  tier:1, cost:8000,  desc:'Fires 2 extra bullets at ±15° angle',                     effect:{ multishot:2, spreadAngles:[0.2618,-0.2618] } },
+      fan:      { id:'fan',      name:'Fan Shot',         branch:'spreader',  tier:2, cost:16000, desc:'Fires 4 extra bullets at ±10° and ±25°',                effect:{ multishot:4, spreadAngles:[0.1745,-0.1745,0.4363,-0.4363] } },
+      pierce:   { id:'pierce',   name:'Armor Piercing',   branch:'spreader',  tier:3, cost:30000, desc:'All bullets pierce through 1 target',                     effect:{ pierce:1 } },
+      hailstorm:{ id:'hailstorm',name:'Hailstorm',        branch:'spreader',  tier:4, cost:50000, desc:'Bullets ricochet off walls once + 20% fire rate',          effect:{ ricochet:true, fireRateMult:1.2 } },
+
+      heavy:    { id:'heavy',    name:'Heavy Rounds',     branch:'destroyer', tier:1, cost:8000,  desc:'+50% bullet damage (18→27)',                              effect:{ bulletDamageMult:1.5 } },
+      extmag:   { id:'extmag',   name:'Extended Mag',     branch:'destroyer', tier:2, cost:16000, desc:'+15 magazine (20→35)',                                      effect:{ magBonus:15 } },
+      headhunter:{ id:'headhunter',name:'Headhunter',     branch:'destroyer', tier:3, cost:30000, desc:'30% chance to deal 3× crit damage',                         effect:{ critChance:0.3, critMult:3 } },
+      overkill: { id:'overkill', name:'Overkill',         branch:'destroyer', tier:4, cost:50000, desc:'Killing resets magazine + 50% fire rate for 3s',           effect:{ overkill:true } },
+
+      vampiric: { id:'vampiric', name:'Vampiric Rounds',  branch:'survivor',  tier:1, cost:8000,  desc:'10% of damage returned as HP',                               effect:{ lifesteal:0.1 } },
+      frost:    { id:'frost',    name:'Frost Ammo',       branch:'survivor',  tier:2, cost:16000, desc:'Hit zombies slowed 40% for 2s',                              effect:{ slowOnHit:true, slowFactor:0.6, slowDuration:2 } },
+      aegis:    { id:'aegis',    name:'Aegis',            branch:'survivor',  tier:3, cost:30000, desc:'Kills grant 15 HP shield (max 45, 5s duration)',             effect:{ shieldOnKill:15 } },
+      phoenix:  { id:'phoenix',  name:'Phoenix',          branch:'survivor',  tier:4, cost:50000, desc:'Revive once per match with 50% HP',                          effect:{ phoenix:true } }
+    },
+    UPGRADE_TREE: ['scatter','fan','pierce','hailstorm','heavy','extmag','headhunter','overkill','vampiric','frost','aegis','phoenix'],
+
+    UPGRADE_ICONS: {
+      scatter:'🔱', fan:'🌪️', pierce:'💠', hailstorm:'🌨️',
+      heavy:'💣', extmag:'📦', headhunter:'💀', overkill:'☠️',
+      vampiric:'🩸', frost:'❄️', aegis:'🛡️', phoenix:'🔥'
+    },
+
     /* ---------------- Minen ---------------- */
     MINE_FLIGHT: 0.55,      // Flugzeit bis zum Aufschlag
     MINE_RANGE_MIN: 60,
@@ -310,7 +334,8 @@
       PLAY: 'play',
       PHASE: 'phase', VOTE: 'vote',
       FRIENDS: 'friends', FRIENDREQ: 'friendreq', FRIENDACT: 'friendact',
-      FRIENDJOIN: 'friendjoin'
+      FRIENDJOIN: 'friendjoin',
+      BUY: 'buy'
     },
 
     /* Obergrenzen fuer die Freundesliste. Ohne sie koennte ein Konto beliebig

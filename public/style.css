@@ -706,3 +706,99 @@ kbd{background:rgba(255,255,255,.07);border:1px solid var(--line);border-bottom-
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(120,190,255,.22);border-radius:99px}
 ::-webkit-scrollbar-thumb:hover{background:rgba(120,190,255,.4)}
+
+/* ---------- DP Display (panel header) ---------- */
+.dp-display{
+  display:flex;align-items:center;gap:6px;
+  padding:4px 12px;border-radius:8px;
+  background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.3);
+}
+.dp-icon{font-size:16px;line-height:1;color:var(--warn)}
+.dp-amount{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--warn)}
+
+/* ---------- DP HUD (in-game near wave) ---------- */
+.dp-hud{
+  display:none;
+  font-family:var(--mono);font-size:13px;letter-spacing:.06em;font-weight:700;
+  color:#ffd166;background:rgba(6,12,24,.6);border:1px solid rgba(255,209,102,.3);
+  padding:2px 10px;border-radius:8px;align-items:center;gap:4px;
+}
+.dp-hud.show{display:flex}
+.dp-hud-icon{font-size:14px;line-height:1}
+.dp-hud-num{font-size:13px}
+
+/* ---------- Skill Tree ---------- */
+.skill-tree{
+  display:flex;flex-direction:column;gap:24px;margin-top:10px;
+}
+.skill-base{
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+  padding:14px 22px;border-radius:14px;background:rgba(63,208,255,.08);
+  border:1px solid rgba(63,208,255,.4);width:fit-content;margin:0 auto;
+}
+.skill-base .sb-ico{font-size:28px;line-height:1}
+.skill-base .sb-name{font-size:16px;font-weight:800;letter-spacing:.12em;color:var(--acc)}
+.skill-base .sb-tag{font-size:10px;letter-spacing:.2em;color:var(--dim);
+  background:rgba(255,255,255,.05);padding:2px 8px;border-radius:99px}
+.skill-branches{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.skill-branch-col{display:flex;flex-direction:column;align-items:center;gap:10px}
+.skill-branch-label{
+  font-size:11px;letter-spacing:.2em;color:var(--dim);font-weight:700;
+  padding:4px 12px;border-bottom:1px solid var(--line);width:100%;text-align:center;
+}
+
+.skill-node{
+  width:100%;display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:12px 10px;border-radius:12px;cursor:pointer;text-align:center;transition:.18s;
+  background:rgba(255,255,255,.035);border:1px solid var(--line);
+  position:relative;
+}
+.skill-node:hover{transform:translateY(-2px);background:rgba(255,255,255,.06)}
+.skill-node .sn-tier{
+  position:absolute;top:-7px;right:-4px;
+  font-size:9px;letter-spacing:.14em;font-weight:700;
+  background:var(--panel);border:1px solid var(--line);
+  padding:1px 6px;border-radius:99px;color:var(--dim);
+  font-family:var(--mono);
+}
+.skill-node .sn-ico{font-size:22px;line-height:1}
+.skill-node .sn-name{font-size:12px;font-weight:700;letter-spacing:.06em}
+.skill-node .sn-desc{font-size:10px;color:var(--dim);line-height:1.35}
+.skill-node .sn-cost{
+  font-family:var(--mono);font-size:11px;font-weight:700;
+  padding:3px 10px;border-radius:99px;
+  background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.25);
+  color:var(--warn);letter-spacing:.04em;
+}
+
+.skill-node.owned{
+  border-color:var(--good);
+  box-shadow:0 0 18px rgba(74,222,128,.18);
+}
+.skill-node.owned .sn-tier{color:var(--good);border-color:rgba(74,222,128,.5)}
+.skill-node.owned .sn-cost{
+  background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.35);
+  color:var(--good);
+}
+
+.skill-node.affordable{
+  border-color:var(--warn);
+  box-shadow:0 0 16px rgba(255,209,102,.15);
+}
+.skill-node.affordable .sn-cost{animation:costPulse 1.5s infinite}
+@keyframes costPulse{50%{transform:scale(1.06);border-color:var(--warn)}}
+
+.skill-node.locked{
+  opacity:.45;cursor:not-allowed;filter:grayscale(.6);
+}
+.skill-node.locked:hover{transform:none;background:rgba(255,255,255,.035)}
+
+/* ---------- Result DP ---------- */
+.result-dp{
+  text-align:center;color:var(--warn);font-size:14px;letter-spacing:.06em;
+  font-family:var(--mono);margin-bottom:18px;
+  padding:8px 14px;border-radius:10px;
+  background:rgba(255,209,102,.06);border:1px solid rgba(255,209,102,.2);
+  display:block;margin-left:auto;margin-right:auto;width:fit-content;
+}
+.result-dp b{font-size:16px}

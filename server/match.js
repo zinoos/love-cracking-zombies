@@ -55,6 +55,34 @@ class Match {
     return out;
   }
 
+  static computeMods(upgradeIds) {
+    const mod = {
+      multishot: 0, spreadAngles: [], pierce: 0, ricochet: false, fireRateMult: 1,
+      bulletDamageMult: 1, magBonus: 0, critChance: 0, critMult: 3,
+      lifesteal: 0, slowOnHit: false, slowFactor: 0, slowDuration: 0,
+      shieldOnKill: 0, phoenix: false, overkill: false
+    };
+    for (const id of upgradeIds) {
+      const up = C.UPGRADES[id];
+      if (!up) continue;
+      const e = up.effect;
+      if (e.multishot) mod.multishot += e.multishot;
+      if (e.spreadAngles) mod.spreadAngles = e.spreadAngles.slice();
+      if (e.pierce) mod.pierce = e.pierce;
+      if (e.ricochet) mod.ricochet = true;
+      if (e.fireRateMult) mod.fireRateMult *= e.fireRateMult;
+      if (e.bulletDamageMult) mod.bulletDamageMult *= e.bulletDamageMult;
+      if (e.magBonus) mod.magBonus += e.magBonus;
+      if (e.critChance) { mod.critChance = e.critChance; mod.critMult = e.critMult; }
+      if (e.lifesteal) mod.lifesteal += e.lifesteal;
+      if (e.slowOnHit) { mod.slowOnHit = true; mod.slowFactor = e.slowFactor; mod.slowDuration = e.slowDuration; }
+      if (e.shieldOnKill) mod.shieldOnKill = e.shieldOnKill;
+      if (e.phoenix) mod.phoenix = true;
+      if (e.overkill) mod.overkill = true;
+    }
+    return mod;
+  }
+
   addPlayer(member) {
     const choicesOrig = member.zombie ? ['sword'] : Match.weaponChoices(C.WEAPON_CHOICES);
     const wKeyOrig = member.zombie ? 'sword' : choicesOrig[0];
@@ -105,7 +133,14 @@ class Match {
       botMem: {},
       zombieMem: {},
       zombieDmg: member.zombieDmg || 10,
-      zombieSpeed: member.zombieSpeed || 1
+      zombieSpeed: member.zombieSpeed || 1,
+      mod: null,
+      slowFactor: 1,
+      slowUntil: 0,
+      shield: 0,
+      shieldMax: 0,
+      phoenixUsed: false,
+      fireRateBoostUntil: 0
     };
     this.players.set(p.id, p);
     if (p.bot && !p.zombie) this.pickWeapon(p.id, choicesOrig[Math.floor(Math.random() * choicesOrig.length)]);
@@ -187,6 +222,8 @@ class Match {
     p.streak = 0;
     p.burnUntil = 0; p.burnBy = null; p.burnTick = 0;
     p.cloakUntil = 0;
+    p.shield = 0;
+    p.fireRateBoostUntil = 0;
     // Gelegte Mine verschwindet mit dem Traeger
     if (p.mine) { this.events.push({ e: 'minegone', id: p.id }); p.mine = null; }
     if (p.weapon && p.weapon.mine) p.ammo = 1;
@@ -276,7 +313,10 @@ class Match {
       this.events.push({ e: 'dash', id: p.id, x: p.x, y: p.y, dx: p.dashX, dy: p.dashY });
     }
 
+    const origSpeedMult = p.speedMult;
+    if (p.slowUntil && this.time < p.slowUntil) p.speedMult *= p.slowFactor;
     PHYS.stepPlayer(this.map, p, inp, dt);
+    p.speedMult = origSpeedMult;
 
     // Granate
     if (wantGrenade && p.grenades > 0 && p.grenadeCd <= 0) this.throwGrenade(p, grenadeDist);
@@ -349,6 +389,8 @@ class Match {
     const lastShot = w.lastShotMult && p.ammo === 0;
     const shotDmg = w.dmg * (lastShot ? w.lastShotMult : 1);
     p.fireCd = w.fireCd;
+    if (p.mod && p.mod.fireRateMult && p.mod.fireRateMult !== 1) p.fireCd /= p.mod.fireRateMult;
+    if (p.fireRateBoostUntil && this.time < p.fireRateBoostUntil) p.fireCd /= 1.5;
     // Lautlose Waffen verraten die Position im Busch nicht
     if (!w.silent) p.lastFireAt = this.time;
     const spread = Math.min(w.spreadMax === undefined ? w.spread : w.spreadMax, w.spread + p.spreadAcc);
@@ -381,8 +423,9 @@ class Match {
       });
     } else {
       const pellets = w.pellets || 1;
-      for (let i = 0; i < pellets; i++) {
-        const ang = base + (Math.random() - 0.5) * 2 * spread;
+      const extraPierce = p.mod ? p.mod.pierce : 0;
+      const ricochet = p.mod ? p.mod.ricochet : false;
+      const makeBullet = (ang) => {
         this.projectiles.push({
           id: PROJ_ID++, type: 'bullet', owner: p.id, team: p.team,
           x: m.x, y: m.y, sx: m.x, sy: m.y,
@@ -390,8 +433,17 @@ class Match {
           life: w.bulletLife || C.BULLET_LIFE,
           maxLife: w.bulletLife || C.BULLET_LIFE,
           dmg: shotDmg, falloffStart: w.falloffStart, falloffMin: w.falloffMin,
-          pierce: w.pierce || 0, hits: [], burn: w.burn || 0, fire: !!w.fire
+          pierce: (w.pierce || 0) + extraPierce, hits: [], ricochet,
+          burn: w.burn || 0, fire: !!w.fire
         });
+      };
+      for (let i = 0; i < pellets; i++) {
+        makeBullet(base + (Math.random() - 0.5) * 2 * spread);
+      }
+      if (p.mod && p.mod.multishot && p.mod.spreadAngles.length) {
+        for (const sa of p.mod.spreadAngles) {
+          makeBullet(base + sa + (Math.random() - 0.5) * spread * 0.4);
+        }
       }
     }
 
@@ -651,8 +703,30 @@ class Match {
         if (b.hits.length > b.pierce) { this.projectiles.splice(i, 1); continue; }
       }
       if (wall) {
-        if (b.type === 'rocket') this.explodeRocket(b, wall.x, wall.y);
-        else this.events.push({ e: 'impact', x: wall.x, y: wall.y, a: Math.atan2(b.vy, b.vx) });
+        if (b.type === 'rocket') {
+          this.explodeRocket(b, wall.x, wall.y);
+          this.projectiles.splice(i, 1);
+          continue;
+        }
+        this.events.push({ e: 'impact', x: wall.x, y: wall.y, a: Math.atan2(b.vy, b.vx) });
+        if (b.ricochet && !b.ricocheted) {
+          b.ricocheted = true;
+          const T = C.TILE;
+          const xn = b.vx > 0
+            ? PHYS.tileAtWorld(this.map, wall.x + T * 0.4, wall.y) === C.T_WALL
+            : PHYS.tileAtWorld(this.map, wall.x - T * 0.4, wall.y) === C.T_WALL;
+          const yn = b.vy > 0
+            ? PHYS.tileAtWorld(this.map, wall.x, wall.y + T * 0.4) === C.T_WALL
+            : PHYS.tileAtWorld(this.map, wall.x, wall.y - T * 0.4) === C.T_WALL;
+          if (xn) b.vx = -b.vx;
+          if (yn) b.vy = -b.vy;
+          if (!xn && !yn) { b.vx = -b.vx; b.vy = -b.vy; }
+          b.x = wall.x;
+          b.y = wall.y;
+          b.life -= dt;
+          if (b.life <= 0) this.projectiles.splice(i, 1);
+          continue;
+        }
         this.projectiles.splice(i, 1);
         continue;
       }
@@ -744,11 +818,31 @@ class Match {
       const f = 1 - (dist - bullet.falloffStart) / 700;
       dmg *= clamp(f, bullet.falloffMin, 1);
     }
+    if (shooter && shooter.mod && shooter.mod.bulletDamageMult !== 1) {
+      dmg *= shooter.mod.bulletDamageMult;
+    }
+    if (shooter && shooter.mod && shooter.mod.critChance && Math.random() < shooter.mod.critChance) {
+      dmg *= shooter.mod.critMult || 3;
+    }
     dmg = Math.max(1, Math.round(dmg));
     const before = target.hp;
+
+    if (target.shield > 0) {
+      const blocked = Math.min(target.shield, dmg);
+      target.shield -= blocked;
+      dmg -= blocked;
+    }
     target.hp -= dmg;
     target.lastHitAt = this.time;
     if (shooter) shooter.damage += Math.min(dmg, before);
+
+    if (shooter && shooter.mod && shooter.mod.lifesteal > 0) {
+      shooter.hp = Math.min(shooter.hpMax, shooter.hp + dmg * shooter.mod.lifesteal);
+    }
+    if (shooter && shooter.mod && shooter.mod.slowOnHit && target.zombie) {
+      target.slowFactor = shooter.mod.slowFactor;
+      target.slowUntil = this.time + shooter.mod.slowDuration;
+    }
 
     // Brandwirkung: laeuft weiter, auch wenn das Ziel aus der Reichweite flieht
     if (bullet.burn) {
@@ -766,6 +860,17 @@ class Match {
 
   kill(victim, killer, hx, hy, ang) {
     if (!victim.alive) return;
+
+    if (!victim.zombie && victim.mod && victim.mod.phoenix && !victim.phoenixUsed) {
+      victim.phoenixUsed = true;
+      victim.hp = Math.round(victim.hpMax * 0.5);
+      victim.alive = true;
+      victim.respawnT = 0;
+      victim.invulT = C.SPAWN_INVUL;
+      this.events.push({ e: 'phoenix', id: victim.id, x: victim.x, y: victim.y });
+      return;
+    }
+
     victim.alive = false;
     victim.hp = 0;
     victim.deaths++;
@@ -779,6 +884,16 @@ class Match {
         killer.streak++;
         killer.bestStreak = Math.max(killer.bestStreak, killer.streak);
         this.totalKills++;
+        if (killer.mod) {
+          if (killer.mod.shieldOnKill) {
+            killer.shieldMax = 45;
+            killer.shield = Math.min(45, killer.shield + killer.mod.shieldOnKill);
+          }
+          if (killer.mod.overkill) {
+            killer.ammo = killer.weapon.mag + (killer.mod.magBonus || 0);
+            killer.fireRateBoostUntil = this.time + 3;
+          }
+        }
         if (Math.random() < 0.35) {
           const roll = Math.random();
           const type = roll < 0.65 ? 'health' : 'ammo';
@@ -1056,7 +1171,9 @@ class Match {
         al: me.alive ? 1 : 0, rs: Math.max(0, Math.round(me.respawnT * 10) / 10),
         iv: Math.round(me.invulT * 100) / 100,
         ck: Math.max(0, Math.round((me.cloakUntil - this.time) * 100) / 100),
-        seq: me.lastSeq
+        seq: me.lastSeq,
+        dp: Math.round(me.damage),
+        sh: Math.round(me.shield)
       };
     }
     return snap;

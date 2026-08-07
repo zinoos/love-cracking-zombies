@@ -464,8 +464,9 @@ class Room {
 const soloGames = new Map();
 
 class SoloGame {
-  constructor(client) {
+  constructor(client, upgrades) {
     this.client = client;
+    this.upgrades = upgrades || [];
     this.state = 'prematch';
     this.match = null;
     this.mapId = null;
@@ -554,6 +555,14 @@ class SoloGame {
     this.match.addPlayer(this.client);
     const w = this.picked || this.zufallsWaffe();
     this.match.forceWeapon(this.client.id, w);
+    if (this.upgrades.length) {
+      const mods = Match.computeMods(this.upgrades);
+      const p = this.match.players.get(this.client.id);
+      if (p) {
+        p.mod = mods;
+        p.ammo += mods.magBonus;
+      }
+    }
     this.phase = null;
     this.state = 'match';
     this.snd(this.matchInfo(false));
@@ -604,6 +613,15 @@ class SoloGame {
   }
 
   onMatchEnd(match) {
+    const board = match.scoreboard();
+    const me = board[0];
+    const dpEarned = me ? me.damage : 0;
+
+    let dpTotal = 0;
+    if (this.client.uid) {
+      dpTotal = STARS.addDp(this.client.uid, dpEarned);
+    }
+
     this.lastResult = {
       t: C.MSG.END,
       winner: null,
@@ -613,7 +631,9 @@ class SoloGame {
       board: match.scoreboard(),
       mapName: match.map.name,
       wave: match.currentWave || 0,
-      kills: match.totalKills || 0
+      kills: match.totalKills || 0,
+      dpEarned,
+      dpTotal
     };
     setTimeout(() => {
       send(this.client.ws, this.lastResult);
@@ -744,7 +764,11 @@ function handle(client, msg) {
 
     case M.AUTH: {
       if (!client.uid) {
-        client.uid = 'guest_' + crypto.randomBytes(12).toString('hex');
+        if (msg.guestUid && String(msg.guestUid).startsWith('guest_')) {
+          client.uid = String(msg.guestUid);
+        } else {
+          client.uid = 'guest_' + crypto.randomBytes(12).toString('hex');
+        }
         client.authName = client.name;
         STARS.touch(client.uid, client.name, '');
         send(client.ws, { t: M.ME, profile: STARS.publicProfile(client.uid), name: client.name });
@@ -821,7 +845,18 @@ function handle(client, msg) {
       if (room) room.remove(client.id);
       client.name = sanitizeName(msg.name || client.name);
       client.skin = sanitizeSkin(msg.skin || client.skin);
-      const sg = new SoloGame(client);
+      if (!client.uid) {
+        if (msg.guestUid && String(msg.guestUid).startsWith('guest_')) {
+          client.uid = String(msg.guestUid);
+        } else {
+          client.uid = 'guest_' + crypto.randomBytes(12).toString('hex');
+        }
+        client.authName = client.name;
+        STARS.touch(client.uid, client.name, '');
+        send(client.ws, { t: M.ME, profile: STARS.publicProfile(client.uid), name: client.name });
+      }
+      const upgrades = STARS.get(client.uid).upgrades || [];
+      const sg = new SoloGame(client, upgrades);
       soloGames.set(client.id, sg);
       client.roomCode = null;
       sg.beginVote();
@@ -848,6 +883,14 @@ function handle(client, msg) {
         if (sg) sg.vote(msg.v);
       }
       break;
+
+    case M.BUY: {
+      if (!client.uid) { send(client.ws, { t: M.ERROR, msg: 'Sign in first' }); break; }
+      const result = STARS.buyUpgrade(client.uid, msg.id);
+      if (!result.ok) { send(client.ws, { t: M.ERROR, msg: result.reason }); break; }
+      send(client.ws, { t: M.ME, profile: STARS.publicProfile(client.uid) });
+      break;
+    }
   }
 }
 
