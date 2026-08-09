@@ -18,11 +18,12 @@ class Match {
     this.room = room;
     this.mode = C.MODES[mode] || C.MODES.ffa;
     this.isSolo = mode === 'solo';
+    this.isCoop = mode === 'coop';
     this.map = MAPS.instance(mapId);
     this.mapId = this.map.id;
     this.tick = 0;
     this.time = 0;
-    this.timeLeft = this.isSolo ? 0 : this.mode.time;
+    this.timeLeft = this.isSolo || this.isCoop ? 0 : this.mode.time;
     this.state = 'live';
     this.players = new Map();
     this.projectiles = [];
@@ -38,6 +39,7 @@ class Match {
     this.waveZombiesAlive = 0;
     this.totalKills = 0;
     this.waveTimer = 0;
+    this.zombiesAlive = 0;
   }
 
   static randomWeapon() {
@@ -60,7 +62,14 @@ class Match {
       multishot: 0, spreadAngles: [], pierce: 0, ricochet: false, fireRateMult: 1,
       bulletDamageMult: 1, magBonus: 0, critChance: 0, critMult: 3,
       lifesteal: 0, slowOnHit: false, slowFactor: 0, slowDuration: 0,
-      shieldOnKill: 0, phoenix: false, overkill: false
+      shieldOnKill: 0, phoenix: false, overkill: false,
+      damageBonus: 0, fireRateBonus: 0, speedBonus: 0, regenBonus: 0, critChanceBonus: 0,
+      // Shotgun-specific
+      pelletBonus: 0, spreadMult: 1, rangeBonus: 0,
+      fireAmmo: false, slugMode: false,
+      maxHpBonus: 0, knockback: false,
+      explodeOnKill: 0, explodeRadius: 0,
+      executioner: false
     };
     for (const id of upgradeIds) {
       const up = C.UPGRADES[id];
@@ -79,6 +88,21 @@ class Match {
       if (e.shieldOnKill) mod.shieldOnKill = e.shieldOnKill;
       if (e.phoenix) mod.phoenix = true;
       if (e.overkill) mod.overkill = true;
+      if (e.damageBonus) mod.damageBonus += e.damageBonus;
+      if (e.fireRateBonus) mod.fireRateBonus += e.fireRateBonus;
+      if (e.speedBonus) mod.speedBonus += e.speedBonus;
+      if (e.regenBonus) mod.regenBonus += e.regenBonus;
+      if (e.critChanceBonus) mod.critChanceBonus += e.critChanceBonus;
+      // Shotgun & new effects
+      if (e.pelletBonus) mod.pelletBonus += e.pelletBonus;
+      if (e.spreadMult) mod.spreadMult *= e.spreadMult;
+      if (e.rangeBonus) mod.rangeBonus += e.rangeBonus;
+      if (e.fireAmmo) mod.fireAmmo = true;
+      if (e.slugMode) mod.slugMode = true;
+      if (e.maxHpBonus) mod.maxHpBonus += e.maxHpBonus;
+      if (e.knockback) mod.knockback = true;
+      if (e.explodeOnKill) { mod.explodeOnKill = e.explodeOnKill; mod.explodeRadius = e.explodeRadius || 100; }
+      if (e.executioner) mod.executioner = true;
     }
     return mod;
   }
@@ -140,7 +164,12 @@ class Match {
       shield: 0,
       shieldMax: 0,
       phoenixUsed: false,
-      fireRateBoostUntil: 0
+      fireRateBoostUntil: 0,
+      downed: false,
+      downedUntil: null,
+      reviveProgress: 0,
+      reviverId: null,
+      dead: false
     };
     this.players.set(p.id, p);
     if (p.bot && !p.zombie) this.pickWeapon(p.id, choicesOrig[Math.floor(Math.random() * choicesOrig.length)]);
@@ -238,7 +267,8 @@ class Match {
       shoot: !!msg.f, reload: !!msg.rl, dash: !!msg.ds, grenade: !!msg.g,
       aim: typeof msg.a === 'number' ? msg.a : p.input.aim,
       gd: typeof msg.gd === 'number' ? msg.gd : C.GRENADE_RANGE_DEFAULT,
-      seq: msg.seq | 0
+      seq: msg.seq | 0,
+      revive: !!msg.rv
     };
     // Einmal-Aktionen rasten ein: treffen zwei Pakete zwischen zwei Ticks ein,
     // wuerde das zweite den Tastendruck sonst ueberschreiben und verschlucken.
@@ -267,6 +297,7 @@ class Match {
     this.stepPickups(dt);
 
     if (this.isSolo) this.stepWaves(dt);
+    if (this.isCoop) this.stepRevive(dt);
     this.checkEnd();
   }
 
@@ -315,6 +346,7 @@ class Match {
 
     const origSpeedMult = p.speedMult;
     if (p.slowUntil && this.time < p.slowUntil) p.speedMult *= p.slowFactor;
+    if (p.mod && p.mod.speedBonus) p.speedMult *= (1 + p.mod.speedBonus);
     PHYS.stepPlayer(this.map, p, inp, dt);
     p.speedMult = origSpeedMult;
 
@@ -371,7 +403,8 @@ class Match {
 
     // Regeneration
     if (this.time - p.lastHitAt > C.REGEN_DELAY && p.hp < C.HP_MAX) {
-      p.hp = Math.min(C.HP_MAX, p.hp + C.REGEN_RATE * dt);
+      const regen = C.REGEN_RATE + (p.mod ? (p.mod.regenBonus || 0) : 0);
+      p.hp = Math.min(C.HP_MAX, p.hp + regen * dt);
     }
   }
 
@@ -389,8 +422,9 @@ class Match {
     const lastShot = w.lastShotMult && p.ammo === 0;
     const shotDmg = w.dmg * (lastShot ? w.lastShotMult : 1);
     p.fireCd = w.fireCd;
-    if (p.mod && p.mod.fireRateMult && p.mod.fireRateMult !== 1) p.fireCd /= p.mod.fireRateMult;
-    if (p.fireRateBoostUntil && this.time < p.fireRateBoostUntil) p.fireCd /= 1.5;
+    const fireRate = (p.mod) ? (p.mod.fireRateMult + p.mod.fireRateBonus) : 1;
+    if (fireRate !== 1) p.fireCd /= fireRate;
+    if (p.fireRateBoostUntil && this.time < p.fireRateBoostUntil) p.fireCd /= 1.35;
     // Lautlose Waffen verraten die Position im Busch nicht
     if (!w.silent) p.lastFireAt = this.time;
     const spread = Math.min(w.spreadMax === undefined ? w.spread : w.spreadMax, w.spread + p.spreadAcc);
@@ -818,12 +852,10 @@ class Match {
       const f = 1 - (dist - bullet.falloffStart) / 700;
       dmg *= clamp(f, bullet.falloffMin, 1);
     }
-    if (shooter && shooter.mod && shooter.mod.bulletDamageMult !== 1) {
-      dmg *= shooter.mod.bulletDamageMult;
-    }
-    if (shooter && shooter.mod && shooter.mod.critChance && Math.random() < shooter.mod.critChance) {
-      dmg *= shooter.mod.critMult || 3;
-    }
+    const dmgMult = (shooter && shooter.mod) ? (shooter.mod.bulletDamageMult + shooter.mod.damageBonus) : 1;
+    if (dmgMult !== 1) dmg *= dmgMult;
+    const critChance = (shooter && shooter.mod) ? (shooter.mod.critChance + shooter.mod.critChanceBonus) : 0;
+    if (critChance > 0 && Math.random() < critChance) dmg *= (shooter.mod.critMult || 3);
     dmg = Math.max(1, Math.round(dmg));
     const before = target.hp;
 
@@ -863,11 +895,22 @@ class Match {
 
     if (!victim.zombie && victim.mod && victim.mod.phoenix && !victim.phoenixUsed) {
       victim.phoenixUsed = true;
-      victim.hp = Math.round(victim.hpMax * 0.5);
+      victim.hp = Math.round(victim.hpMax * 0.4);
       victim.alive = true;
       victim.respawnT = 0;
       victim.invulT = C.SPAWN_INVUL;
       this.events.push({ e: 'phoenix', id: victim.id, x: victim.x, y: victim.y });
+      return;
+    }
+
+    if (this.isCoop && !victim.zombie && !victim.downed) {
+      victim.downed = true;
+      victim.downedUntil = Date.now() + C.DOWNED_TIME * 1000;
+      victim.hp = 0;
+      victim.alive = true;
+      victim.vx = 0;
+      victim.vy = 0;
+      this.events.push({ e: 'downed', id: victim.id, x: victim.x, y: victim.y });
       return;
     }
 
@@ -891,7 +934,7 @@ class Match {
           }
           if (killer.mod.overkill) {
             killer.ammo = killer.weapon.mag + (killer.mod.magBonus || 0);
-            killer.fireRateBoostUntil = this.time + 3;
+            killer.fireRateBoostUntil = this.time + 2.5;
           }
         }
         if (Math.random() < 0.35) {
@@ -963,16 +1006,19 @@ class Match {
     for (const p of this.players.values()) {
       if (p.zombie && p.alive) this.waveZombiesAlive++;
     }
+    this.zombiesAlive = this.waveZombiesAlive;
 
-    if (this.waveZombiesAlive === 0) {
-      this.waveTimer += dt;
-      if (this.waveTimer >= C.WAVE_INTERVAL || this.currentWave === 0) {
+    if (!this.isCoop) {
+      if (this.waveZombiesAlive === 0) {
+        this.waveTimer += dt;
+        if (this.waveTimer >= C.WAVE_INTERVAL || this.currentWave === 0) {
+          this.waveTimer = 0;
+          this.currentWave++;
+          this.spawnWave(this.currentWave);
+        }
+      } else {
         this.waveTimer = 0;
-        this.currentWave++;
-        this.spawnWave(this.currentWave);
       }
-    } else {
-      this.waveTimer = 0;
     }
   }
 
@@ -995,6 +1041,99 @@ class Match {
       if (zp) { zp.x = spawn.x; zp.y = spawn.y; zp.hp = cfg.hp; zp.hpMax = cfg.hp; }
     }
     this.events.push({ e: 'wave', n: this.currentWave, count: cfg.count });
+  }
+
+  spawnCoopWave(wave, count) {
+    this.currentWave = wave;
+    const cfg = C.waveFor(wave);
+    const humans = [...this.players.values()].filter(p => !p.zombie && p.alive && !p.downed);
+
+    for (let i = 0; i < count; i++) {
+      const spawn = this.zombieSpawnPointCoop(humans);
+      const zId = -(Date.now() * 1000 + i);
+      const speedRatio = cfg.speed / C.SPEED;
+      const member = {
+        id: zId, zombie: true, zombieNum: (wave * 100 + i + 1),
+        zombieHp: cfg.hp, zombieDmg: cfg.damage,
+        zombieSpeed: speedRatio,
+        team: 0, bot: true,
+        skin: { color: '#5c9a3a', trail: '#8bff4a', pattern: 'solid' }
+      };
+      this.addPlayer(member);
+      const zp = this.players.get(zId);
+      if (zp) { zp.x = spawn.x; zp.y = spawn.y; zp.hp = cfg.hp; zp.hpMax = cfg.hp; }
+    }
+    this.events.push({ e: 'wave', n: wave, count });
+  }
+
+  stepRevive(dt) {
+    for (const reviver of this.players.values()) {
+      if (reviver.zombie || !reviver.alive || reviver.downed) continue;
+
+      if (reviver.input.revive) {
+        let target = null;
+        let targetDist = C.REVIVE_RANGE;
+        for (const downed of this.players.values()) {
+          if (downed.zombie || downed.id === reviver.id) continue;
+          if (!downed.downed || !downed.alive) continue;
+          const d = Math.hypot(downed.x - reviver.x, downed.y - reviver.y);
+          if (d < targetDist) { targetDist = d; target = downed; }
+        }
+
+        if (target) {
+          if (target.reviverId === reviver.id) {
+            target.reviveProgress += dt / C.REVIVE_TIME;
+            if (target.reviveProgress >= 1) {
+              target.downed = false;
+              target.downedUntil = null;
+              target.reviveProgress = 0;
+              target.reviverId = null;
+              target.hp = Math.round(target.hpMax * C.REVIVE_HP_PCT);
+              this.events.push({ e: 'revived', id: target.id, by: reviver.id, x: target.x, y: target.y });
+            }
+          } else {
+            target.reviveProgress = 0;
+            target.reviverId = reviver.id;
+          }
+        } else {
+          for (const downed of this.players.values()) {
+            if (downed.reviverId === reviver.id) {
+              downed.reviveProgress = 0;
+              downed.reviverId = null;
+            }
+          }
+        }
+      } else {
+        for (const downed of this.players.values()) {
+          if (downed.reviverId === reviver.id) {
+            downed.reviveProgress = 0;
+            downed.reviverId = null;
+          }
+        }
+      }
+    }
+  }
+
+  zombieSpawnPointCoop(humans) {
+    for (let i = 0; i < 100; i++) {
+      const edge = Math.floor(Math.random() * 4);
+      let tx, ty;
+      const pad = 3;
+      if (edge === 0) { tx = pad + Math.floor(Math.random() * (this.map.n - pad * 2)); ty = pad; }
+      else if (edge === 1) { tx = this.map.n - pad - 1; ty = pad + Math.floor(Math.random() * (this.map.n - pad * 2)); }
+      else if (edge === 2) { tx = pad + Math.floor(Math.random() * (this.map.n - pad * 2)); ty = this.map.n - pad - 1; }
+      else { tx = pad; ty = pad + Math.floor(Math.random() * (this.map.n - pad * 2)); }
+
+      if (PHYS.tileAt(this.map, tx, ty) === C.T_WALL) continue;
+      const wx = tx * C.TILE + C.TILE / 2, wy = ty * C.TILE + C.TILE / 2;
+      if (humans.length === 0) return { x: wx, y: wy };
+      let farEnough = true;
+      for (const o of humans) {
+        if (Math.hypot(o.x - wx, o.y - wy) < 350) { farEnough = false; break; }
+      }
+      if (farEnough) return { x: wx, y: wy };
+    }
+    return { x: C.WORLD / 2 + 400, y: C.WORLD / 2 };
   }
 
   zombieSpawnPoint() {
@@ -1109,7 +1248,10 @@ class Match {
         bu2: p.burnUntil && this.time < p.burnUntil ? 1 : 0,
         ck: p.cloakUntil > this.time ? 1 : 0,
         rl: p.reloadT > 0 ? Math.round((1 - p.reloadT / p.weapon.reload) * 100) / 100 : 0,
-        zb: p.zombie ? 1 : 0
+        zb: p.zombie ? 1 : 0,
+        dn: p.downed ? 1 : 0,
+        rp: Math.round(p.reviveProgress * 100) / 100,
+        ri: p.reviverId || 0
       });
     }
 
@@ -1142,9 +1284,9 @@ class Match {
         i: p.id, k: p.kills, d: p.deaths, dm: Math.round(p.damage), s: p.bestStreak, t: p.team, al: p.alive ? 1 : 0
       })),
       ev: me ? this.events.filter(e => this.eventVisible(me, e)) : this.events,
-      wv: this.isSolo ? this.currentWave : 0,
-      wp: this.isSolo ? Math.max(0, Math.round(this.wavePrep * 10) / 10) : 0,
-      wz: this.isSolo ? this.waveZombiesAlive : 0
+      wv: (this.isSolo || this.isCoop) ? this.currentWave : 0,
+      wp: (this.isSolo || this.isCoop) ? Math.max(0, Math.round(this.wavePrep * 10) / 10) : 0,
+      wz: (this.isSolo || this.isCoop) ? this.waveZombiesAlive : 0
     };
     if (this.tileChanges.length) snap.tc = this.tileChanges;
 
@@ -1173,7 +1315,9 @@ class Match {
         ck: Math.max(0, Math.round((me.cloakUntil - this.time) * 100) / 100),
         seq: me.lastSeq,
         dp: Math.round(me.damage),
-        sh: Math.round(me.shield)
+        sh: Math.round(me.shield),
+        dn: me.downed ? 1 : 0,
+        dt: me.downedUntil ? Math.max(0, Math.round((me.downedUntil - Date.now()) / 100) / 10) : 0
       };
     }
     return snap;

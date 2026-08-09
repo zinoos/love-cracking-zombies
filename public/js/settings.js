@@ -8,6 +8,7 @@
    Tastatur woanders. Fuer die Anzeige gibt es label(). */
 const SETTINGS = (() => {
   const KEY = 'ns_settings';
+  const isLocal = /^(localhost|127\.\d+\.\d+\.\d+)$/.test(location.hostname);
 
   const ACTIONS = [
     { id: 'up', name: 'Forward', std: ['KeyW', 'ArrowUp'] },
@@ -36,6 +37,7 @@ const SETTINGS = (() => {
 
   function load() {
     const out = JSON.parse(JSON.stringify(DEFAULTS));
+    if (isLocal) return out;
     let saved = null;
     try { saved = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (_) { /* egal */ }
     if (!saved || typeof saved !== 'object') return out;
@@ -52,6 +54,7 @@ const SETTINGS = (() => {
   }
 
   function save() {
+    if (isLocal) return;
     try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (_) { /* egal */ }
     listeners.forEach(fn => fn(data));
   }

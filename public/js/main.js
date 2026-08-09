@@ -47,6 +47,10 @@
     waveAlive: 0,
     isSolo: false,
     profile: null,
+    downed: false,
+    reviving: false,
+    coopPlayers: null,
+    wave: 0,
 
     playerList() { return [...G.players.values()].filter(p => p.visible); },
     bulletList() { return [...G.bullets.values()]; },
@@ -103,11 +107,19 @@
       if (inp) { e.preventDefault(); inp.focus(); }
     }
     if (e.key === 'Escape' && G.inMatch) leaveMatch();
+    if (e.key === 'f' || e.key === 'F') {
+      if (G.inMatch && !G.downed) {
+        G.reviving = true;
+      }
+    }
   });
   addEventListener('keyup', e => {
     keys[e.key.toLowerCase()] = false;
     for (const a of SETTINGS.ACTIONS) if (SETTINGS.matches(a.id, e)) held[a.id] = false;
     if (SETTINGS.matches('score', e)) UI.showScoreboard(false);
+    if (e.key === 'f' || e.key === 'F') {
+      G.reviving = false;
+    }
   });
   addEventListener('blur', () => {
     for (const k in keys) keys[k] = false;
@@ -139,7 +151,8 @@
       ds: wantDash,
       g: wantGrenade,
       gd: grenadeRange(),
-      a: aimAngle()
+      a: aimAngle(),
+      rv: G.reviving ? 1 : 0
     };
   }
 
@@ -187,9 +200,9 @@
     while (inputAcc >= INPUT_DT && guard++ < 5) {
       inputAcc -= INPUT_DT;
       const me = G.mePlayer();
-      const alive = me && me.alive;
+      const alive = me && me.alive && !G.downed;
       const inp = currentInput();
-      if (!alive) { inp.f = false; inp.ds = false; }
+      if (!alive) { inp.f = false; inp.ds = false; inp.u = false; inp.d = false; inp.l = false; inp.r = false; }
       inp.seq = ++seq;
       inp.t = C.MSG.INPUT;
       NET.send(inp);
@@ -331,7 +344,8 @@
       UI.name = m.name;
     }
     if (UI.currentScreen() === 'scr-skills') {
-      UI.renderSkills(G.profile);
+      const w = UI.getSelectedWeapon() || 'ak47';
+      UI.renderSkills(G.profile, w);
     }
   });
 
@@ -357,6 +371,62 @@
   NET.on(C.MSG.CHAT, m => UI.addChat(m.name, m.color, m.text));
 
   NET.on(C.MSG.MATCH, m => startMatch(m));
+
+  NET.on(C.MSG.COOP, m => {
+    G.mode = 'coop';
+    G.mapName = m.mapName;
+    G.isSolo = false;
+    G.map = MAPS.instance(m.mapId);
+    RENDER.buildMap(G.map);
+    RENDER.resize();
+    FX.clear();
+    G.players.clear();
+    G.bullets.clear();
+    G.pickups = [];
+    pending.length = 0;
+    seq = 0;
+    localFireCd = 0; localReload = 0; localDashCd = 0;
+    localGrenades = C.GRENADES; localSpin = 0;
+    errOff.x = errOff.y = 0;
+    G.teamScore = [0, 0];
+    G.scoreboard = [];
+    G.spinAngle = 0;
+    G.currentWave = 0; G.wavePrep = 0; G.waveAlive = 0;
+    G.downed = false; G.reviving = false;
+    G.coopPlayers = m.players;
+    G.wave = m.wave || 1;
+    lastSnapAt = 0; snapJitter = 0; snapGapAvg = 1000 / C.SNAP_RATE; INTERP_MS = 110;
+
+    const meInfo = m.players.find(p => p.id === G.myId);
+    const myWeaponClass = meInfo ? meInfo.weapon : 'ak47';
+    const wKey = myWeaponClass === 'shotgun' ? 'shotgun' : 'ak47';
+    G.myWeaponKey = wKey;
+    G.myWeapon = C.WEAPONS[wKey];
+    localAmmo = G.myWeapon.mag;
+
+    m.players.forEach(p => {
+      const pKey = p.weapon === 'shotgun' ? 'shotgun' : 'ak47';
+      G.players.set(p.id, {
+        id: p.id, name: p.name, color: p.color, trail: p.trail || '#ffd166', pattern: 'solid',
+        team: 0, bot: false, weapon: pKey,
+        teamColor: p.id === G.myId ? '#ffffff' : '#4ade80',
+        buf: [], rx: C.WORLD / 2, ry: C.WORLD / 2, ra: 0,
+        hp: p.hp || C.HP_MAX, alive: true, visible: true, mv: 0, bush: false,
+        walkPhase: Math.random() * 6, dash: false, invul: false, spinAngle: 0,
+        zombie: false, hpMax: C.HP_MAX, downed: false, reviveProgress: 0
+      });
+      if (p.id === G.myId) G.myTeam = 0;
+    });
+
+    UI.setWeapon(G.myWeaponKey);
+    UI.show('scr-game');
+    G.inMatch = true;
+  });
+
+  NET.on(C.MSG.WAVE, m => {
+    G.wave = m.wave;
+    UI.showWaveAnnouncement(m.wave, m.count);
+  });
 
   NET.on(C.MSG.END, m => {
     G.inMatch = false;
@@ -465,6 +535,12 @@
     G.players.clear();
     G.bullets.clear();
     FX.clear();
+    G.downed = false;
+    G.reviving = false;
+    G.coopPlayers = null;
+    UI.showDowned(false, 0);
+    UI.showRevivePrompt(false, 0);
+    UI.reconnecting(false);
   }
 
   function leaveMatch() {
@@ -528,6 +604,9 @@
       p.cloaked = !!ps.ck;
       p.zombie = !!ps.zb;
       p.hpMax = ps.hm || C.HP_MAX;
+      p.downed = !!ps.dn;
+      p.reviveProgress = ps.rp || 0;
+      p.reviverId = ps.ri || 0;
       if (ps.w >= 0 && C.WEAPON_ORDER[ps.w]) p.weapon = C.WEAPON_ORDER[ps.w];
       p.visible = true;
     }
@@ -572,7 +651,14 @@
         gr: s.me.gr, sp: s.me.sp, ck: s.me.ck || 0, sh: s.me.sh || 0
       }, { timeLeft: s.tl });
       if (G.isSolo && s.me.dp !== undefined) UI.updateDpCounter(s.me.dp);
-      UI.respawnUI(!s.me.al, s.me.rs);
+      G.downed = !!(s.me.dn);
+      if (G.downed) {
+        UI.respawnUI(false, 0);
+        UI.showDowned(true, s.me.dt || 15);
+      } else {
+        UI.showDowned(false, 0);
+        UI.respawnUI(!s.me.al, s.me.rs);
+      }
     }
 
     (s.ev || []).forEach(handleEvent);
@@ -846,6 +932,27 @@
          Seit die Bodenebene gestaucht ist, faellt das in der Hoehe staerker
          auf als vorher. */
       if (G.mouse) G.mouseWorld = RENDER.screenToWorld(G.mouse.x, G.mouse.y);
+
+      // Co-op: revive prompt visibility
+      if (G.mode === 'coop') {
+        const me = G.mePlayer();
+        let nearDowned = false;
+        let reviveProgress = 0;
+        if (me && me.alive && !G.downed) {
+          for (const p of G.players.values()) {
+            if (!p.visible || p.id === G.myId) continue;
+            if (!p.downed) continue;
+            const dist = Math.hypot(me.rx - p.rx, me.ry - p.ry);
+            if (dist <= 96) {
+              nearDowned = true;
+              reviveProgress = p.reviveProgress || 0;
+              break;
+            }
+          }
+        }
+        UI.showRevivePrompt(nearDowned, reviveProgress);
+        UI.renderTeammateHUD(G);
+      }
     }
     requestAnimationFrame(frame);
   }
@@ -858,12 +965,23 @@
 
     $('btn-create').onclick = () => {
       SFX.resume();
-      NET.send({ t: C.MSG.PLAY, name: UI.name, skin: UI.skin });
+      NET.send({ t: C.MSG.PLAY, name: UI.name, skin: UI.skin, weaponClass: UI.getSelectedWeapon() || 'ak47' });
+    };
+    const btnMulti = $('btn-multiplayer');
+    if (btnMulti) btnMulti.onclick = () => {
+      if (!AUTH.isSignedIn) {
+        UI.toast('Sign in with Google to play multiplayer');
+        AUTH.signInWithGoogle();
+        return;
+      }
+      SFX.resume();
+      UI.show('scr-join');
     };
     const btnSkills = $('btn-skills');
     if (btnSkills) btnSkills.onclick = () => {
       SFX.resume();
-      UI.renderSkills(G.profile);
+      const w = UI.getSelectedWeapon() || 'ak47';
+      UI.renderSkills(G.profile, w);
       UI.show('scr-skills');
     };
     const btnJoin = $('btn-join');
@@ -874,6 +992,20 @@
       setTimeout(() => digits[0].focus(), 120);
     };
     $('btn-help').onclick = () => UI.show('scr-help');
+
+    // Switch weapon class button
+    const btnSwitch = $('btn-switch-weapon');
+    if (btnSwitch) btnSwitch.onclick = () => {
+      const wsBack = $('ws-back');
+      if (wsBack) wsBack.style.display = '';
+      UI.show('scr-weapon-select');
+    };
+
+    // Weapon selection back button
+    const wsBackBtn = $('ws-back');
+    if (wsBackBtn) wsBackBtn.onclick = () => {
+      UI.show('scr-menu');
+    };
 
     // Code-Eingabe
     const digits = [...document.querySelectorAll('#code-input .digit')];
@@ -949,12 +1081,45 @@
     };
     const btnResultSkills = $('btn-result-skills');
     if (btnResultSkills) btnResultSkills.onclick = () => {
-      UI.renderSkills(G.profile);
+      const w = UI.getSelectedWeapon() || 'ak47';
+      UI.renderSkills(G.profile, w);
       UI.show('scr-skills');
     };
 
     UI.setOnSkillBuy(id => {
       NET.send({ t: C.MSG.BUY, id });
+    });
+
+    // Weapon selection cards
+    const wsCards = document.querySelectorAll('.ws-card');
+    wsCards.forEach(card => {
+      card.addEventListener('click', () => {
+        const weapon = card.dataset.weapon;
+        UI.setSelectedWeapon(weapon);
+        RENDER.setPlayerWeaponClass(weapon);
+        UI.show('scr-menu');
+      });
+    });
+
+    // Auth UI
+    const btnGoogle = $('btn-google-signin');
+    if (btnGoogle) btnGoogle.onclick = () => AUTH.signInWithGoogle();
+    const btnSignout = $('btn-signout');
+    if (btnSignout) btnSignout.onclick = () => AUTH.signOut();
+    AUTH.onChange(state => {
+      const guestEl = $('auth-guest');
+      const signedEl = $('auth-signed');
+      const avatarEl = $('auth-avatar');
+      const nameEl = $('auth-name');
+      if (state.signedIn) {
+        if (guestEl) guestEl.style.display = 'none';
+        if (signedEl) signedEl.style.display = 'flex';
+        if (avatarEl) avatarEl.src = state.photo || '';
+        if (nameEl) nameEl.textContent = state.name || 'Player';
+      } else {
+        if (guestEl) guestEl.style.display = 'flex';
+        if (signedEl) signedEl.style.display = 'none';
+      }
     });
   }
 
@@ -964,8 +1129,18 @@
   SETTINGS.apply();          // gespeicherte Grafikstufe sofort setzen
   RENDER.resize();
   AUTH.playAsGuest();
-  UI.show('scr-menu');
+
+  // Weapon selection: if never chosen, show picker first
+  const savedWeapon = UI.getSelectedWeapon();
+  if (!savedWeapon) {
+    UI.show('scr-weapon-select');
+  } else {
+    RENDER.setPlayerWeaponClass(savedWeapon);
+    UI.show('scr-menu');
+  }
+
   NET.connect();
+  AUTH.init();
   requestAnimationFrame(frame);
 
   // Erste Nutzerinteraktion schaltet Audio frei

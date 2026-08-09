@@ -13,7 +13,10 @@
     "docker:run": "docker run --rm -p 3000:8080 love-cracking-zombies"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.112.2",
+    "dotenv": "^17.4.2",
     "express": "^4.19.2",
+    "firebase-admin": "^14.2.0",
     "ws": "^8.18.0"
   },
   "engines": {

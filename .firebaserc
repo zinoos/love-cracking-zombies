@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "love-cracking-zombies"
+  },
+  "targets": {
+    "love-cracking-zombies": {
+      "hosting": {
+        "love-cracking-zombies": [
+          "love-cracking-zombies"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

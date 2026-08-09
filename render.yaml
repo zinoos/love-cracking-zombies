@@ -4,7 +4,7 @@
 # mehr finden.
 services:
   - type: web
-    name: nosershooter
+    name: love-cracking-zombies
     runtime: node
     plan: free
     region: frankfurt
@@ -15,6 +15,9 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      # Bestenliste liegt lokal - Render speichert Daten im DATA_DIR.
-      - key: DATA_DIR
-        value: /data
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        sync: false

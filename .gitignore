@@ -9,6 +9,8 @@ data/
 .watchdog.json
 .watchdog.pid
 cloudflared.exe
+cloudflared
 # Zugangsdaten gehoeren nie ins Repo
 serviceaccount*.json
+firebase-service-account.json
 .env

@@ -77,10 +77,12 @@ const UI = (() => {
   }
 
   /* ---------- Skin ---------- */
+  const isLocal = /^(localhost|127\.\d+\.\d+\.\d+)$/.test(location.hostname);
   const skin = loadSkin();
-  let profileName = localStorage.getItem('ns_name') || '';
+  let profileName = (isLocal ? '' : localStorage.getItem('ns_name')) || '';
 
   function loadSkin() {
+    if (isLocal) return { color: '#5c7a2e', trail: '#ffd166', pattern: 'solid' };
     try {
       const s = JSON.parse(localStorage.getItem('ns_skin') || '{}');
       return {
@@ -91,6 +93,7 @@ const UI = (() => {
     } catch (_) { return { color: '#5c7a2e', trail: '#ffd166', pattern: 'solid' }; }
   }
   function saveSkin() {
+    if (isLocal) return;
     localStorage.setItem('ns_skin', JSON.stringify(skin));
     localStorage.setItem('ns_name', profileName);
   }
@@ -369,14 +372,16 @@ const UI = (() => {
     phaseLast = m.phase;
     if (neu) {
       phaseMax = m.phase === 'vote' ? C.PREMATCH.VOTE_TIME
-        : m.phase === 'wheel' ? C.PREMATCH.WHEEL_TIME : C.PREMATCH.PICK_TIME;
+        : m.phase === 'wheel' ? C.PREMATCH.WHEEL_TIME
+        : m.phase === 'classpick' ? 10 : C.PREMATCH.PICK_TIME;
     }
     phaseMax = Math.max(phaseMax, m.time);
 
-    [...$('prep-steps').children].forEach(el => {
+    const stepEls = [...$('prep-steps').children];
+    stepEls.forEach(el => {
       const s = el.dataset.step;
-      const rang = { vote: 0, wheel: 1, pick: 2 };
-      el.classList.toggle('on', s === m.phase);
+      const rang = { vote: 0, wheel: 1, pick: 2, classpick: 2 };
+      el.classList.toggle('on', s === (m.phase === 'classpick' ? 'pick' : m.phase));
       el.classList.toggle('done', rang[s] < rang[m.phase]);
     });
 
@@ -385,10 +390,11 @@ const UI = (() => {
 
     $('map-choices').classList.toggle('show', m.phase === 'vote');
     $('wheels').classList.toggle('show', m.phase === 'wheel');
-    $('pick-grid').classList.toggle('show', m.phase === 'pick');
+    $('pick-grid').classList.toggle('show', m.phase === 'pick' || m.phase === 'classpick');
 
     if (m.phase === 'vote') phaseVote(m);
     else if (m.phase === 'wheel') phaseWheel(m, neu);
+    else if (m.phase === 'classpick') phaseClassPick(m);
     else phasePick(m);
   }
 
@@ -534,6 +540,36 @@ const UI = (() => {
       card.classList.toggle('on', key === m.you);
       const wer = (m.taken || []).filter(x => x.w === key).length;
       card.querySelector('.wtaken').textContent = wer ? `${wer}× picked` : '';
+    });
+  }
+
+  function phaseClassPick(m) {
+    $('prep-title').textContent = 'PICK YOUR WEAPON CLASS';
+    $('prep-sub').textContent = `Map: ${m.mapName} — choose AK-47 or Shotgun`;
+    $('prep-note').textContent = 'No pick means AK-47.';
+    const host = $('pick-grid');
+    if (!host.children.length) {
+      host.className = 'classpick-grid';
+      const classes = [
+        { key: 'ak47', name: 'AK-47', sub: 'Assault Rifle', img: 'img/player.png' },
+        { key: 'shotgun', name: 'PUMP GUN', sub: 'Shotgun', img: 'img/Adobe%20Express%20-%20file.png' }
+      ];
+      for (const cl of classes) {
+        const card = document.createElement('button');
+        card.className = 'classpick-card';
+        card.dataset.w = cl.key;
+        card.innerHTML = '<div class="classpick-img"><img src="' + cl.img + '" alt="' + cl.name + '"></div>'
+          + '<span class="classpick-name">' + cl.name + '</span>'
+          + '<span class="classpick-sub">' + cl.sub + '</span>';
+        card.onclick = () => {
+          if (phaseSend) phaseSend(cl.key);
+          SFX.ui(true);
+        };
+        host.appendChild(card);
+      }
+    }
+    [...host.children].forEach(card => {
+      card.classList.toggle('selected', card.dataset.w === m.you);
     });
   }
 
@@ -742,14 +778,14 @@ const UI = (() => {
     if (payload.teams > 1) {
       if (payload.winner === null) draw = true;
       else won = payload.winner === myTeam;
-    } else if (payload.mode === 'solo') {
+    } else if (payload.mode === 'solo' || payload.mode === 'coop') {
       won = false;
     } else {
       won = payload.winner === myId;
     }
     title.className = 'result-title ' + (draw ? 'draw' : won ? 'win' : 'lose');
-    if (payload.mode === 'solo') {
-      title.textContent = 'DEFEATED';
+    if (payload.mode === 'solo' || payload.mode === 'coop') {
+      title.textContent = payload.mode === 'coop' ? 'TEAM WIPED' : 'DEFEATED';
       $('result-sub').textContent = payload.mapName + ' · Wave ' + (payload.wave || 0) + ' · ' + (payload.kills || 0) + ' zombies killed';
       const dp = $('result-dp');
       if (payload.dpEarned !== undefined) {
@@ -905,14 +941,24 @@ const UI = (() => {
   let onSkillBuy = null;
   function setOnSkillBuy(fn) { onSkillBuy = fn; }
 
-  function renderSkills(profile) {
+  function renderSkills(profile, weapon) {
+    weapon = weapon || 'ak47';
     const dp = profile ? (profile.damagePoints || 0) : 0;
     const owned = profile ? (profile.upgrades || []) : [];
     $('dp-amount').textContent = dp;
 
     const host = $('skill-tree');
-    const BRANCHES = { spreader:'CROWD CONTROL', destroyer:'BOSS KILLER', survivor:'SUSTAIN' };
-    const all = C.UPGRADE_TREE.map(id => C.UPGRADES[id]).filter(Boolean);
+    host.innerHTML = '';
+
+    const CANVAS = 2400;
+    const isShotgun = weapon === 'shotgun';
+    const BRANCH_ORDER = isShotgun
+      ? ['breacher', 'slugger', 'juggernaut']
+      : ['spreader', 'destroyer', 'survivor'];
+    const treeArray = isShotgun ? (C.UPGRADE_TREE_SHOTGUN || C.UPGRADE_TREE) : C.UPGRADE_TREE;
+    const iconMap = isShotgun ? (C.UPGRADE_ICONS_SHOTGUN || C.UPGRADE_ICONS) : C.UPGRADE_ICONS;
+    const rootLabel = isShotgun ? 'PUMP GUN' : 'AK-47';
+    const all = treeArray.map(id => C.UPGRADES[id]).filter(Boolean);
 
     const byBranch = {};
     for (const up of all) {
@@ -921,57 +967,166 @@ const UI = (() => {
     }
     for (const b of Object.keys(byBranch)) byBranch[b].sort((a, b) => a.tier - b.tier);
 
-    const row = (ups, label) => {
-      const col = document.createElement('div');
-      col.className = 'skill-branch-col';
-      const lbl = document.createElement('div');
-      lbl.className = 'skill-branch-label';
-      lbl.textContent = label;
-      col.appendChild(lbl);
-      for (const up of ups) {
+    const angles = isShotgun
+      ? { breacher: 200 * Math.PI / 180, slugger: 340 * Math.PI / 180, juggernaut: 90 * Math.PI / 180 }
+      : { spreader: 200 * Math.PI / 180, destroyer: 340 * Math.PI / 180, survivor: 90 * Math.PI / 180 };
+    const tierDist = [110, 200, 300, 410, 530, 660, 800, 950]; // 8 tiers
+    const cx = CANVAS / 2;
+    const cy = CANVAS / 2;
+
+    // SVG overlay for lines
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('class', 'st-svg');
+    svg.setAttribute('viewBox', '0 0 ' + CANVAS + ' ' + CANVAS);
+    host.appendChild(svg);
+
+    // Root node
+    const root = document.createElement('div');
+    root.className = 'st-node root';
+    root.style.left = (cx - 60) + 'px';
+    root.style.top = (cy - 60) + 'px';
+    root.innerHTML = `<img class="st-root-ico" src="/img/icons/pistol.png" alt=""><span class="st-label">${rootLabel}</span><span class="st-tier">ALWAYS ACTIVE</span>`;
+    host.appendChild(root);
+
+    for (const key of BRANCH_ORDER) {
+      const ups = byBranch[key] || [];
+      const a = angles[key];
+      const prevNodes = [{ x: cx, y: cy }];
+
+      for (let i = 0; i < ups.length; i++) {
+        const up = ups[i];
+        const dist = tierDist[i];
+        const nx = cx + Math.cos(a) * dist;
+        const ny = cy - Math.sin(a) * dist;
+
         const isOwned = owned.includes(up.id);
         const prevTier = up.tier > 1 ? all.find(u => u.branch === up.branch && u.tier === up.tier - 1) : null;
         const prereqMet = !prevTier || owned.includes(prevTier.id);
         const canAfford = dp >= up.cost && prereqMet && !isOwned;
 
-        const card = document.createElement('div');
-        card.className = 'skill-node';
-        if (isOwned) card.classList.add('owned');
-        else if (canAfford) card.classList.add('affordable');
-        else card.classList.add('locked');
+        const node = document.createElement('div');
+        const cls = ['st-node', 'tier'];
+        if (isOwned) cls.push('owned');
+        else if (canAfford) cls.push('affordable');
+        else cls.push('locked');
+        node.className = cls.join(' ');
+        node.style.left = (nx - 43) + 'px';
+        node.style.top = (ny - 43) + 'px';
+        node.style.animationDelay = (i * 0.08) + 's';
 
-        card.innerHTML =
-          `<span class="sn-tier">T${up.tier}</span>` +
-          `<span class="sn-ico">${C.UPGRADE_ICONS[up.id] || '◆'}</span>` +
-          `<span class="sn-name">${esc(up.name)}</span>` +
-          `<span class="sn-desc">${esc(up.desc)}</span>` +
-          `<span class="sn-cost">${isOwned ? 'OWNED' : new Intl.NumberFormat().format(up.cost) + ' DP'}</span>`;
+        const iconName = iconMap[up.id] || 'bullet';
+        node.innerHTML =
+          `<img class="st-ico" src="/img/icons/${iconName}.png" alt="">` +
+          `<span class="st-label">${esc(up.name)}</span>` +
+          `<span class="st-tier-badge">T${up.tier}</span>`;
+
+        node.addEventListener('mouseenter', (e) => showDetail(e, up, isOwned, canAfford));
+        node.addEventListener('mouseleave', hideDetail);
 
         if (canAfford) {
-          card.onclick = () => {
+          node.addEventListener('click', (e) => {
+            e.stopPropagation();
             if (onSkillBuy) onSkillBuy(up.id);
-          };
+            hideDetail();
+          });
         }
-        col.appendChild(card);
+
+        host.appendChild(node);
+
+        const prev = prevNodes[prevNodes.length - 1];
+        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        line.setAttribute('x1', prev.x);
+        line.setAttribute('y1', prev.y);
+        line.setAttribute('x2', nx);
+        line.setAttribute('y2', ny);
+        if (isOwned) line.setAttribute('class', 'owned');
+        else line.setAttribute('class', 'chain');
+        svg.appendChild(line);
+
+        prevNodes.push({ x: nx, y: ny });
       }
-      return col;
-    };
-
-    host.innerHTML = '';
-    const base = document.createElement('div');
-    base.className = 'skill-base';
-    base.innerHTML =
-      `<span class="sb-ico">🎯</span>` +
-      `<span class="sb-name">AK-47</span>` +
-      `<span class="sb-tag">ALWAYS ACTIVE</span>`;
-    host.appendChild(base);
-
-    const branches = document.createElement('div');
-    branches.className = 'skill-branches';
-    for (const [key, label] of Object.entries(BRANCHES)) {
-      branches.appendChild(row(byBranch[key] || [], label));
     }
-    host.appendChild(branches);
+
+    // ---- Pan / drag (set up once) ----
+    const vp = $('st-viewport');
+    let tx = 0, ty = 0, dragging = false, sx, sy, ox, oy;
+
+    if (!vp._panReady) {
+      vp._panReady = true;
+      vp.onmousedown = (e) => {
+        if (e.target.closest('.st-node')) return;
+        e.preventDefault();
+        dragging = true;
+        sx = e.clientX; sy = e.clientY;
+        ox = tx; oy = ty;
+        vp.classList.add('grabbing');
+        host.classList.add('nopan');
+      };
+      window.addEventListener('mousemove', (e) => {
+        if (!dragging || UI.currentScreen() !== 'scr-skills') return;
+        tx = ox + (e.clientX - sx);
+        ty = oy + (e.clientY - sy);
+        host.style.transform = 'translate(' + tx + 'px,' + ty + 'px)';
+      });
+      window.addEventListener('mouseup', () => {
+        if (!dragging) return;
+        dragging = false;
+        vp.classList.remove('grabbing');
+        host.classList.remove('nopan');
+      });
+      window.addEventListener('resize', () => {
+        if (UI.currentScreen() === 'scr-skills') centerView();
+      });
+    }
+
+    function centerView() {
+      const vr = vp.getBoundingClientRect();
+      if (!vr.width || !vr.height) return;
+      tx = vr.width / 2 - cx;
+      ty = vr.height / 2 - cy;
+      host.style.transform = 'translate(' + tx + 'px,' + ty + 'px)';
+    }
+
+    // Delay until layout is painted (screen transition may still be running)
+    setTimeout(() => {
+      centerView();
+      // Also recenter on first render even if viewport didn't have size yet
+      if (!tx && !ty) { const vr = vp.getBoundingClientRect(); if (vr.width) centerView(); }
+    }, 80);
+
+    // ---- Detail tooltip ----
+    let detailEl = document.getElementById('st-detail');
+    if (!detailEl) {
+      detailEl = document.createElement('div');
+      detailEl.id = 'st-detail';
+      detailEl.className = 'st-detail';
+      document.body.appendChild(detailEl);
+    }
+
+    function showDetail(e, up, isOwned, canAfford) {
+      detailEl.innerHTML =
+        `<div class="st-d-name">${esc(up.name)}</div>` +
+        `<div class="st-d-desc">${esc(up.desc)}</div>` +
+        (isOwned
+          ? `<div class="st-d-cost owned">OWNED</div>`
+          : `<div class="st-d-cost">${new Intl.NumberFormat().format(up.cost)} DP</div>` +
+            (canAfford ? `<button class="st-d-buy">BUY</button>` : ''));
+      detailEl.classList.add('show');
+
+      const b = detailEl.querySelector('.st-d-buy');
+      if (b) b.onclick = (ev) => { ev.stopPropagation(); if (onSkillBuy) onSkillBuy(up.id); hideDetail(); };
+
+      let dx = e.clientX + 24;
+      let dy = e.clientY + 24;
+      if (dx + 270 > window.innerWidth) dx = e.clientX - 270;
+      if (dy + 200 > window.innerHeight) dy = e.clientY - 200;
+      detailEl.style.left = Math.max(10, dx) + 'px';
+      detailEl.style.top = Math.max(10, dy) + 'px';
+    }
+
+    function hideDetail() {
+      detailEl.classList.remove('show');
+    }
   }
 
   function updateDpCounter(amount) {
@@ -979,6 +1134,57 @@ const UI = (() => {
     if (!el) return;
     el.classList.toggle('show', true);
     $('dp-hud-num').textContent = amount;
+  }
+
+  /* ---------- Weapon Selection ---------- */
+  const WS_KEY = 'lcw_selectedWeapon';
+  function getSelectedWeapon() {
+    if (isLocal) return null;
+    return localStorage.getItem(WS_KEY) || null;
+  }
+  function setSelectedWeapon(w) {
+    if (isLocal) return;
+    localStorage.setItem(WS_KEY, w);
+  }
+
+  function showWaveAnnouncement(wave, count) {
+    centerMsg('WAVE ' + wave, '#ffd166');
+    const el = $('wave-display');
+    if (el) { el.textContent = 'WAVE ' + wave + ' · ' + count + ' ZOMBIES'; el.className = 'wave-display live'; }
+  }
+
+  function showDowned(show, time) {
+    const el = $('downed-overlay');
+    if (el) {
+      el.style.display = show ? 'flex' : 'none';
+      if (show) $('downed-timer').textContent = Math.ceil(time);
+    }
+  }
+
+  function showRevivePrompt(show, progress) {
+    const el = $('revive-prompt');
+    if (el) {
+      el.style.display = show ? 'flex' : 'none';
+      if (show && progress !== undefined) $('revive-fill').style.width = (progress * 100) + '%';
+    }
+  }
+
+  function renderTeammateHUD(G) {
+    const el = $('teammate-hud');
+    if (!el) return;
+    let html = '';
+    for (const p of G.players.values()) {
+      if (!p.visible || p.id === G.myId || p.zombie) continue;
+      const cls = p.downed ? ' downed' : '';
+      const hpPct = p.hpMax ? Math.max(0, Math.round(p.hp / p.hpMax * 100)) : 0;
+      html += '<div class="teammate-card' + cls + '">';
+      html += '<span class="teammate-name">' + UI.esc(p.name || 'Player') + '</span>';
+      html += '<div class="teammate-hp-bar"><i class="teammate-hp-fill" style="width:' + hpPct + '%"></i></div>';
+      if (p.downed) html += '<span style="color:#ef4444;font-size:9px">DOWNED</span>';
+      else html += '<span style="font-size:9px;color:var(--dim)">' + hpPct + '%</span>';
+      html += '</div>';
+    }
+    el.innerHTML = html;
   }
 
   return {
@@ -992,6 +1198,8 @@ const UI = (() => {
     respawnUI, hitmark, showScoreboard, showResult, setConn, setPing, serverNotice,
     updateWave, renderSkills, setOnSkillBuy, updateDpCounter,
     renderAccount, renderBoard, starBadge, tick, esc,
-    get room() { return roomState; }
+    showWaveAnnouncement, showDowned, showRevivePrompt, renderTeammateHUD,
+    get room() { return roomState; },
+    getSelectedWeapon, setSelectedWeapon
   };
 })();

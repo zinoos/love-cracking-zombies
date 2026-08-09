@@ -1,5 +1,5 @@
   /* Baut dist/ fuer statisches Hosting.
-   Kopiert public/ und shared/ in dist/ und traegt die Serveradresse ein. */
+    Kopiert public/ und shared/ in dist/ und traegt die Serveradresse ein. */
 const fs = require('fs');
 const path = require('path');
 
@@ -35,6 +35,13 @@ if (!re.test(cfg)) {
   process.exit(1);
 }
 cfg = cfg.replace(re, `window.GAME_SERVER = '${GAME_SERVER}';`);
+
+// Firebase config inject — only replace if env vars are set
+if (process.env.FIREBASE_API_KEY) cfg = cfg.replace(/apiKey:\s*"[^"]*"/, `apiKey: "${process.env.FIREBASE_API_KEY}"`);
+if (process.env.FIREBASE_PROJECT_ID) cfg = cfg.replace(/projectId:\s*"[^"]*"/, `projectId: "${process.env.FIREBASE_PROJECT_ID}"`);
+if (process.env.FIREBASE_APP_ID) cfg = cfg.replace(/appId:\s*"[^"]*"/, `appId: "${process.env.FIREBASE_APP_ID}"`);
+if (process.env.FIREBASE_SENDER_ID) cfg = cfg.replace(/messagingSenderId:\s*"[^"]*"/, `messagingSenderId: "${process.env.FIREBASE_SENDER_ID}"`);
+
 fs.writeFileSync(cfgPath, cfg);
 
 function count(dir) {

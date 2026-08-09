@@ -82,13 +82,12 @@
       },
       shotgun: {
         key: 'shotgun', name: 'Shotgun', short: 'SHOTGUN', icon: '💥', tier: 2,
-        mag: 6, dmg: 9, pellets: 8, fireCd: 0.8, reload: 2.6, auto: false,
-        // Streuung 15 Prozent weiter als zuvor (0,15) - breiterer Kegel,
-        // dafuer sitzen auf Distanz noch weniger Kugeln
-        bulletSpeed: 780, range: 210, spread: 0.1725, spreadGrow: 0, spreadMax: 0.1725,
+        mag: 6, dmg: 6, pellets: 8, fireCd: 0.8, reload: 2.6, auto: false,
+        // Damage nerfed from 9→6 (max 48), spread tightened 0.1725→0.12
+        bulletSpeed: 780, range: 210, spread: 0.12, spreadGrow: 0, spreadMax: 0.12,
         speedMult: 0.94, falloffStart: 130, falloffMin: 0.2, recoil: 210,
-        pros: ['Lethal up close', 'Wide pellet cone - hits even with rough aim'],
-        cons: ['Barely any range', 'Slow rate of fire', 'Spreads a lot']
+        pros: ['Lethal up close', 'Consistent pellet spread', 'Forgiving aim'],
+        cons: ['Barely any range', 'Slow rate of fire', 'Low per-pellet damage']
       },
       flamer: {
         key: 'flamer', name: 'Flamethrower', short: 'FLAMER', icon: '🔥', tier: 2,
@@ -196,27 +195,94 @@
       'crossbow', 'sergio', 'mine', 'grenadier', 'minigun', 'sniper', 'bazooka'],
 
     UPGRADES: {
-      scatter:  { id:'scatter',  name:'Scatter Shot',     branch:'spreader',  tier:1, cost:8000,  desc:'Fires 2 extra bullets at ±15° angle',                     effect:{ multishot:2, spreadAngles:[0.2618,-0.2618] } },
-      fan:      { id:'fan',      name:'Fan Shot',         branch:'spreader',  tier:2, cost:16000, desc:'Fires 4 extra bullets at ±10° and ±25°',                effect:{ multishot:4, spreadAngles:[0.1745,-0.1745,0.4363,-0.4363] } },
-      pierce:   { id:'pierce',   name:'Armor Piercing',   branch:'spreader',  tier:3, cost:30000, desc:'All bullets pierce through 1 target',                     effect:{ pierce:1 } },
-      hailstorm:{ id:'hailstorm',name:'Hailstorm',        branch:'spreader',  tier:4, cost:50000, desc:'Bullets ricochet off walls once + 20% fire rate',          effect:{ ricochet:true, fireRateMult:1.2 } },
+      // Spreader — crowd control (stat boosts → powers)
+      sp_dmg1:  { id:'sp_dmg1',  name:'Rifled Barrel',    branch:'spreader',  tier:1, cost:4000,  desc:'+4% bullet damage',                     effect:{ damageBonus:0.04 } },
+      sp_rate1: { id:'sp_rate1', name:'Light Trigger',    branch:'spreader',  tier:2, cost:5000,  desc:'+4% fire rate',                         effect:{ fireRateBonus:0.04 } },
+      scatter:  { id:'scatter',  name:'Scatter Shot',     branch:'spreader',  tier:3, cost:8000,  desc:'Fires 1 extra bullet at ±14° angle',     effect:{ multishot:1, spreadAngles:[0.244] } },
+      sp_dmg2:  { id:'sp_dmg2',  name:'Hardened Rounds',  branch:'spreader',  tier:4, cost:10000, desc:'+5% bullet damage',                     effect:{ damageBonus:0.05 } },
+      pierce:   { id:'pierce',   name:'Armor Piercing',   branch:'spreader',  tier:5, cost:16000, desc:'All bullets pierce through 1 target',    effect:{ pierce:1 } },
+      sp_rate2: { id:'sp_rate2', name:'Hair Trigger',     branch:'spreader',  tier:6, cost:14000, desc:'+6% fire rate',                         effect:{ fireRateBonus:0.06 } },
+      fan:      { id:'fan',      name:'Fan Shot',         branch:'spreader',  tier:7, cost:22000, desc:'Fires 2 extra bullets at ±12° and ±24°', effect:{ multishot:2, spreadAngles:[0.209,-0.209,0.419,-0.419] } },
+      hail:     { id:'hail',     name:'Hailstorm',        branch:'spreader',  tier:8, cost:32000, desc:'Bullets ricochet off walls + 8% fire rate', effect:{ ricochet:true, fireRateBonus:0.08 } },
 
-      heavy:    { id:'heavy',    name:'Heavy Rounds',     branch:'destroyer', tier:1, cost:8000,  desc:'+50% bullet damage (18→27)',                              effect:{ bulletDamageMult:1.5 } },
-      extmag:   { id:'extmag',   name:'Extended Mag',     branch:'destroyer', tier:2, cost:16000, desc:'+15 magazine (20→35)',                                      effect:{ magBonus:15 } },
-      headhunter:{ id:'headhunter',name:'Headhunter',     branch:'destroyer', tier:3, cost:30000, desc:'30% chance to deal 3× crit damage',                         effect:{ critChance:0.3, critMult:3 } },
-      overkill: { id:'overkill', name:'Overkill',         branch:'destroyer', tier:4, cost:50000, desc:'Killing resets magazine + 50% fire rate for 3s',           effect:{ overkill:true } },
+      // Destroyer — boss killer
+      ds_dmg1:  { id:'ds_dmg1',  name:'Steel Core',       branch:'destroyer', tier:1, cost:4000,  desc:'+4% bullet damage',                         effect:{ damageBonus:0.04 } },
+      ds_spd1:  { id:'ds_spd1',  name:'Light Stock',      branch:'destroyer', tier:2, cost:5000,  desc:'+3% move speed',                            effect:{ speedBonus:0.03 } },
+      heavy:    { id:'heavy',    name:'Heavy Rounds',     branch:'destroyer', tier:3, cost:8000,  desc:'+30% bullet damage',                         effect:{ bulletDamageMult:1.30 } },
+      ds_dmg2:  { id:'ds_dmg2',  name:'Tungsten Tip',     branch:'destroyer', tier:4, cost:10000, desc:'+5% bullet damage',                         effect:{ damageBonus:0.05 } },
+      extmag:   { id:'extmag',   name:'Extended Mag',     branch:'destroyer', tier:5, cost:14000, desc:'+8 magazine capacity',                       effect:{ magBonus:8 } },
+      ds_crit:  { id:'ds_crit',  name:'Scope Mount',      branch:'destroyer', tier:6, cost:12000, desc:'+5% crit chance',                            effect:{ critChanceBonus:0.05 } },
+      headhunter:{ id:'headhunter',name:'Headhunter',     branch:'destroyer', tier:7, cost:20000, desc:'20% chance to deal 2.5× crit damage',         effect:{ critChance:0.20, critMult:2.5 } },
+      overkill: { id:'overkill', name:'Overkill',         branch:'destroyer', tier:8, cost:30000, desc:'Kills refill magazine + 35% fire rate 2.5s', effect:{ overkill:true } },
 
-      vampiric: { id:'vampiric', name:'Vampiric Rounds',  branch:'survivor',  tier:1, cost:8000,  desc:'10% of damage returned as HP',                               effect:{ lifesteal:0.1 } },
-      frost:    { id:'frost',    name:'Frost Ammo',       branch:'survivor',  tier:2, cost:16000, desc:'Hit zombies slowed 40% for 2s',                              effect:{ slowOnHit:true, slowFactor:0.6, slowDuration:2 } },
-      aegis:    { id:'aegis',    name:'Aegis',            branch:'survivor',  tier:3, cost:30000, desc:'Kills grant 15 HP shield (max 45, 5s duration)',             effect:{ shieldOnKill:15 } },
-      phoenix:  { id:'phoenix',  name:'Phoenix',          branch:'survivor',  tier:4, cost:50000, desc:'Revive once per match with 50% HP',                          effect:{ phoenix:true } }
+      // Survivor — sustain
+      sv_spd1:  { id:'sv_spd1',  name:'Tactical Boots',   branch:'survivor',  tier:1, cost:4000,  desc:'+3% move speed',                            effect:{ speedBonus:0.03 } },
+      sv_regen1:{ id:'sv_regen1',name:'Field Dressing',   branch:'survivor',  tier:2, cost:5000,  desc:'+1.5 HP/sec regen',                          effect:{ regenBonus:1.5 } },
+      vampiric: { id:'vampiric', name:'Vampiric Rounds',  branch:'survivor',  tier:3, cost:8000,  desc:'6% of damage returned as HP',                 effect:{ lifesteal:0.06 } },
+      sv_spd2:  { id:'sv_spd2',  name:'Combat Boots',     branch:'survivor',  tier:4, cost:9000,  desc:'+4% move speed',                            effect:{ speedBonus:0.04 } },
+      frost:    { id:'frost',    name:'Frost Ammo',       branch:'survivor',  tier:5, cost:12000, desc:'Hit zombies slowed 30% for 1.5s',              effect:{ slowOnHit:true, slowFactor:0.70, slowDuration:1.5 } },
+      sv_regen2:{ id:'sv_regen2',name:'Medkit',           branch:'survivor',  tier:6, cost:11000, desc:'+2 HP/sec regen',                            effect:{ regenBonus:2 } },
+      aegis:    { id:'aegis',    name:'Aegis Shield',     branch:'survivor',  tier:7, cost:18000, desc:'Kills grant 12 HP shield (max 35)',           effect:{ shieldOnKill:12 } },
+      phoenix:  { id:'phoenix',  name:'Phoenix',          branch:'survivor',  tier:8, cost:28000, desc:'Revive once per match with 40% HP',          effect:{ phoenix:true } },
+
+      // ===== Shotgun Upgrades =====
+      // Breacher — close-range devastation (stat boosts → powers)
+      sg_b_dmg1:  { id:'sg_b_dmg1', name:'Rifled Choke',    branch:'breacher',  tier:1, cost:4000,  desc:'+4% pellet damage',                       effect:{ damageBonus:0.04 } },
+      sg_b_rate1: { id:'sg_b_rate1',name:'Hair Trigger',    branch:'breacher',  tier:2, cost:5000,  desc:'+5% fire rate',                           effect:{ fireRateBonus:0.05 } },
+      sg_b_flech: { id:'sg_b_flech',name:'Flechette Rounds',branch:'breacher',  tier:3, cost:8000,  desc:'+3 extra pellets per shot',                effect:{ pelletBonus:3 } },
+      sg_b_dmg2:  { id:'sg_b_dmg2', name:'Heavy Gauge',     branch:'breacher',  tier:4, cost:10000, desc:'+6% pellet damage',                       effect:{ damageBonus:0.06 } },
+      sg_b_fire:  { id:'sg_b_fire', name:'Dragon\'s Breath',branch:'breacher',  tier:5, cost:16000, desc:'Pellets set enemies on fire (5 DPS/2s)',  effect:{ fireAmmo:true } },
+      sg_b_rate2: { id:'sg_b_rate2',name:'Slam-Fire',       branch:'breacher',  tier:6, cost:13000, desc:'+8% fire rate',                           effect:{ fireRateBonus:0.08 } },
+      sg_b_tight: { id:'sg_b_tight',name:'Tight Choke',     branch:'breacher',  tier:7, cost:20000, desc:'Spread reduced by 30%',                   effect:{ spreadMult:0.70 } },
+      sg_b_carn:  { id:'sg_b_carn', name:'Carnage',         branch:'breacher',  tier:8, cost:30000, desc:'Kills explode for 30 dmg in 100px radius',effect:{ explodeOnKill:30, explodeRadius:100 } },
+
+      // Slugger — precision & range
+      sg_s_range: { id:'sg_s_range',name:'Rifled Barrel',   branch:'slugger',   tier:1, cost:4000,  desc:'+12% bullet range',                       effect:{ rangeBonus:0.12 } },
+      sg_s_dmg1:  { id:'sg_s_dmg1', name:'Steel Slug',      branch:'slugger',   tier:2, cost:5000,  desc:'+4% pellet damage',                       effect:{ damageBonus:0.04 } },
+      sg_s_slug:  { id:'sg_s_slug', name:'Slug Round',      branch:'slugger',   tier:3, cost:8000,  desc:'Converts to single slug: -60% spread, +60% dmg', effect:{ slugMode:true, spreadMult:0.40, bulletDamageMult:1.60 } },
+      sg_s_dmg2:  { id:'sg_s_dmg2', name:'Tungsten Core',   branch:'slugger',   tier:4, cost:10000, desc:'+7% pellet damage',                       effect:{ damageBonus:0.07 } },
+      sg_s_mag:   { id:'sg_s_mag',  name:'Extended Tube',   branch:'slugger',   tier:5, cost:13000, desc:'+3 magazine capacity',                     effect:{ magBonus:3 } },
+      sg_s_crit:  { id:'sg_s_crit', name:'Precision Sight', branch:'slugger',   tier:6, cost:11000, desc:'+7% crit chance',                          effect:{ critChanceBonus:0.07 } },
+      sg_s_head:  { id:'sg_s_head', name:'Headhunter',      branch:'slugger',   tier:7, cost:19000, desc:'20% chance to deal 2.5× crit damage',     effect:{ critChance:0.20, critMult:2.5 } },
+      sg_s_exec:  { id:'sg_s_exec', name:'Executioner',     branch:'slugger',   tier:8, cost:28000, desc:'Kills refill 2 shells + 30% fire rate 3s', effect:{ executioner:true, fireRateMult:1.30 } },
+
+      // Juggernaut — sustain & defense
+      sg_j_hp1:   { id:'sg_j_hp1',  name:'Kevlar Vest',     branch:'juggernaut',tier:1, cost:4000,  desc:'+10 max HP',                               effect:{ maxHpBonus:10 } },
+      sg_j_spd1:  { id:'sg_j_spd1', name:'Combat Boots',    branch:'juggernaut',tier:2, cost:5000,  desc:'+3% move speed',                            effect:{ speedBonus:0.03 } },
+      sg_j_knock: { id:'sg_j_knock',name:'Concussive Rounds',branch:'juggernaut',tier:3, cost:8000,  desc:'Pellets push enemies back',                   effect:{ knockback:true } },
+      sg_j_hp2:   { id:'sg_j_hp2',  name:'Heavy Plating',   branch:'juggernaut',tier:4, cost:9000,  desc:'+15 max HP',                               effect:{ maxHpBonus:15 } },
+      sg_j_life:  { id:'sg_j_life', name:'Vampiric Shells', branch:'juggernaut',tier:5, cost:12000, desc:'7% of damage returned as HP',                effect:{ lifesteal:0.07 } },
+      sg_j_regen: { id:'sg_j_regen',name:'Field Kit',       branch:'juggernaut',tier:6, cost:11000, desc:'+2 HP/sec regen',                            effect:{ regenBonus:2 } },
+      sg_j_shield:{ id:'sg_j_shield',name:'Riot Shield',    branch:'juggernaut',tier:7, cost:18000, desc:'Kills grant 15 HP shield (max 40)',          effect:{ shieldOnKill:15 } },
+      sg_j_last:  { id:'sg_j_last', name:'Last Stand',      branch:'juggernaut',tier:8, cost:28000, desc:'Revive once per match with 50% HP',          effect:{ phoenix:true } }
     },
-    UPGRADE_TREE: ['scatter','fan','pierce','hailstorm','heavy','extmag','headhunter','overkill','vampiric','frost','aegis','phoenix'],
+    UPGRADE_TREE: [
+      'sp_dmg1','sp_rate1','scatter','sp_dmg2','pierce','sp_rate2','fan','hail',
+      'ds_dmg1','ds_spd1','heavy','ds_dmg2','extmag','ds_crit','headhunter','overkill',
+      'sv_spd1','sv_regen1','vampiric','sv_spd2','frost','sv_regen2','aegis','phoenix'
+    ],
+    UPGRADE_TREE_SHOTGUN: [
+      'sg_b_dmg1','sg_b_rate1','sg_b_flech','sg_b_dmg2','sg_b_fire','sg_b_rate2','sg_b_tight','sg_b_carn',
+      'sg_s_range','sg_s_dmg1','sg_s_slug','sg_s_dmg2','sg_s_mag','sg_s_crit','sg_s_head','sg_s_exec',
+      'sg_j_hp1','sg_j_spd1','sg_j_knock','sg_j_hp2','sg_j_life','sg_j_regen','sg_j_shield','sg_j_last'
+    ],
 
     UPGRADE_ICONS: {
-      scatter:'🔱', fan:'🌪️', pierce:'💠', hailstorm:'🌨️',
-      heavy:'💣', extmag:'📦', headhunter:'💀', overkill:'☠️',
-      vampiric:'🩸', frost:'❄️', aegis:'🛡️', phoenix:'🔥'
+      sp_dmg1:'bullet', sp_rate1:'fast-forward', scatter:'cross', sp_dmg2:'missile',
+      pierce:'target', sp_rate2:'fast-forward', fan:'explosive', hail:'magazine',
+      ds_dmg1:'bullet', ds_spd1:'warrior-boots-lv1', heavy:'bomb', ds_dmg2:'missile',
+      extmag:'magazine', ds_crit:'target-02', headhunter:'skull', overkill:'fire',
+      sv_spd1:'warrior-boots-lv1', sv_regen1:'medical-kit', vampiric:'potion-02', sv_spd2:'warrior-boots-lv1',
+      frost:'ice', sv_regen2:'medical-kit', aegis:'shield', phoenix:'health-points'
+    },
+
+    UPGRADE_ICONS_SHOTGUN: {
+      sg_b_dmg1:'bullet', sg_b_rate1:'fast-forward', sg_b_flech:'expand-04', sg_b_dmg2:'missile',
+      sg_b_fire:'fire', sg_b_rate2:'fast-forward', sg_b_tight:'cross', sg_b_carn:'bomb',
+      sg_s_range:'target', sg_s_dmg1:'bullet', sg_s_slug:'spear', sg_s_dmg2:'missile',
+      sg_s_mag:'magazine', sg_s_crit:'target-02', sg_s_head:'skull', sg_s_exec:'demon',
+      sg_j_hp1:'health-points', sg_j_spd1:'warrior-boots-lv1', sg_j_knock:'bomb', sg_j_hp2:'shield',
+      sg_j_life:'potion-02', sg_j_regen:'medical-kit', sg_j_shield:'shield', sg_j_last:'fire'
     },
 
     /* ---------------- Minen ---------------- */
@@ -273,7 +339,8 @@
       '1v1': { key: '1v1', name: '1 vs 1', short: '1v1', teams: 2, perTeam: 1, min: 2, max: 2, scoreLimit: 8, time: 240 },
       '2v2': { key: '2v2', name: '2 vs 2', short: '2v2', teams: 2, perTeam: 2, min: 4, max: 4, scoreLimit: 15, time: 300 },
       '3v3': { key: '3v3', name: '3 vs 3', short: '3v3', teams: 2, perTeam: 3, min: 6, max: 6, scoreLimit: 20, time: 300 },
-      solo: { key: 'solo', name: 'Zombie Survival', short: 'SURVIVAL', teams: 1, perTeam: 1, min: 1, max: 1, time: 0 }
+      solo: { key: 'solo', name: 'Zombie Survival', short: 'SURVIVAL', teams: 1, perTeam: 1, min: 1, max: 1, time: 0 },
+      coop: { key: 'coop', name: 'Co-op Survival', short: 'CO-OP', teams: 1, perTeam: 6, min: 1, max: 6, time: 0 }
     },
 
     WAVE_PREP_TIME: 8.0,
@@ -291,6 +358,12 @@
 
     TEAM_COLORS: ['#3fb9ff', '#ff5c7a'],
     TEAM_NAMES: ['Blue', 'Red'],
+
+    COOP_MAX_PLAYERS: 6,
+    REVIVE_RANGE: 80,
+    REVIVE_TIME: 3.0,
+    DOWNED_TIME: 15.0,
+    REVIVE_HP_PCT: 0.4,
 
     SKIN_PATTERNS: ['solid', 'stripe', 'dots', 'ring', 'shard'],
 
@@ -335,7 +408,8 @@
       PHASE: 'phase', VOTE: 'vote',
       FRIENDS: 'friends', FRIENDREQ: 'friendreq', FRIENDACT: 'friendact',
       FRIENDJOIN: 'friendjoin',
-      BUY: 'buy'
+      BUY: 'buy',
+      COOP: 'coop', WAVE: 'wave', REVIVE: 'r'
     },
 
     /* Obergrenzen fuer die Freundesliste. Ohne sie koennte ein Konto beliebig

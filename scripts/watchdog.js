@@ -16,8 +16,14 @@
    Start:  npm run watchdog
    Ende:   Fenster schliessen oder Strg+C - Kindprozesse werden mitgenommen. */
 const { spawn, spawnSync } = require('child_process');
+const dns = require('dns');
 const fs = require('fs');
 const path = require('path');
+
+// DNS-Negativ-Cache umgehen: der Gesundheitscheck muss die Tunnel-Domain
+// aufloesen koennen. Eigener Resolver, sonst sagt die Maschine nach dem
+// ersten Fehlversuch immer "nicht gefunden".
+dns.setServers(['8.8.8.8', '1.1.1.1']);
 const https = require('https');
 const http = require('http');
 
@@ -30,7 +36,7 @@ const PIDDATEI = path.join(ROOT, '.watchdog.pid');
 
 // cloudflared: erst im Projekt suchen, dann im Pfad
 const CF = process.env.CLOUDFLARED
-  || [path.join(ROOT, 'cloudflared.exe'), path.join(ROOT, 'bin', 'cloudflared.exe')]
+  || [path.join(ROOT, 'cloudflared'), path.join(ROOT, 'cloudflared.exe'), path.join(ROOT, 'bin', 'cloudflared.exe')]
     .find(p => fs.existsSync(p))
   || 'cloudflared';
 
@@ -152,7 +158,7 @@ async function starteTunnel() {
   toeteTunnel();
   try { fs.rmSync(LOG, { force: true }); } catch (_) { /* egal */ }
   sag('Tunnel wird gestartet');
-  tunnel = spawn(CF, ['tunnel', '--url', `http://localhost:${PORT}`, '--logfile', LOG], {
+  tunnel = spawn(CF, ['tunnel', '--url', `http://localhost:${PORT}`, '--protocol', 'http2', '--logfile', LOG], {
     cwd: ROOT, stdio: 'ignore'
   });
   tunnel.on('error', e => sag('cloudflared laesst sich nicht starten:', e.message));

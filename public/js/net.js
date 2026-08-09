@@ -12,8 +12,9 @@ const NET = (() => {
   let attempt = 0;
   let session = null;
   const handlers = {};
+  const isLocal = /^(localhost|127\.\d+\.\d+\.\d+)$/.test(location.hostname);
 
-  try { session = sessionStorage.getItem('ns_session') || null; } catch (_) { /* egal */ }
+  if (!isLocal) try { session = sessionStorage.getItem('ns_session') || null; } catch (_) { /* egal */ }
 
   /* Nachgeladene Adresse aus config.js. Der Spielserver haengt an einem
      Tunnel, dessen Adresse sich bei jedem Neustart aendert. Ohne das hier
@@ -57,7 +58,7 @@ const NET = (() => {
         myId = m.id;
         if (m.session) {
           session = m.session;
-          try { sessionStorage.setItem('ns_session', session); } catch (_) { /* egal */ }
+          if (!isLocal) try { sessionStorage.setItem('ns_session', session); } catch (_) { /* egal */ }
         }
       }
       if (m.t === C.MSG.PONG) { pingMs = Math.round(performance.now() - m.ts); emit('ping', pingMs); return; }

@@ -59,6 +59,13 @@ button{cursor:pointer;border:0;background:none}
   to{opacity:1;transform:none;filter:none}
 }
 
+/* Skills screen: full-screen, no panel centering */
+#scr-skills.active{
+  align-items:stretch;justify-content:stretch;padding:0;
+}
+.skill-back{position:absolute;top:16px;left:20px;z-index:10}
+.skill-dp{position:absolute;top:16px;right:20px;z-index:10}
+
 /* ---------- Menu ---------- */
 .menu-wrap{width:min(560px,94vw);display:flex;flex-direction:column;gap:20px}
 .logo{text-align:center;margin-bottom:4px}
@@ -113,6 +120,52 @@ button{cursor:pointer;border:0;background:none}
 @keyframes pulse{50%{opacity:.35}}
 
 .menu-btns{display:flex;flex-direction:column;gap:11px}
+
+/* ---------- Weapon Selection ---------- */
+#scr-weapon-select .menu-wrap{width:min(820px,94vw)}
+.ws-title{font-size:clamp(32px,6vw,56px);margin-bottom:2px}
+.ws-sub{text-align:center;color:var(--dim);font-size:14px;line-height:1.5;margin-bottom:6px}
+.ws-cards{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:18px
+}
+@media(max-width:680px){.ws-cards{grid-template-columns:1fr}}
+.ws-card{
+  position:relative;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;gap:14px;
+  padding:24px 20px 20px;
+  background:linear-gradient(180deg,rgba(24,36,60,.85),rgba(12,18,32,.85));
+  border:1px solid var(--line);border-radius:16px;
+  transition:transform .22s cubic-bezier(.2,.9,.25,1),box-shadow .25s,border-color .25s;
+  cursor:pointer;text-align:center;
+  animation:wsIn .5s cubic-bezier(.2,.9,.25,1) backwards;
+}
+.ws-card:nth-child(2){animation-delay:.12s}
+@keyframes wsIn{from{opacity:0;transform:translateY(28px) scale(.95)}}
+.ws-card:hover{
+  transform:translateY(-6px);border-color:var(--acc);
+  box-shadow:0 18px 50px rgba(0,0,0,.6),0 0 36px rgba(63,208,255,.25);
+}
+.ws-card::before{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(120deg,transparent 30%,rgba(255,255,255,.12) 50%,transparent 70%);
+  transform:translateX(-120%);transition:transform .7s;
+}
+.ws-card:hover::before{transform:translateX(130%)}
+.ws-img{
+  width:140px;height:160px;display:grid;place-items:center;
+  border-radius:14px;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 70%,rgba(63,208,255,.08),transparent 70%);
+  border:1px solid rgba(255,255,255,.06);
+}
+.ws-img img{max-width:100%;max-height:100%;object-fit:contain;image-rendering:pixelated}
+.ws-info{display:flex;flex-direction:column;align-items:center;gap:6px}
+.ws-name{font-size:22px;font-weight:800;letter-spacing:.12em}
+.ws-type{font-size:11px;font-weight:700;letter-spacing:.3em;color:var(--acc);text-transform:uppercase}
+.ws-stats{display:flex;flex-direction:column;gap:3px;margin-top:4px;font-size:11.5px;text-align:left;width:100%}
+.ws-stats .pro{color:var(--good)}
+.ws-stats .con{color:#ff9d8a}
+.ws-note{text-align:center;font-size:11.5px;color:var(--dim);letter-spacing:.06em;margin-top:4px}
+
 .btn{
   position:relative;overflow:hidden;
   background:linear-gradient(180deg,rgba(30,44,74,.9),rgba(16,24,44,.9));
@@ -727,71 +780,98 @@ kbd{background:rgba(255,255,255,.07);border:1px solid var(--line);border-bottom-
 .dp-hud-icon{font-size:14px;line-height:1}
 .dp-hud-num{font-size:13px}
 
-/* ---------- Skill Tree ---------- */
-.skill-tree{
-  display:flex;flex-direction:column;gap:24px;margin-top:10px;
+/* ---------- Skill Tree (pannable canvas) ---------- */
+.st-viewport{
+  position:absolute;inset:0;overflow:hidden;cursor:grab;
 }
-.skill-base{
-  display:flex;flex-direction:column;align-items:center;gap:6px;
-  padding:14px 22px;border-radius:14px;background:rgba(63,208,255,.08);
-  border:1px solid rgba(63,208,255,.4);width:fit-content;margin:0 auto;
+.st-viewport.grabbing{cursor:grabbing}
+#skill-tree{
+  position:absolute;width:2400px;height:2400px;
+  transition:transform .08s ease-out;
+  background-image:
+    radial-gradient(circle at 50% 50%, rgba(63,208,255,.03) 0, transparent 60%),
+    linear-gradient(rgba(120,190,255,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120,190,255,.04) 1px, transparent 1px);
+  background-size:100% 100%, 60px 60px, 60px 60px;
+  background-position:center center;
 }
-.skill-base .sb-ico{font-size:28px;line-height:1}
-.skill-base .sb-name{font-size:16px;font-weight:800;letter-spacing:.12em;color:var(--acc)}
-.skill-base .sb-tag{font-size:10px;letter-spacing:.2em;color:var(--dim);
-  background:rgba(255,255,255,.05);padding:2px 8px;border-radius:99px}
-.skill-branches{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
-.skill-branch-col{display:flex;flex-direction:column;align-items:center;gap:10px}
-.skill-branch-label{
-  font-size:11px;letter-spacing:.2em;color:var(--dim);font-weight:700;
-  padding:4px 12px;border-bottom:1px solid var(--line);width:100%;text-align:center;
+#skill-tree.nopan{transition:none}
+.st-svg{
+  position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:0;
+  overflow:visible;
 }
+.st-svg line{stroke:var(--line);stroke-width:2;stroke-linecap:round}
+.st-svg line.owned{stroke:rgba(74,222,128,.45)}
+.st-svg line.chain{stroke:rgba(255,255,255,.08)}
 
-.skill-node{
-  width:100%;display:flex;flex-direction:column;align-items:center;gap:5px;
-  padding:12px 10px;border-radius:12px;cursor:pointer;text-align:center;transition:.18s;
-  background:rgba(255,255,255,.035);border:1px solid var(--line);
-  position:relative;
+.st-node{
+  position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  border-radius:50%;cursor:pointer;transition:transform .22s cubic-bezier(.2,.9,.25,1), box-shadow .22s, border-color .22s;
+  z-index:1;user-select:none;
+  background:var(--panel);border:2px solid var(--line);
+  box-shadow:0 4px 24px rgba(0,0,0,.45);
+  animation:stIn .4s cubic-bezier(.2,.9,.25,1) backwards;
 }
-.skill-node:hover{transform:translateY(-2px);background:rgba(255,255,255,.06)}
-.skill-node .sn-tier{
-  position:absolute;top:-7px;right:-4px;
-  font-size:9px;letter-spacing:.14em;font-weight:700;
+@keyframes stIn{from{opacity:0;transform:scale(.5)}to{opacity:1;transform:scale(1)}}
+
+.st-node:hover{transform:scale(1.12);z-index:10}
+.st-node.root{
+  width:120px;height:120px;
+  border-color:rgba(63,208,255,.5);
+  box-shadow:0 0 32px rgba(63,208,255,.22), 0 4px 24px rgba(0,0,0,.45);
+  z-index:2;cursor:default;animation:none;
+}
+.st-node.root:hover{transform:scale(1.06)}
+.st-node.root .st-root-ico{width:42px;height:42px;object-fit:contain}
+.st-node.root .st-ico{font-size:36px;line-height:1}
+.st-node.root .st-label{font-size:12px;font-weight:800;letter-spacing:.08em;color:var(--acc)}
+.st-node.root .st-tier{font-size:9px;letter-spacing:.2em;color:var(--dim);
+  background:rgba(255,255,255,.05);padding:1px 7px;border-radius:99px}
+
+.st-node.tier{width:86px;height:86px}
+.st-node.tier .st-ico{width:32px;height:32px;object-fit:contain}
+.st-node.tier .st-label{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-align:center;line-height:1.2;max-width:70px}
+.st-node.tier .st-tier-badge{
+  position:absolute;top:-10px;right:-10px;
+  font-size:9px;letter-spacing:.12em;font-weight:700;
   background:var(--panel);border:1px solid var(--line);
-  padding:1px 6px;border-radius:99px;color:var(--dim);
+  padding:1px 5px;border-radius:99px;color:var(--dim);
   font-family:var(--mono);
 }
-.skill-node .sn-ico{font-size:22px;line-height:1}
-.skill-node .sn-name{font-size:12px;font-weight:700;letter-spacing:.06em}
-.skill-node .sn-desc{font-size:10px;color:var(--dim);line-height:1.35}
-.skill-node .sn-cost{
-  font-family:var(--mono);font-size:11px;font-weight:700;
-  padding:3px 10px;border-radius:99px;
-  background:rgba(255,209,102,.1);border:1px solid rgba(255,209,102,.25);
-  color:var(--warn);letter-spacing:.04em;
-}
 
-.skill-node.owned{
-  border-color:var(--good);
-  box-shadow:0 0 18px rgba(74,222,128,.18);
-}
-.skill-node.owned .sn-tier{color:var(--good);border-color:rgba(74,222,128,.5)}
-.skill-node.owned .sn-cost{
-  background:rgba(74,222,128,.12);border-color:rgba(74,222,128,.35);
-  color:var(--good);
-}
+.st-node.owned{border-color:var(--good);box-shadow:0 0 22px rgba(74,222,128,.22), 0 4px 24px rgba(0,0,0,.45)}
+.st-node.owned .st-tier-badge{color:var(--good);border-color:rgba(74,222,128,.5)}
+.st-node.owned .st-label{color:var(--good)}
 
-.skill-node.affordable{
-  border-color:var(--warn);
-  box-shadow:0 0 16px rgba(255,209,102,.15);
-}
-.skill-node.affordable .sn-cost{animation:costPulse 1.5s infinite}
-@keyframes costPulse{50%{transform:scale(1.06);border-color:var(--warn)}}
+.st-node.affordable{border-color:var(--warn);box-shadow:0 0 22px rgba(255,209,102,.25), 0 4px 24px rgba(0,0,0,.45);animation:stPulse 1.8s infinite}
+@keyframes stPulse{50%{box-shadow:0 0 36px rgba(255,209,102,.45), 0 4px 24px rgba(0,0,0,.45)}}
 
-.skill-node.locked{
-  opacity:.45;cursor:not-allowed;filter:grayscale(.6);
+.st-node.locked{opacity:.38;cursor:not-allowed;filter:grayscale(.7)}
+.st-node.locked:hover{transform:none}
+
+.st-detail{
+  display:none;position:fixed;z-index:99;
+  padding:14px 16px;border-radius:12px;min-width:200px;max-width:260px;
+  background:rgba(8,14,28,.96);border:1px solid var(--line);
+  box-shadow:0 16px 50px rgba(0,0,0,.7);backdrop-filter:blur(14px);
+  pointer-events:auto;
 }
-.skill-node.locked:hover{transform:none;background:rgba(255,255,255,.035)}
+.st-detail.show{display:block}
+.st-detail .st-d-name{font-size:14px;font-weight:700;letter-spacing:.06em;margin-bottom:6px}
+.st-detail .st-d-desc{font-size:11.5px;color:var(--dim);line-height:1.5;margin-bottom:10px}
+.st-detail .st-d-cost{
+  font-family:var(--mono);font-size:12px;font-weight:700;color:var(--warn);
+  padding:4px 10px;border-radius:99px;display:inline-block;
+  background:rgba(255,209,102,.08);border:1px solid rgba(255,209,102,.25);
+}
+.st-detail .st-d-cost.owned{color:var(--good);border-color:rgba(74,222,128,.35);background:rgba(74,222,128,.08)}
+.st-detail .st-d-buy{
+  display:block;margin-top:8px;padding:6px 12px;border-radius:8px;font-size:11px;
+  font-weight:700;letter-spacing:.08em;text-align:center;cursor:pointer;
+  background:linear-gradient(180deg,rgba(255,209,102,.2),rgba(255,160,40,.1));
+  border:1px solid rgba(255,209,102,.4);color:var(--warn);
+}
+.st-detail .st-d-buy:hover{background:linear-gradient(180deg,rgba(255,209,102,.35),rgba(255,160,40,.2))}
 
 /* ---------- Result DP ---------- */
 .result-dp{
@@ -800,5 +880,103 @@ kbd{background:rgba(255,255,255,.07);border:1px solid var(--line);border-bottom-
   padding:8px 14px;border-radius:10px;
   background:rgba(255,209,102,.06);border:1px solid rgba(255,209,102,.2);
   display:block;margin-left:auto;margin-right:auto;width:fit-content;
+}
+
+/* ---------- Auth UI ---------- */
+.auth-area{
+  margin-top:20px;display:flex;flex-direction:column;align-items:center;gap:8px;
+}
+.auth-guest{display:flex;flex-direction:column;align-items:center;gap:6px}
+.auth-hint{font-size:11px;color:var(--dim);letter-spacing:.04em}
+.auth-signed{display:flex;align-items:center;gap:10px;padding:6px 14px;
+  background:rgba(255,255,255,.03);border:1px solid var(--line);border-radius:10px}
+.auth-avatar{width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,255,255,.15)}
+.auth-name{font-size:13px;font-weight:600;letter-spacing:.04em;color:var(--wht)}
+
+.google-btn{
+  display:flex;align-items:center;gap:10px;padding:10px 22px;font-size:14px;
+  font-weight:600;letter-spacing:.04em;border-radius:10px;cursor:pointer;
+  background:#4285f4;color:#fff;border:none;
+  box-shadow:0 2px 12px rgba(66,133,244,.35);
+  font-family:var(--mono);
+}
+.google-btn:hover{background:#5a9bf6;box-shadow:0 4px 18px rgba(66,133,244,.5)}
+.g-logo{font-size:20px;font-weight:700;background:white;color:#4285f4;
+  width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center}
+
+/* ---------- Multiplayer Button ---------- */
+#btn-multiplayer .ico{font-size:20px}
+
+/* ---------- Co-op Teammate HUD ---------- */
+.teammate-hud{
+  position:absolute;top:70px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;flex-wrap:wrap;justify-content:center;max-width:600px;
+  z-index:30;
+}
+.teammate-card{
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:4px 10px;border-radius:8px;
+  background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.08);
+  min-width:80px;
+}
+.teammate-card.downed{opacity:.55;border-color:rgba(255,60,60,.3)}
+.teammate-name{font-size:10px;letter-spacing:.04em;color:var(--dim);max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.teammate-hp-bar{width:60px;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
+.teammate-hp-fill{display:block;height:100%;border-radius:2px;background:var(--good);transition:width .2s}
+
+/* ---------- Revive Prompt ---------- */
+.revive-prompt{
+  position:absolute;bottom:140px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:10px;padding:8px 18px;
+  background:rgba(0,0,0,.7);border:1px solid rgba(74,222,128,.4);
+  border-radius:10px;z-index:40;
+}
+.revive-key{
+  font-family:var(--mono);font-size:16px;font-weight:700;
+  color:var(--good);padding:4px 10px;border:2px solid var(--good);
+  border-radius:6px;background:rgba(74,222,128,.08);
+}
+.revive-text{font-size:13px;font-weight:600;letter-spacing:.05em;color:var(--wht)}
+.revive-bar{width:80px;height:4px;border-radius:2px;background:rgba(255,255,255,.08);overflow:hidden}
+#revive-fill{display:block;height:100%;border-radius:2px;background:var(--good);width:0;transition:width .1s linear}
+
+/* ---------- Downed Overlay ---------- */
+.downed-overlay{
+  position:absolute;top:0;left:0;right:0;bottom:0;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;background:rgba(180,0,0,.12);z-index:50;
+}
+.downed-spin{
+  width:60px;height:60px;border:3px solid rgba(255,255,255,.08);
+  border-top-color:#ef4444;border-radius:50%;
+  animation:spin 1s linear infinite;
+}
+.downed-text{font-size:24px;font-weight:800;letter-spacing:.12em;color:#ef4444}
+.downed-sub{font-size:12px;color:var(--dim);letter-spacing:.04em}
+.downed-timer{font-family:var(--mono);font-size:32px;font-weight:700;color:#ef4444}
+
+/* ---------- Co-op Prematch Class Pick ---------- */
+.classpick-grid{
+  display:flex;gap:20px;justify-content:center;flex-wrap:wrap;margin-top:20px;
+}
+.classpick-card{
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:20px 30px;border-radius:14px;cursor:pointer;transition:transform .15s;
+  background:rgba(255,255,255,.03);border:2px solid var(--line);
+  min-width:160px;
+}
+.classpick-card:hover{transform:translateY(-3px)}
+.classpick-card.selected{border-color:var(--good);box-shadow:0 0 20px rgba(74,222,128,.2)}
+.classpick-card .classpick-img{width:72px;height:72px}
+.classpick-card .classpick-img img{width:100%;height:100%;object-fit:contain}
+.classpick-name{font-size:14px;font-weight:700;letter-spacing:.06em}
+.classpick-sub{font-size:10px;color:var(--dim);letter-spacing:.03em}
+
+/* ---------- Multiplayer Menu Lock ---------- */
+.menu-btns .locked-btn{opacity:.45;cursor:not-allowed;position:relative}
+.menu-btns .locked-btn::after{
+  content:'Sign in required';position:absolute;bottom:-16px;left:50%;
+  transform:translateX(-50%);font-size:9px;color:var(--warn);
+  white-space:nowrap;letter-spacing:.04em;
 }
 .result-dp b{font-size:16px}

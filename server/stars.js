@@ -1,43 +1,42 @@
-const fs = require('fs');
-const path = require('path');
 const C = require('../shared/constants.js');
-
-const DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const FILE = path.join(DIR, 'players.json');
+const store = require('./store');
 
 let players = new Map();
 const dirty = new Set();
 
 function loadFile() {
-  try {
-    const raw = fs.readFileSync(FILE, 'utf8');
-    players = new Map(Object.entries(JSON.parse(raw)));
-    console.log(`  Bestenliste geladen: ${players.size} Spieler (Datei)`);
-  } catch (e) {
-    if (e.code !== 'ENOENT') console.warn('  Bestenliste nicht lesbar:', e.message);
-    players = new Map();
-  }
-}
-
-function saveFile() {
-  try {
-    fs.mkdirSync(DIR, { recursive: true });
-    const tmp = FILE + '.tmp';
-    fs.writeFileSync(tmp, JSON.stringify(Object.fromEntries(players)), 'utf8');
-    fs.renameSync(tmp, FILE);
-    dirty.clear();
-  } catch (e) {
-    console.warn('  Bestenliste nicht speicherbar:', e.message);
-  }
-}
-
-function save() {
-  if (dirty.size) saveFile();
-  return Promise.resolve();
+  players = new Map();
 }
 
 async function init() {
   save();
+}
+
+let saveTimer = null;
+function scheduleSave() {
+  if (saveTimer) return;
+  saveTimer = setTimeout(() => { saveTimer = null; save(); }, 5000);
+}
+
+async function save() {
+  if (!store.available() || !dirty.size) return;
+  for (const uid of dirty) {
+    const p = players.get(uid);
+    if (p) {
+      await store.savePlayer(uid, {
+        name: p.name,
+        stars: p.stars,
+        matches: p.matches,
+        wins: p.wins,
+        kills: p.kills,
+        deaths: p.deaths,
+        best: p.best,
+        damagePoints: p.damagePoints,
+        upgrades: p.upgrades
+      });
+    }
+    dirty.delete(uid);
+  }
 }
 
 function get(uid) {
@@ -49,7 +48,6 @@ function get(uid) {
       best: 0, last: 0, damagePoints: startDp, upgrades: []
     };
     players.set(uid, p);
-    dirty.add(uid);
   }
   return p;
 }
@@ -83,7 +81,7 @@ function award(entries) {
     dirty.add(e.uid);
     out.set(e.uid, { before, delta, after, capped, rank: e.rank });
   }
-  save();
+  scheduleSave();
   return out;
 }
 
@@ -107,7 +105,10 @@ function buyUpgrade(uid, upgradeId) {
   p.damagePoints -= up.cost;
   p.upgrades.push(upgradeId);
   dirty.add(uid);
-  save();
+  if (store.available()) {
+    store.addUpgrade(uid, upgradeId);
+    store.setDamagePoints(uid, p.damagePoints);
+  }
   return { ok: true, after: p.damagePoints };
 }
 
@@ -146,26 +147,35 @@ function addDp(uid, amount) {
   if (!amount) return p.damagePoints || 0;
   p.damagePoints = (p.damagePoints || 0) + amount;
   dirty.add(uid);
-  save();
+  scheduleSave();
   return p.damagePoints;
 }
 
-function purgeDemo() {
-  let n = 0;
-  for (const [uid, p] of players) {
-    if (p.demo === true || uid.startsWith('demo:')) { players.delete(uid); dirty.delete(uid); n++; }
-  }
-  if (n) console.log(`  ${n} Beispieleintraege entfernt`);
+async function loadPlayer(uid) {
+  if (uid.startsWith('guest_')) return null;
+  if (!store.available()) return null;
+  const profile = await store.getPlayer(uid);
+  if (!profile) return null;
+  const p = {
+    uid: profile.uid,
+    name: profile.name || '',
+    photo: '',
+    stars: profile.stars || 0,
+    matches: profile.matches || 0,
+    wins: profile.wins || 0,
+    kills: profile.kills || 0,
+    deaths: profile.deaths || 0,
+    best: profile.best || 0,
+    last: Date.now(),
+    damagePoints: profile.damagePoints || 0,
+    upgrades: profile.upgrades || []
+  };
+  players.set(uid, p);
+  return p;
 }
 
-loadFile();
-purgeDemo();
-
-process.on('exit', () => { if (dirty.size) saveFile(); });
-for (const sig of ['SIGINT', 'SIGTERM']) {
-  process.on(sig, async () => { await save(); process.exit(0); });
-}
+process.on('exit', async () => { await save(); });
 
 module.exports = {
-  init, get, touch, award, leaderboard, rankOf, publicProfile, buyUpgrade, addDp, save
+  init, get, touch, award, leaderboard, rankOf, publicProfile, buyUpgrade, addDp, save, loadPlayer
 };

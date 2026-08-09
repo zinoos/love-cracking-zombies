@@ -1,4 +1,5 @@
 /* LOVE CRACKING ZOMBIES - Server. */
+require('dotenv').config();
 const path = require('path');
 const http = require('http');
 const crypto = require('crypto');
@@ -10,6 +11,7 @@ const MAPS = require('./shared/maps.js');
 const { Match } = require('./server/match.js');
 const { botName } = require('./server/bots.js');
 const STARS = require('./server/stars.js');
+const AUTH = require('./server/auth.js');
 
 const PORT = process.env.PORT || 3000;
 const app = express();
@@ -248,11 +250,9 @@ class Room {
     this.broadcastPhase();
   }
 
-  /** Phase 2: zwei Glücksräder drehen je eine Waffe heraus, die wegfaellt.
-      Der Server wuerfelt sofort und schickt das Ergebnis mit - der Client
-      laesst die Raeder nur noch sichtbar darauf zulaufen. So kann kein
-      Client ein anderes Ergebnis anzeigen als die anderen. */
+  /** Phase 2: two wheels ban weapons. For co-op, skip straight to weapon class pick. */
   beginWheel() {
+    if (this.mode === 'coop') { this.beginClassPick(); return; }
     // Karte mit den meisten Stimmen; bei Gleichstand entscheidet der Zufall
     const zaehler = new Map();
     for (const id of this.mapVotes.values()) zaehler.set(id, (zaehler.get(id) || 0) + 1);
@@ -277,14 +277,34 @@ class Room {
     this.broadcastPhase();
   }
 
-  /** Phase 3: freie Waffenwahl aus allem, was nicht gesperrt ist. */
   beginPick() {
+    if (this.mode === 'coop') return;
     this.phase = 'pick';
     this.phaseT = C.PREMATCH.PICK_TIME * PHASE_SCALE;
     for (const m of this.members.values()) {
       if (m.bot) this.picks.set(m.id, this.zufallsWaffe());
     }
     this.broadcastPhase();
+  }
+
+  beginClassPick() {
+    this.phase = 'classpick';
+    this.phaseT = 10 * PHASE_SCALE;
+    for (const m of this.members.values()) {
+      if (m.bot) this.classPicks = this.classPicks || new Map();
+      if (m.bot) this.classPicks.set(m.id, 'ak47');
+    }
+    this.classPicks = this.classPicks || new Map();
+    this.broadcastPhase();
+  }
+
+  voteClass(client, weaponClass) {
+    if (this.phase !== 'classpick') return;
+    if (!['ak47', 'shotgun'].includes(weaponClass)) return;
+    if (!this.classPicks) this.classPicks = new Map();
+    this.classPicks.set(client.id, weaponClass);
+    this.broadcastPhase();
+    if (this.classPicks.size >= this.members.size) this.phaseT = Math.min(this.phaseT, 1.2);
   }
 
   zufallsWaffe() {
@@ -315,7 +335,7 @@ class Room {
       p.mapId = this.mapId;
       p.mapName = MAPS.generate(this.mapId).name;
       p.weapons = C.WEAPON_ORDER;
-      p.banned = this.banned;          // Ergebnis steht schon fest
+      p.banned = this.banned;
       p.dauer = C.PREMATCH.WHEEL_TIME * PHASE_SCALE;
     } else if (this.phase === 'pick') {
       p.mapId = this.mapId;
@@ -323,6 +343,11 @@ class Room {
       p.banned = this.banned;
       p.you = this.picks.get(member.id);
       p.taken = [...this.members.values()].map(m => ({ id: m.id, w: this.picks.get(m.id) || null }));
+    } else if (this.phase === 'classpick') {
+      p.mapId = this.mapId;
+      p.mapName = MAPS.generate(this.mapId).name;
+      p.you = (this.classPicks || new Map()).get(member.id);
+      p.taken = [...this.members.values()].map(m => ({ id: m.id, w: (this.classPicks || new Map()).get(m.id) || null }));
     }
     return p;
   }
@@ -334,12 +359,15 @@ class Room {
       const id = Number(wahl);
       if (!this.mapChoices.includes(id)) return;
       this.mapVotes.set(client.id, id);
+    } else if (this.phase === 'classpick') {
+      this.voteClass(client, wahl);
+      return;
     } else if (this.phase === 'pick') {
       if (!C.WEAPON_ORDER.includes(wahl) || this.banned.includes(wahl)) return;
       this.picks.set(client.id, wahl);
-    } else return;      // Waehrend der Glücksräder gibt es nichts zu waehlen
+    } else return;
     this.broadcastPhase();
-    // Wenn alle gewaehlt haben, muss niemand die Uhr abwarten
+    if (this.phase === 'classpick') return;
     const stimmen = this.phase === 'vote' ? this.mapVotes : this.picks;
     if (stimmen.size >= this.members.size) this.phaseT = Math.min(this.phaseT, 1.2);
   }
@@ -352,14 +380,31 @@ class Room {
     if (this.phaseT > 0) return;
     if (this.phase === 'vote') this.beginWheel();
     else if (this.phase === 'wheel') this.beginPick();
+    else if (this.phase === 'classpick') this.startMatch();
     else this.startMatch();
   }
 
   startMatch() {
+    if (this.mode === 'coop') {
+      const players = [...this.members.values()].filter(m => !m.bot);
+      const weaponClasses = {};
+      for (const m of this.members.values()) {
+        weaponClasses[m.id] = (this.classPicks || new Map()).get(m.id) || 'ak47';
+      }
+      const cg = new CoopGame(players, this.mapId, weaponClasses);
+      for (const client of players) {
+        coopGames.set(client.id, cg);
+        client.roomCode = null;
+      }
+      this.phase = null;
+      this.state = 'match';
+      this.match = null;
+      rooms.delete(this.code);
+      return;
+    }
     this.match = new Match(this, this.mode, this.mapId);
     for (const m of this.members.values()) {
       this.match.addPlayer(m);
-      // Wer nichts gewaehlt hat, bekommt eine erlaubte Waffe zugelost
       const w = this.picks.get(m.id) || this.zufallsWaffe();
       this.match.forceWeapon(m.id, w);
     }
@@ -464,9 +509,10 @@ class Room {
 const soloGames = new Map();
 
 class SoloGame {
-  constructor(client, upgrades) {
+  constructor(client, upgrades, weaponClass) {
     this.client = client;
     this.upgrades = upgrades || [];
+    this.weaponClass = weaponClass || 'ak47';   // 'ak47' or 'shotgun'
     this.state = 'prematch';
     this.match = null;
     this.mapId = null;
@@ -482,7 +528,9 @@ class SoloGame {
   beginVote() {
     this.mapId = Math.floor(Math.random() * MAPS.count);
     this.banned = [];
-    this.picked = 'ak47';
+    // Map weapon class to actual weapon key
+    const classToWeapon = { ak47: 'ak47', shotgun: 'shotgun' };
+    this.picked = classToWeapon[this.weaponClass] || 'ak47';
     this.startMatch();
   }
 
@@ -662,6 +710,191 @@ class SoloGame {
   }
 }
 
+/* ---------------- Co-op Game ---------------- */
+const coopGames = new Map();
+
+class CoopGame {
+  constructor(players, mapId, weaponClasses) {
+    this.players = players;
+    this.mapId = mapId;
+    this.weaponClasses = weaponClasses || {};
+    this.state = 'prematch';
+    this.match = null;
+    this.wave = 0;
+    this.waveActive = false;
+    this.waveIntermission = 0;
+    this.totalKills = 0;
+    this.lastResult = null;
+    this.snapAcc = 0;
+    this.startMatch();
+  }
+
+  startMatch() {
+    this.match = new Match(this, 'coop', this.mapId);
+    for (const client of this.players) {
+      this.match.addPlayer(client);
+      const weaponClass = this.weaponClasses[client.id] || 'ak47';
+      const weaponKey = weaponClass === 'shotgun' ? 'shotgun' : 'ak47';
+      this.match.forceWeapon(client.id, weaponKey);
+      const upgrades = STARS.get(client.uid).upgrades || [];
+      if (upgrades.length) {
+        const mods = Match.computeMods(upgrades);
+        const p = this.match.players.get(client.id);
+        if (p) {
+          p.mod = mods;
+          p.ammo += mods.magBonus;
+        }
+      }
+    }
+    this.state = 'match';
+    this.wave = 0;
+    this.startWave();
+    this.broadcastCoop();
+  }
+
+  startWave() {
+    this.wave++;
+    this.waveActive = true;
+    this.waveIntermission = 0;
+    const playerCount = this.players.filter(p => !p.dead).length || 1;
+    const count = Math.floor((2 + this.wave * 1.8) * (1 + (playerCount - 1) * 0.5));
+    this.match.spawnCoopWave(this.wave, count);
+    for (const client of this.players) {
+      send(client.ws, { t: C.MSG.WAVE, wave: this.wave, count });
+    }
+  }
+
+  onWaveEnd() {
+    this.waveActive = false;
+    this.waveIntermission = C.WAVE_INTERVAL;
+  }
+
+  broadcastCoop() {
+    const playerInfos = this.players.map(client => {
+      const sim = this.match ? this.match.players.get(client.id) : null;
+      return {
+        id: client.id, name: client.name,
+        color: client.skin.color, weapon: sim ? sim.weaponKey : 'ak47',
+        hp: sim ? sim.hp : 0, dead: sim ? sim.dead : false,
+        downed: sim ? sim.downed : false
+      };
+    });
+    for (const client of this.players) {
+      send(client.ws, {
+        t: C.MSG.COOP,
+        mapId: this.mapId,
+        mapName: MAPS.generate(this.mapId).name,
+        wave: this.wave,
+        players: playerInfos
+      });
+    }
+  }
+
+  onMatchEnd(match) {
+    const board = match.scoreboard();
+    this.lastResult = {
+      t: C.MSG.END,
+      winner: null,
+      mode: 'coop',
+      teams: 1,
+      teamScore: [0, 0],
+      board,
+      mapName: match.map.name,
+      wave: this.wave,
+      kills: this.totalKills
+    };
+    setTimeout(() => {
+      for (const client of this.players) {
+        if (!client.dead) send(client.ws, this.lastResult);
+        if (client.uid) {
+          const me = board.find(p => p.id === client.id);
+          if (me && me.damage) {
+            STARS.addDp(client.uid, me.damage);
+          }
+          send(client.ws, { t: C.MSG.ME, profile: STARS.publicProfile(client.uid) });
+        }
+      }
+      this.cleanup();
+    }, 2200);
+  }
+
+  cleanup() {
+    for (const client of this.players) {
+      coopGames.delete(client.id);
+      client.roomCode = null;
+    }
+  }
+
+  removePlayer(id) {
+    const idx = this.players.findIndex(p => p.id === id);
+    if (idx >= 0) {
+      const client = this.players[idx];
+      client.dead = true;
+      if (this.match) this.match.removePlayer(id);
+    }
+    const alive = this.players.filter(p => !p.dead && !(this.match && this.match.players.get(p.id) && this.match.players.get(p.id).dead));
+    if (alive.length === 0) {
+      this.onMatchEnd(this.match);
+    }
+  }
+
+  update(dt) {
+    if (this.state !== 'match' || !this.match) return;
+    this.match.step(dt);
+    this.totalKills = (this.match && this.match.totalKills) ? this.match.totalKills : this.totalKills;
+
+    if (this.waveActive && this.match.zombiesAlive === 0) {
+      this.onWaveEnd();
+    }
+
+    if (!this.waveActive && this.waveIntermission > 0) {
+      this.waveIntermission -= dt;
+      if (this.waveIntermission <= 0) {
+        this.startWave();
+      }
+    }
+
+    this.snapAcc += dt;
+    const interval = 1 / C.SNAP_RATE;
+    if (this.snapAcc >= interval) {
+      this.snapAcc -= interval;
+      for (const client of this.players) {
+        if (this.match) {
+          const snap = this.match.snapshotFor(client.id);
+          if (snap) {
+            snap.wave = this.wave;
+            snap.waveActive = this.waveActive;
+            send(client.ws, snap);
+          }
+        }
+      }
+      if (this.match) this.match.clearEvents();
+    }
+
+    const alive = this.players.filter(p => {
+      const sim = this.match ? this.match.players.get(p.id) : null;
+      return sim && sim.downed && !sim.dead;
+    });
+    for (const downed of alive) {
+      const sim = this.match.players.get(downed.id);
+      if (sim.downedUntil && Date.now() >= sim.downedUntil) {
+        sim.hp = 0;
+        sim.downed = false;
+        sim.dead = true;
+        sim.downedUntil = null;
+      }
+    }
+
+    const allDead = this.players.every(p => {
+      const sim = this.match ? this.match.players.get(p.id) : null;
+      return !sim || sim.dead;
+    });
+    if (allDead && !this.lastResult) {
+      this.onMatchEnd(this.match);
+    }
+  }
+}
+
 /* ---------------- WebSocket ---------------- */
 
 wss.on('connection', (ws, req) => {
@@ -691,7 +924,7 @@ wss.on('connection', (ws, req) => {
       const resumed = resume(msg.session, ws, wsOwner);
       if (resumed) { wsOwner = resumed; return; }
     }
-    handle(wsOwner, msg);
+    handle(wsOwner, msg).catch(e => console.error('handle error:', e.message));
   });
 
   ws.on('close', () => {
@@ -747,7 +980,7 @@ function resume(session, ws, temp) {
   return old;
 }
 
-function handle(client, msg) {
+async function handle(client, msg) {
   const M = C.MSG;
   const room = rooms.get(client.roomCode);
 
@@ -763,7 +996,23 @@ function handle(client, msg) {
       break;
 
     case M.AUTH: {
-      if (!client.uid) {
+      if (msg.idToken) {
+        try {
+          const decoded = await AUTH.verifyToken(msg.idToken);
+          const uid = decoded.uid;
+          client.uid = uid;
+          client.authName = decoded.name || client.name;
+          client.picture = decoded.picture || '';
+          const profile = await AUTH.signInOrCreate(uid, { name: client.authName });
+          if (profile) {
+            STARS.touch(client.uid, client.authName, client.picture || '');
+            await STARS.loadPlayer(uid);
+            send(client.ws, { t: M.ME, profile: STARS.publicProfile(client.uid), name: client.name });
+          }
+        } catch (e) {
+          send(client.ws, { t: M.ERROR, msg: 'Auth failed: ' + e.message });
+        }
+      } else if (!client.uid) {
         if (msg.guestUid && String(msg.guestUid).startsWith('guest_')) {
           client.uid = String(msg.guestUid);
         } else {
@@ -777,6 +1026,10 @@ function handle(client, msg) {
     }
 
     case M.CREATE: {
+      if (!client.uid || client.uid.startsWith('guest_')) {
+        send(client.ws, { t: M.ERROR, msg: 'Sign in required for multiplayer' });
+        break;
+      }
       if (room) room.remove(client.id);
       client.name = sanitizeName(msg.name || client.name);
       client.skin = sanitizeSkin(msg.skin || client.skin);
@@ -787,6 +1040,10 @@ function handle(client, msg) {
     }
 
     case M.JOIN: {
+      if (!client.uid || client.uid.startsWith('guest_')) {
+        send(client.ws, { t: M.ERROR, msg: 'Sign in required for multiplayer' });
+        break;
+      }
       const code = String(msg.code || '').replace(/\D/g, '').slice(0, C.CODE_LEN);
       const target = rooms.get(code);
       if (!target) return send(client.ws, { t: M.ERROR, msg: 'No room with that code' });
@@ -802,7 +1059,14 @@ function handle(client, msg) {
 
     case M.LEAVE:
       if (room) { room.remove(client.id); client.roomCode = null; }
-      else { const sg = soloGames.get(client.id); if (sg) { sg.match = null; soloGames.delete(client.id); } }
+      else {
+        const sg = soloGames.get(client.id);
+        if (sg) { sg.match = null; soloGames.delete(client.id); }
+        else {
+          const cg = coopGames.get(client.id);
+          if (cg) cg.removePlayer(client.id);
+        }
+      }
       break;
 
     case M.CHAT:
@@ -856,7 +1120,8 @@ function handle(client, msg) {
         send(client.ws, { t: M.ME, profile: STARS.publicProfile(client.uid), name: client.name });
       }
       const upgrades = STARS.get(client.uid).upgrades || [];
-      const sg = new SoloGame(client, upgrades);
+      const weaponClass = msg.weaponClass || 'ak47';
+      const sg = new SoloGame(client, upgrades, weaponClass);
       soloGames.set(client.id, sg);
       client.roomCode = null;
       sg.beginVote();
@@ -868,6 +1133,10 @@ function handle(client, msg) {
       else {
         const sg = soloGames.get(client.id);
         if (sg && sg.match) sg.match.setInput(client.id, msg);
+        else {
+          const cg = coopGames.get(client.id);
+          if (cg && cg.match) cg.match.setInput(client.id, msg);
+        }
       }
       break;
 
@@ -908,6 +1177,9 @@ setInterval(() => {
   for (const sg of soloGames.values()) {
     try { sg.update(dt); } catch (e) { console.error('solo update', e); }
   }
+  for (const cg of coopGames.values()) {
+    try { cg.update(dt); } catch (e) { console.error('coop update', e); }
+  }
 }, 1000 / C.TICK_RATE);
 
 /* Verbindungen pruefen und abgelaufene Plaetze freigeben.
@@ -935,6 +1207,8 @@ setInterval(() => {
     if (c.goneAt && now - c.goneAt > RECONNECT_GRACE) {
       const room = rooms.get(c.roomCode);
       if (room) room.remove(c.id);
+      const cg = coopGames.get(c.id);
+      if (cg) cg.removePlayer(c.id);
       sessions.delete(c.session);
       clients.delete(c.id);
       console.log(`  Spieler ${c.id} (${c.name}) endgueltig entfernt`);

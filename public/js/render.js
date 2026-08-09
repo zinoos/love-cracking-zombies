@@ -13,6 +13,13 @@ const RENDER = (() => {
   zombieImg.src = 'img/zombie.png';
   const ZOMBIE_ANGLE = -Math.PI / 2;
 
+  const playerShotgunImg = new Image();
+  playerShotgunImg.src = 'img/Adobe Express - file.png';
+  const SHOTGUN_ANGLE = Math.PI / 2;
+
+  let playerWeaponClass = 'ak47';    // 'ak47' or 'shotgun'
+  function setPlayerWeaponClass(w) { playerWeaponClass = w; }
+
   let W = 0, H = 0, DPR = 1;
   let mapCv = null, mapCtx = null;
   let curMap = null;
@@ -1058,17 +1065,26 @@ const RENDER = (() => {
       const zh = r * 3;
       const zw = zh * zombieImg.naturalWidth / zombieImg.naturalHeight;
       g.drawImage(zombieImg, -zw / 2, -zh / 2, zw, zh);
-    } else if (playerImg.complete && playerImg.naturalWidth) {
-      g.rotate(PLAYER_ANGLE);
-      const zh = r * 4;
-      const zw = zh * playerImg.naturalWidth / playerImg.naturalHeight;
-      g.drawImage(playerImg, -zw / 2, -zh / 2, zw, zh);
     } else {
-      drawSoldier(g, p, r, {
-        walk: moving ? Math.sin(phase) : 0,
-        spin: p.spinAngle || 0,
-        swing: p.swingT || 0
-      });
+      const useShotgunSprite = isMe && playerWeaponClass === 'shotgun' && playerShotgunImg.complete && playerShotgunImg.naturalWidth;
+      const useAkSprite = playerImg.complete && playerImg.naturalWidth;
+      if (useShotgunSprite) {
+        g.rotate(SHOTGUN_ANGLE);
+        const zh = r * 4;
+        const zw = zh * playerShotgunImg.naturalWidth / playerShotgunImg.naturalHeight;
+        g.drawImage(playerShotgunImg, -zw / 2, -zh / 2, zw, zh);
+      } else if (useAkSprite) {
+        g.rotate(PLAYER_ANGLE);
+        const zh = r * 4;
+        const zw = zh * playerImg.naturalWidth / playerImg.naturalHeight;
+        g.drawImage(playerImg, -zw / 2, -zh / 2, zw, zh);
+      } else {
+        drawSoldier(g, p, r, {
+          walk: moving ? Math.sin(phase) : 0,
+          spin: p.spinAngle || 0,
+          swing: p.swingT || 0
+        });
+      }
     }
     g.restore();
 
@@ -1081,6 +1097,26 @@ const RENDER = (() => {
       g.lineWidth = 2;
       g.beginPath(); g.arc(0, 0, r + 6 + pulse * 2, 0, 7); g.stroke();
       g.restore();
+    }
+
+    // Downed indicator
+    if (p.downed) {
+      g.save();
+      g.translate(x, y);
+      const pulse = .5 + .5 * Math.sin(time * 6);
+      g.strokeStyle = `rgba(239,68,68,${.5 + pulse * .35})`;
+      g.lineWidth = 3;
+      g.beginPath(); g.arc(0, 0, r + 14 + pulse * 3, 0, 7); g.stroke();
+      g.restore();
+    }
+
+    // Revive progress bar
+    if (p.reviveProgress > 0) {
+      const bw = 40, bh = 5, barY = y - r - 26;
+      g.fillStyle = 'rgba(0,0,0,.6)';
+      roundRect(g, x - bw / 2, barY, bw, bh, 2); g.fill();
+      g.fillStyle = '#4ade80';
+      roundRect(g, x - bw / 2, barY, bw * p.reviveProgress, bh, 2); g.fill();
     }
 
     // Namensschild + HP
@@ -1987,7 +2023,7 @@ const RENDER = (() => {
   return {
     resize, buildMap, updateTiles, draw, worldToScreen, screenToWorld,
     drawAvatar, drawAvatarFront, shade,
-    setQuality,
+    setQuality, setPlayerWeaponClass,
     get quality() {
       return { level: qLevel, name: q().name, avgMs: Math.round(drawAvg * 100) / 100, pinned: qPinned >= 0 };
     },

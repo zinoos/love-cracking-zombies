@@ -28,13 +28,75 @@
       </button>
       <button class="btn big ghost" id="btn-skills">
         <span class="ico">⬡</span>
-        <span class="lines"><b>SKILLS</b><small>Upgrade your AK-47 with Damage Points</small></span>
+        <span class="lines"><b>SKILLS</b><small>Upgrade your weapon with Damage Points</small></span>
+      </button>
+      <button class="btn big ghost" id="btn-multiplayer">
+        <span class="ico">⟐</span>
+        <span class="lines"><b>MULTIPLAYER</b><small>Create or join a lobby — requires sign-in</small></span>
       </button>
       <button class="btn big ghost" id="btn-help">
         <span class="ico">⌨</span>
         <span class="lines"><b>CONTROLS</b><small>Keys &amp; rules</small></span>
       </button>
+      <button class="btn small ghost wide-btn" id="btn-switch-weapon" style="margin-top:2px">
+        <span>↻ Switch Weapon Class</span>
+      </button>
     </nav>
+
+    <div class="auth-area" id="auth-area">
+      <div class="auth-guest" id="auth-guest">
+        <button class="btn google-btn" id="btn-google-signin">
+          <span class="g-logo">G</span>
+          <span>Sign in with Google</span>
+        </button>
+        <p class="auth-hint">Sign in to play multiplayer and save progress</p>
+      </div>
+      <div class="auth-signed" id="auth-signed" style="display:none">
+        <img class="auth-avatar" id="auth-avatar" src="" alt="" />
+        <span class="auth-name" id="auth-name"></span>
+        <button class="btn small ghost" id="btn-signout">Sign out</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WEAPON SELECT ============ -->
+<section class="screen" id="scr-weapon-select">
+  <button class="back skill-back" id="ws-back" style="display:none">‹ Back</button>
+  <div class="menu-wrap">
+    <div class="logo">
+      <h1 class="title ws-title" data-text="CHOOSE YOUR WEAPON">Choose Your Weapon</h1>
+    </div>
+    <p class="ws-sub">Pick one weapon class. Your permanent skill tree will be built around this weapon.</p>
+    <div class="ws-cards">
+      <button class="ws-card" data-weapon="ak47">
+        <div class="ws-img"><img src="img/player.png" alt="AK-47 Operator"></div>
+        <div class="ws-info">
+          <span class="ws-name">AK-47</span>
+          <span class="ws-type">Assault Rifle</span>
+          <div class="ws-stats">
+            <span class="pro">&#9654; Versatile mid-range fighter</span>
+            <span class="pro">&#9654; High fire rate &amp; magazine</span>
+            <span class="pro">&#9654; 3 skill branches: Spreader, Destroyer, Survivor</span>
+            <span class="con">&#9660; Moderate per-bullet damage</span>
+          </div>
+        </div>
+      </button>
+      <button class="ws-card" data-weapon="shotgun">
+        <div class="ws-img"><img src="img/Adobe%20Express%20-%20file.png" alt="Shotgun Operator"></div>
+        <div class="ws-info">
+          <span class="ws-name">PUMP GUN</span>
+          <span class="ws-type">Shotgun</span>
+          <div class="ws-stats">
+            <span class="pro">&#9654; Devastating up close</span>
+            <span class="pro">&#9654; 8 pellets per shot — wide cone</span>
+            <span class="pro">&#9654; 3 skill branches: Breacher, Slugger, Juggernaut</span>
+            <span class="con">&#9660; Very limited range &amp; slow fire rate</span>
+          </div>
+        </div>
+      </button>
+    </div>
+    <p class="ws-note">You can switch weapons later from the main menu.</p>
   </div>
 </section>
 
@@ -251,16 +313,12 @@
 
 <!-- ============ SKILLS ============ -->
 <section class="screen" id="scr-skills">
-  <div class="panel wide">
-    <header class="phead">
-      <button class="back" data-back="scr-menu">‹ Back</button>
-      <h2>SKILL TREE</h2>
-      <div class="dp-display" id="dp-display">
-        <span class="dp-icon">⬡</span>
-        <span class="dp-amount" id="dp-amount">0</span>
-      </div>
-    </header>
-    <p class="hint">1 damage dealt = 1 Damage Point. Spend them to upgrade your AK-47.</p>
+  <button class="back skill-back" data-back="scr-menu">‹ Back</button>
+  <div class="dp-display skill-dp" id="dp-display">
+    <span class="dp-icon">⬡</span>
+    <span class="dp-amount" id="dp-amount">0</span>
+  </div>
+  <div class="st-viewport" id="st-viewport">
     <div class="skill-tree" id="skill-tree"></div>
   </div>
 </section>
@@ -281,7 +339,22 @@
       <div class="mapname" id="mapname">—</div>
     </div>
 
+    <div class="teammate-hud" id="teammate-hud"></div>
+
     <div class="killfeed" id="killfeed"></div>
+
+    <div class="revive-prompt" id="revive-prompt" style="display:none">
+      <span class="revive-key">F</span>
+      <span class="revive-text">Revive</span>
+      <div class="revive-bar"><i id="revive-fill"></i></div>
+    </div>
+
+    <div class="downed-overlay" id="downed-overlay" style="display:none">
+      <div class="downed-spin"></div>
+      <div class="downed-text">DOWNED</div>
+      <div class="downed-sub">Waiting for teammate to revive you…</div>
+      <div class="downed-timer" id="downed-timer">15</div>
+    </div>
 
     <div class="reconnect" id="reconnect">
       <div class="rc-spin"></div>
@@ -352,6 +425,8 @@
   If this stays up, the game server is currently offline.</small>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script src="js/config.js"></script>
 <script src="/shared/constants.js"></script>
 <script src="/shared/maps.js"></script>
